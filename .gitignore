@@ -1,0 +1,5 @@
+.fleet
+.idea
+node_modules
+*.go-e
+build
