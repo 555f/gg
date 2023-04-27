@@ -3,6 +3,8 @@ package options
 import (
 	"strings"
 
+	"github.com/555f/gg/pkg/gen"
+
 	"github.com/555f/gg/pkg/errors"
 	"github.com/555f/gg/pkg/gg"
 	"github.com/555f/gg/pkg/strcase"
@@ -18,7 +20,7 @@ type Config struct {
 	MarkdownDoc         bool
 	MarkdownTitle       string
 	MarkdownDescription string
-	MarkdownEnvFile     string
+	EnvsFile            string
 }
 
 type ConfigField struct {
@@ -48,7 +50,7 @@ func Decode(st *gg.Struct) (config Config, errs error) {
 		config.MarkdownDoc = true
 	}
 	if t, ok := st.Named.Tags.Get("cfg-env-file"); ok {
-		config.MarkdownEnvFile = t.Value
+		config.EnvsFile = t.Value
 	}
 	for _, field := range st.Type.Fields {
 		cf, err := DecodeField(nil, field)
@@ -81,7 +83,17 @@ func DecodeField(parent *ConfigField, f *types.StructFieldType) (cf ConfigField,
 	cf.Name = strings.ToUpper(strcase.ToScreamingSnake(f.Var.Name))
 	cf.Zero = f.Var.Zero
 
-	for _, structField := range extractFields(f.Var.Type) {
+	for _, structField := range gen.ExtractFields(f.Var.Type) {
+		switch t := structField.Var.Type.(type) {
+		case *types.Named:
+			switch t.Pkg.Path {
+			case "net/url":
+				if t.Name == "URL" && !t.IsPointer {
+					errs = multierror.Append(errs, errors.Error("invalid net/url.URL type, there must be a pointer", structField.Var.Position))
+				}
+			}
+		}
+
 		pf, err := DecodeField(&cf, structField)
 		if err != nil {
 			return ConfigField{}, errors.Error(err.Error(), structField.Var.Position)

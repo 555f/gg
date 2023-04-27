@@ -21,7 +21,7 @@ func (p *Plugin) Name() string { return "config" }
 
 func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 	configOutput := filepath.Join(ctx.Module.Dir, ctx.Options.GetStringWithDefault("output", "internal/config/config_loader.go"))
-	docOutput := filepath.Join(ctx.Module.Dir, ctx.Options.GetStringWithDefault("doc-output", "docs/config.md"))
+	docOutput := filepath.Join(ctx.Module.Dir, ctx.Options.GetStringWithDefault("doc-output", "docs/CONFIG.md"))
 
 	f := file.NewGoFile(ctx.Module, configOutput)
 
@@ -42,8 +42,8 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 			}
 			env.GenMarkdownDoc(opts)(mf)
 		}
-		if opts.MarkdownEnvFile != "" {
-			envsFileOutput := filepath.Join(ctx.Module.Dir, opts.MarkdownEnvFile)
+		if opts.EnvsFile != "" {
+			envsFileOutput := filepath.Join(ctx.Module.Dir, opts.EnvsFile)
 			jbf := file.NewTxtFile(envsFileOutput)
 			files = append(files, jbf)
 			env.GenEnvsFile(opts)(jbf)

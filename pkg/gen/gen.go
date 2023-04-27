@@ -53,6 +53,11 @@ func ParseValue(id, assignID Code, op string, t any, qualFunc types.QualFunc) (s
 		}
 	case *types.Named:
 		switch t.Pkg.Path {
+		case "net/url":
+			switch t.Name {
+			case "URL":
+				s.List(assignID, Err()).Op(op).Qual("net/url", "Parse").Call(id)
+			}
 		case "time":
 			switch t.Name {
 			case "Time":
@@ -122,6 +127,21 @@ func ParseValue(id, assignID Code, op string, t any, qualFunc types.QualFunc) (s
 		}
 	}
 	return s
+}
+
+func ExtractFields(v any) []*types.StructFieldType {
+	switch t := v.(type) {
+	default:
+		return nil
+	case *types.Struct:
+		return t.Fields
+	case *types.Named:
+		switch t.Pkg.Path {
+		case "net/url", "time", "gopkg.in/guregu/null.v4":
+			return nil
+		}
+		return ExtractFields(t.Type)
+	}
 }
 
 func WrapResponse(names []string, results []*options.EndpointResult, qualFunc types.QualFunc) func(g *Group) {
