@@ -203,9 +203,11 @@ func GenClient(s options.Iface, errorWrapper *options.ErrorWrapper) func(f *file
 						g.Return()
 					}),
 					Do(func(s *Statement) {
+						s.Var().Id("respBody")
 						if !endpoint.DisabledWrapResponse {
-							s.Var().Id("respBody").StructFunc(gen.WrapResponse(endpoint.WrapResponse, endpoint.BodyResults, f.Import))
-						} else {
+							s.StructFunc(gen.WrapResponse(endpoint.WrapResponse, endpoint.BodyResults, f.Import))
+						} else if len(endpoint.BodyResults) == 1 {
+							s.Add(types.Convert(endpoint.BodyResults[0].Type, f.Import))
 						}
 					}),
 					Id("err").Op("=").Qual("encoding/json", "NewDecoder").
@@ -215,18 +217,19 @@ func GenClient(s options.Iface, errorWrapper *options.ErrorWrapper) func(f *file
 						Return(),
 					)),
 					ReturnFunc(func(g *Group) {
-						var ids []Code
-						for _, name := range endpoint.WrapResponse {
-							ids = append(ids, Dot(strcase.ToCamel(name)))
+						if !endpoint.DisabledWrapResponse {
+							var ids []Code
+							for _, name := range endpoint.WrapResponse {
+								ids = append(ids, Dot(strcase.ToCamel(name)))
+							}
+							for _, result := range endpoint.BodyResults {
+								g.Id("respBody").Add(ids...).Dot(strcase.ToCamel(result.Name))
+							}
+						} else {
+							g.Id("respBody")
 						}
 
-						for _, result := range endpoint.Sig.Results {
-							if result.IsError {
-								g.Id(result.Name)
-								continue
-							}
-							g.Id("respBody").Add(ids...).Dot(strcase.ToCamel(result.Name))
-						}
+						g.Nil()
 					}),
 				)
 		}

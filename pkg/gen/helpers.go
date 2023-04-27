@@ -47,16 +47,16 @@ func formatFunc(id Code, t *types.Basic) func(s *Statement) {
 func parseFunc(id Code, t *types.Basic, qualFunc types.QualFunc) func(s *Statement) {
 	return func(s *Statement) {
 		if t.IsSigned() {
-			s.Qual("github.com/555f/helpers", "ParseInt").Types(types.Convert(t, qualFunc)).Call(id, Lit(10), Lit(t.BitSize()))
+			s.Qual("github.com/555f/go-strings", "ParseInt").Types(types.Convert(t, qualFunc)).Call(id, Lit(10), Lit(t.BitSize()))
 		}
 		if t.IsUnsigned() {
-			s.Qual("github.com/555f/helpers", "ParseUint").Types(types.Convert(t, qualFunc)).Call(id, Lit(10), Lit(t.BitSize()))
+			s.Qual("github.com/555f/go-strings", "ParseUint").Types(types.Convert(t, qualFunc)).Call(id, Lit(10), Lit(t.BitSize()))
 		}
 		if t.IsFloat() {
-			s.Qual("github.com/555f/helpers", "ParseFloat").Types(types.Convert(t, qualFunc)).Call(id, Lit(t.BitSize()))
+			s.Qual("github.com/555f/go-strings", "ParseFloat").Types(types.Convert(t, qualFunc)).Call(id, Lit(t.BitSize()))
 		}
 		if t.IsBool() {
-			s.Qual("github.com/555f/helpers", "ParseBool").Call(id)
+			s.Qual("github.com/555f/go-strings", "ParseBool").Call(id)
 		}
 	}
 }

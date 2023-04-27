@@ -22,8 +22,12 @@ func FormatValue(id Code, t any, qualFunc types.QualFunc, timeFormat string) (s 
 	case *types.Slice:
 		if basic, ok := t.Value.(*types.Basic); ok {
 			if basic.IsNumeric() {
-				s.Qual("github.com/555f/helpers", "SliceIntToString").Types(types.Convert(t.Value, qualFunc)).Call(id, Lit(","))
-			} else if basic.IsString() {
+				s.Qual("github.com/555f/go-strings", "JoinInt").Types(types.Convert(t.Value, qualFunc)).Call(id, Lit(","), Lit(10))
+			}
+			if basic.IsFloat() {
+				s.Qual("github.com/555f/go-strings", "JoinFloat").Types(types.Convert(t.Value, qualFunc)).Call(id, Lit(","), Lit('f'), Lit(2), Lit(64))
+			}
+			if basic.IsString() {
 				s.Qual("strings", "Join").Call(id, Lit(","))
 			}
 		}
@@ -49,6 +53,13 @@ func ParseValue(id, assignID Code, op string, t any, qualFunc types.QualFunc) (s
 		}
 	case *types.Named:
 		switch t.Pkg.Path {
+		case "time":
+			switch t.Name {
+			case "Time":
+				s.List(assignID, Err()).Op(op).Qual("time", "Parse").Call(Qual("time", "RFC3339"), id)
+			case "Duration":
+				s.List(assignID, Err()).Op(op).Qual("time", "ParseDuration").Call(id)
+			}
 		case "gopkg.in/guregu/null.v4":
 			switch t.Name {
 			case "String":
@@ -83,20 +94,32 @@ func ParseValue(id, assignID Code, op string, t any, qualFunc types.QualFunc) (s
 				})
 			}
 		}
+	case *types.Slice:
+		switch tv := t.Value.(type) {
+		case *types.Basic:
+			if tv.IsString() {
+				s.List(assignID, Err()).Op(op).Qual("github.com/555f/go-strings", "Split").Call(id, Lit(";"))
+			}
+			if tv.IsNumeric() {
+				s.List(assignID, Err()).Op(op).Qual("github.com/555f/go-strings", "SplitInt").Types(types.Convert(t.Value, qualFunc)).Call(id, Lit(";"), Lit(10), Lit(64))
+			}
+		}
 	case *types.Map:
 		switch tv := t.Value.(type) {
 		case *types.Basic:
-			if tv.IsNumeric() {
-				s.Qual("github.com/555f/helpers", "MapIntFromString")
+			if tv.IsSigned() {
+				s.List(assignID, Err()).Op(op).Qual("github.com/555f/go-strings", "SplitKeyValInt").Types(types.Convert(t.Value, qualFunc)).Call(id, Lit(","), Lit("="), Lit(10), Lit(64))
+			}
+			if tv.IsUnsigned() {
+				s.List(assignID, Err()).Op(op).Qual("github.com/555f/go-strings", "SplitKeyValUint").Types(types.Convert(t.Value, qualFunc)).Call(id, Lit(","), Lit("="), Lit(10), Lit(64))
 			}
 			if tv.IsFloat() {
-				s.Qual("github.com/555f/helpers", "MapFloatFromString")
+				s.List(assignID, Err()).Op(op).Qual("github.com/555f/go-strings", "SplitKeyValFloat").Types(types.Convert(t.Value, qualFunc)).Call(id, Lit(","), Lit("="), Lit(64))
 			}
 			if tv.IsString() {
-				s.Qual("github.com/555f/helpers", "MapStringFromString")
+				s.List(assignID, Err()).Op(op).Qual("github.com/555f/go-strings", "SplitKeyValString").Types(types.Convert(t.Value, qualFunc)).Call(id, Lit(","), Lit("="))
 			}
 		}
-		s.List(assignID, Err()).Op(op).Types(types.Convert(t.Value, qualFunc)).Call(id, Lit(","), Lit("="))
 	}
 	return s
 }
