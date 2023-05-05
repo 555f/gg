@@ -77,7 +77,10 @@ func GenServerOption(s options.Iface) func(f *file.GoFile) {
 									Id("serverErrorEncoder").Call(Id("r").Dot("Context").Call(), Id("rw"), Err()),
 									Return(),
 								))
-								g.Id("encodeJSONResponse").Call(Id("r").Dot("Context").Call(), Id("rw"), Id("resp"))
+								g.If(Err().Op(":=").Id("encodeJSONResponse").Call(Id("r").Dot("Context").Call(), Id("rw"), Id("resp")), Err().Op("!=").Nil()).Block(
+									Id("serverErrorEncoder").Call(Id("r").Dot("Context").Call(), Id("rw"), Err()),
+									Return(),
+								)
 							}),
 						),
 						Id(lcName+"Opts").Op("..."),

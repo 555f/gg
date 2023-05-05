@@ -17,6 +17,7 @@ func GenServer(errorWrapper *options.ErrorWrapper) func(f *file.GoFile) {
 				Id("w").Qual("net/http", "ResponseWriter"),
 				Id("response").Any(),
 			).
+			Params(Error()).
 			Block(
 				Id("statusCode").Op(":=").Lit(200),
 				Var().Id("data").Qual("bytes", "Buffer"),
@@ -34,7 +35,7 @@ func GenServer(errorWrapper *options.ErrorWrapper) func(f *file.GoFile) {
 						Id("data").Op("=").Id("v").Dot("Data").Call(),
 					).Else().Block(
 						If(Err().Op(":=").Qual("encoding/json", "NewEncoder").Call(Op("&").Id("data")).Dot("Encode").Call(Id("response")), Err().Op("!=").Nil()).Block(
-							Return(),
+							Return(Err()),
 						),
 					),
 					If(List(Id("v"), Id("ok")).Op(":=").Id("response").Assert(Id("headerer")), Id("ok")).Block(
@@ -54,8 +55,9 @@ func GenServer(errorWrapper *options.ErrorWrapper) func(f *file.GoFile) {
 				),
 				Id("w").Dot("WriteHeader").Call(Id("statusCode")),
 				If(List(Id("_"), Err()).Op(":=").Id("w").Dot("Write").Call(Id("data").Dot("Bytes").Call()), Err().Op("!=").Nil()).Block(
-					Panic(Err()),
+					Return(Err()),
 				),
+				Return(Nil()),
 			)
 
 		f.Func().Id("serverErrorEncoder").Params(
