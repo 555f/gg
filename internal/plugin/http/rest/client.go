@@ -80,38 +80,41 @@ func GenClient(s options.Iface, errorWrapper *options.ErrorWrapper) func(f *file
 						}
 					}),
 					List(Id("ctx"), Id("cancel")).Op(":=").Qual("context", "WithCancel").Call(Id(recvName).Dot("methodOpts").Dot("ctx")),
-					Id("path").Op(":=").Qual("fmt", "Sprintf").Do(func(s *Statement) {
-						var paramsCall []Code
+					Do(func(s *Statement) {
+						if len(endpoint.PathParams) > 0 {
+							var paramsCall []Code
+							parts := strings.Split(endpoint.Path, "/")
+							pathParamsMap := make(map[string]*options.EndpointParam, len(endpoint.PathParams))
+							for _, param := range endpoint.PathParams {
+								pathParamsMap[param.Name] = param
+							}
 
-						parts := strings.Split(endpoint.Path, "/")
-						pathParamsMap := make(map[string]*options.EndpointParam, len(endpoint.PathParams))
-						for _, param := range endpoint.PathParams {
-							pathParamsMap[param.Name] = param
-						}
+							for i, part := range parts {
+								startIndex := strings.Index(part, "{")
+								endIndex := strings.Index(part, "}")
 
-						for i, part := range parts {
-							startIndex := strings.Index(part, "{")
-							endIndex := strings.Index(part, "}")
-
-							if startIndex != -1 && endIndex != -1 {
-								paramName := part[startIndex+1 : endIndex]
-								if param, ok := pathParamsMap[paramName]; ok {
-									parts[i] = "%s"
-									if tp, ok := param.Type.(*types.Basic); ok {
-										if tp.IsSigned() || tp.IsUnsigned() {
-											parts[i] = "%d"
-										} else if tp.IsFloat() {
-											parts[i] = "%f"
+								if startIndex != -1 && endIndex != -1 {
+									paramName := part[startIndex+1 : endIndex]
+									if param, ok := pathParamsMap[paramName]; ok {
+										parts[i] = "%s"
+										if tp, ok := param.Type.(*types.Basic); ok {
+											if tp.IsSigned() || tp.IsUnsigned() {
+												parts[i] = "%d"
+											} else if tp.IsFloat() {
+												parts[i] = "%f"
+											}
 										}
 									}
 								}
 							}
+							paramsCall = append(paramsCall, Lit(strings.Join(parts, "/")))
+							for _, name := range endpoint.ParamsNameIdx {
+								paramsCall = append(paramsCall, Id(recvName).Dot("params").Dot(name))
+							}
+							s.Id("path").Op(":=").Qual("fmt", "Sprintf").Call(paramsCall...)
+						} else {
+							s.Id("path").Op(":=").Lit(endpoint.Path)
 						}
-						paramsCall = append(paramsCall, Lit(strings.Join(parts, "/")))
-						for _, name := range endpoint.ParamsNameIdx {
-							paramsCall = append(paramsCall, Id(recvName).Dot("params").Dot(name))
-						}
-						s.Call(paramsCall...)
 					}),
 					List(Id("req"), Err()).Op(":=").Qual("net/http", "NewRequest").
 						Call(Lit(endpoint.HTTPMethod), Id(recvName).Dot("c").Dot("target").Op("+").Id("path"), Nil()),
