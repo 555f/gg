@@ -6,6 +6,7 @@ import (
 	_ "github.com/555f/gg/internal/plugin/http"
 	_ "github.com/555f/gg/internal/plugin/logging"
 	_ "github.com/555f/gg/internal/plugin/middleware"
+	_ "github.com/555f/gg/internal/plugin/slog"
 )
 
 func Main(version string) {
