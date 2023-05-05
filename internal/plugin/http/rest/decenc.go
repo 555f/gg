@@ -5,7 +5,6 @@ import (
 	"github.com/555f/gg/pkg/file"
 	"github.com/555f/gg/pkg/gen"
 	"github.com/555f/gg/pkg/types"
-
 	. "github.com/dave/jennifer/jen"
 )
 
@@ -52,17 +51,18 @@ func GenEncDec(s options.Iface) func(f *file.GoFile) {
 													stParams = append(stParams, st)
 												}
 												g.Var().Id("body").Struct(stParams...)
-												g.Var().Id("data").Index().Byte()
-												g.List(Id("data"), Err()).
-													Op("=").
-													Qual("io", "ReadAll").
-													Call(Id("r").Dot("Body"))
+
+												g.Var().Id("wb").Op("=").Make(Index().Byte(), Lit(0), Lit(10485760)) // 10MB
+												g.Id("buf").Op(":=").Qual("bytes", "NewBuffer").Call(Id("wb"))
+												g.List(Id("written"), Id("err")).Op(":=").Qual("io", "Copy").Call(Id("buf"), Id("r").Dot("Body"))
 												g.Do(gen.CheckErr(
-													Return(),
+													Return(Nil(), Err()),
 												))
+												g.Id("data").Op(":=").Id("wd").Index(Op(":").Id("written"))
+
 												g.Err().Op("=").Qual("encoding/xml", "Unmarshal").Call(Id("data"), Op("&").Id("body"))
 												g.Do(gen.CheckErr(
-													Return(),
+													Return(Nil(), Err()),
 												))
 												for _, p := range ep.BodyParams {
 													g.Id("param").Dot(p.FldNameUnExport).Op("=").Id("body").Dot(p.FldName)
@@ -79,17 +79,18 @@ func GenEncDec(s options.Iface) func(f *file.GoFile) {
 													stParams = append(stParams, st)
 												}
 												g.Var().Id("body").Struct(stParams...)
-												g.Var().Id("data").Index().Byte()
-												g.List(Id("data"), Err()).
-													Op("=").
-													Qual("io", "ReadAll").
-													Call(Id("r").Dot("Body"))
+
+												g.Var().Id("wb").Op("=").Make(Index().Byte(), Lit(0), Lit(10485760)) // 10MB
+												g.Id("buf").Op(":=").Qual("bytes", "NewBuffer").Call(Id("wb"))
+												g.List(Id("written"), Id("err")).Op(":=").Qual("io", "Copy").Call(Id("buf"), Id("r").Dot("Body"))
 												g.Do(gen.CheckErr(
-													Return(),
+													Return(Nil(), Err()),
 												))
+												g.Id("data").Op(":=").Id("wb").Index(Op(":").Id("written"))
+
 												g.Err().Op("=").Qual("encoding/json", "Unmarshal").Call(Id("data"), Op("&").Id("body"))
 												g.Do(gen.CheckErr(
-													Return(),
+													Return(Nil(), Err()),
 												))
 												for _, p := range ep.BodyParams {
 													g.Id("param").Dot(p.FldNameUnExport).Op("=").Id("body").Dot(p.FldName)
@@ -98,22 +99,30 @@ func GenEncDec(s options.Iface) func(f *file.GoFile) {
 										case "urlencoded":
 											g.Case(Lit("application/x-www-form-urlencoded")).BlockFunc(func(g *Group) {
 												g.Err().Op("=").Id("r").Dot("ParseForm").Call()
-												g.Do(gen.CheckErr(Return()))
+												g.Do(gen.CheckErr(
+													Return(Nil(), Err()),
+												))
 												for _, p := range ep.BodyParams {
 													g.Add(gen.ParseValue(Id("r").Dot("Form").Dot("Get").Call(Lit(p.Name)), Id("param").Dot(p.FldNameUnExport), "=", p.Type, f.Import))
 													if b, ok := p.Type.(*types.Basic); (ok && !b.IsString()) || !ok {
-														g.Do(gen.CheckErr(Return()))
+														g.Do(gen.CheckErr(
+															Return(Nil(), Err()),
+														))
 													}
 												}
 											})
 										case "multipart":
 											g.Case(Lit("multipart/form-data")).BlockFunc(func(g *Group) {
 												g.Err().Op("=").Id("r").Dot("ParseMultipartForm").Call(Lit(ep.MultipartMaxMemory))
-												g.Do(gen.CheckErr(Return()))
+												g.Do(gen.CheckErr(
+													Return(Nil(), Err()),
+												))
 												for _, p := range ep.BodyParams {
 													g.Add(gen.ParseValue(Id("r").Dot("FormValue").Call(Lit(p.Name)), Id("param").Dot(p.FldNameUnExport), "=", p.Type, f.Import))
 													if b, ok := p.Type.(*types.Basic); (ok && !b.IsString()) || !ok {
-														g.Do(gen.CheckErr(Return()))
+														g.Do(gen.CheckErr(
+															Return(Nil(), Err()),
+														))
 													}
 												}
 											})
@@ -128,7 +137,9 @@ func GenEncDec(s options.Iface) func(f *file.GoFile) {
 							for _, p := range ep.PathParams {
 								g.If(Id("s").Op(":=").Id("q").Dot("Get").Call(Lit(p.Name)), Id("s").Op("!=").Lit("")).Block(
 									Add(gen.ParseValue(Id("s"), Id("param").Dot(p.FldNameUnExport), "=", p.Type, f.Import)),
-									Do(gen.CheckErr(Return())),
+									Do(gen.CheckErr(
+										Return(Nil(), Err()),
+									)),
 								)
 							}
 
@@ -150,7 +161,9 @@ func GenEncDec(s options.Iface) func(f *file.GoFile) {
 						if len(ep.Params) > 0 {
 							g.Return(Id("param"), Nil())
 						} else {
-							g.Return()
+							g.Return(
+								Return(Nil(), Err()),
+							)
 						}
 					})
 			}
