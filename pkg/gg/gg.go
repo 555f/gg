@@ -16,7 +16,7 @@ import (
 	stdpackages "golang.org/x/tools/go/packages"
 )
 
-func Run(wd string, packages []*stdpackages.Package, plugins map[string]any) (allFiles []file.File, errs error) {
+func Run(packages []*stdpackages.Package, plugins map[string]any) (allFiles []file.File, errs error) {
 	module, err := Module(packages)
 	if err != nil {
 		errs = multierror.Append(errs, errors.Error("the golang module was not found, see for more details https://go.dev/blog/using-go-modules", token.Position{}))

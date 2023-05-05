@@ -87,7 +87,7 @@ var runCmd = &cobra.Command{
 
 		var isExitApp bool
 
-		files, err := gg.Run(wdAbs, pkgs, plugins)
+		files, err := gg.Run(pkgs, plugins)
 		if err != nil {
 			if merr, ok := err.(*multierror.Error); ok {
 				merr.ErrorFormat = func(es []error) string {
