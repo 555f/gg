@@ -49,19 +49,6 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 	openapiOutput = filepath.Join(ctx.Module.Dir, openapiOutput)
 	apiDocOutput = filepath.Join(ctx.Module.Dir, apiDocOutput)
 
-	var openAPI openapi.OpenAPI
-	openapiTmpl := ctx.Options.GetString("openapi-tpl")
-	if openapiTmpl != "" {
-		openapiTmplPath := path.Join(ctx.Module.Dir, openapiTmpl)
-		data, err := os.ReadFile(openapiTmplPath)
-		if err != nil {
-			errs = multierror.Append(errs, errors.Error(err.Error(), token.Position{}))
-		}
-		if err := yaml.Unmarshal(data, &openAPI); err != nil {
-			errs = multierror.Append(errs, errors.Error(err.Error(), token.Position{}))
-		}
-	}
-
 	var (
 		serverServices  []options.Iface
 		clientServices  []options.Iface
@@ -113,6 +100,19 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 			}
 		}
 		if len(openapiServices) > 0 {
+			var openAPI openapi.OpenAPI
+			openapiTmpl := ctx.Options.GetString("openapi-tpl")
+			if openapiTmpl != "" {
+				openapiTmplPath := path.Join(ctx.Module.Dir, openapiTmpl)
+				data, err := os.ReadFile(openapiTmplPath)
+				if err != nil {
+					errs = multierror.Append(errs, errors.Error(err.Error(), token.Position{}))
+				}
+				if err := yaml.Unmarshal(data, &openAPI); err != nil {
+					errs = multierror.Append(errs, errors.Error(err.Error(), token.Position{}))
+				}
+			}
+
 			opFile := file.NewTxtFile(openapiOutput)
 			files = append(files, opFile)
 			openapidoc.Gen(openAPI, openapiServices, httpErrors)(opFile)
