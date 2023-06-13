@@ -74,42 +74,41 @@ type QueryValue struct {
 }
 
 type Endpoint struct {
-	Name                 string
-	MethodName           string
-	Title                string
-	Description          string
-	ReqStructName        string
-	RespStructName       string
-	ReqDecodeName        string
-	Pattern              string
-	HTTPMethod           string
-	Path                 string
-	ParamsIdxName        map[string]int
-	ParamsNameIdx        []string
-	MultipartMaxMemory   int64
-	ReqRootXMLName       string
-	RespRootXMLName      string
-	ContentTypes         []string
-	AcceptTypes          []string
-	OpenapiTags          []string
-	QueryValues          []QueryValue
-	WrapResponse         []string
-	Params               []*EndpointParam
-	BodyParams           []*EndpointParam
-	QueryParams          []*EndpointParam
-	HeaderParams         []*EndpointParam
-	CookieParams         []*EndpointParam
-	PathParams           []*EndpointParam
-	Results              []*EndpointResult
-	BodyResults          []*EndpointResult
-	HeaderResults        []*EndpointResult
-	CookieResults        []*EndpointResult
-	Errors               []string
-	DisabledWrapResponse bool
-	TimeFormat           string
-	Context              *types.Var
-	Error                *types.Var
-	Sig                  *types.Sign
+	Name               string
+	MethodName         string
+	Title              string
+	Description        string
+	ReqStructName      string
+	RespStructName     string
+	ReqDecodeName      string
+	HTTPMethod         string
+	Path               string
+	ParamsIdxName      map[string]int
+	ParamsNameIdx      []string
+	MultipartMaxMemory int64
+	ReqRootXMLName     string
+	RespRootXMLName    string
+	ContentTypes       []string
+	AcceptTypes        []string
+	OpenapiTags        []string
+	QueryValues        []QueryValue
+	WrapResponse       []string
+	Params             []*EndpointParam
+	BodyParams         []*EndpointParam
+	QueryParams        []*EndpointParam
+	HeaderParams       []*EndpointParam
+	CookieParams       []*EndpointParam
+	PathParams         []*EndpointParam
+	Results            []*EndpointResult
+	BodyResults        []*EndpointResult
+	HeaderResults      []*EndpointResult
+	CookieResults      []*EndpointResult
+	Errors             []string
+	NoWrapResponse     bool
+	TimeFormat         string
+	Context            *types.Var
+	Error              *types.Var
+	Sig                *types.Sign
 }
 
 type EndpointParam struct {
@@ -275,25 +274,17 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 		opts.Path = t.Value
 
 	}
+
 	if ifaceOpts.Type == "rest" {
 		parts := strings.Split(opts.Path, "/")
 		opts.ParamsIdxName = make(map[string]int, len(parts))
-		for i, part := range parts {
-			startIndex := strings.Index(part, "{")
-			endIndex := strings.Index(part, "}")
-
-			if startIndex != -1 && endIndex != -1 {
-				expr := "([^/]+)"
-				if exprIndex := strings.Index(part, ":"); exprIndex != -1 {
-					expr = part[exprIndex:endIndex]
-				}
-				paramName := part[startIndex+1 : endIndex]
+		for _, part := range parts {
+			if strings.HasPrefix(part, ":") {
+				paramName := part[1:]
 				opts.ParamsNameIdx = append(opts.ParamsNameIdx, paramName)
 				opts.ParamsIdxName[paramName] = len(opts.ParamsNameIdx) - 1
-				parts[i] = expr + part[endIndex+1:len(part)]
 			}
 		}
-		opts.Pattern = strings.Join(parts, "/")
 	}
 	if opts.Path == "" && ifaceOpts.Type == "jsonrpc" {
 		opts.Path = strcase.ToLowerCamel(ifaceOpts.Name) + "." + strcase.ToLowerCamel(method.Name)
@@ -360,9 +351,9 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 		opts.WrapResponse = strings.Split(t.Value, ".")
 	}
 	if _, ok := method.Tags.Get("http-nowrap-response"); ok {
-		opts.DisabledWrapResponse = true
+		opts.NoWrapResponse = true
 	}
-	if len(opts.WrapResponse) > 0 && opts.DisabledWrapResponse {
+	if len(opts.WrapResponse) > 0 && opts.NoWrapResponse {
 		errs = multierror.Append(errs, errors.Warn("the http-wrap-response tag conflicts with http-nowrap-response", method.Position))
 	}
 	errorTags := method.Tags.GetSlice("http-error")
@@ -387,10 +378,17 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 			errs = multierror.Append(errs, errors.Error("the parameter name cannot be empty or the http-name parameter must be set", param.Position))
 		}
 
-		p, err := makeEndpointParam(nil, param, opts.ParamsIdxName)
+		p, err := makeEndpointParam(nil, param)
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		}
+
+		if _, ok := opts.ParamsIdxName[param.Name]; ok {
+			p.HTTPType = "path"
+			p.Name = param.Name
+			p.Required = true
+		}
+
 		opts.Params = append(opts.Params, p)
 	}
 	for _, result := range method.Sig.Results {
@@ -408,7 +406,7 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 			errs = multierror.Append(errs, errors.Error("the parameter name cannot be empty or the http-name parameter must be set", result.Position))
 		}
 		if name, ok := checkBasicType(result.Type); ok {
-			if opts.DisabledWrapResponse {
+			if opts.NoWrapResponse {
 				errs = multierror.Append(errs, errors.Error("the \"@http-nowrap-response\" tag cannot be used for basic type "+name, result.Position))
 			}
 			if name == "[]byte" {
@@ -462,6 +460,9 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 	}
 	if len(opts.PathParams) != len(opts.ParamsNameIdx) {
 		errs = multierror.Append(errs, errors.Error("the method has no parameters found for the http-path tag, the required parameters: "+strings.Join(opts.ParamsNameIdx, ", "), method.Position))
+	}
+	if opts.NoWrapResponse && len(opts.Results) != 1 {
+		errs = multierror.Append(errs, errors.Error("the \"@http-nowrap-response\" tag can be used for only one return parameter", method.Position))
 	}
 	return
 }

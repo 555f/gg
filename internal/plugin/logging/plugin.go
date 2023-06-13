@@ -58,8 +58,6 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 				),
 		)
 
-	//pkgLogging := path.Dir(path.Join(ctx.Module.Path, output))
-
 	for _, iface := range ctx.Interfaces {
 		nameStruct := p.NameStruct(iface.Named)
 		nameMiddleware := middlewarePlugin.NameMiddleware(iface.Named)
@@ -175,20 +173,20 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 					Id("s").Op("*").Id(nameStruct),
 				).
 				Id(method.Name).Add(types.Convert(method.Sig, f.Import)).
-				BlockFunc(func(group *Group) {
-					group.Defer().
+				BlockFunc(func(g *Group) {
+					g.Defer().
 						Func().
 						Params(
 							Id("now").Qual(timePkg, "Time"),
 						).
-						BlockFunc(func(group *Group) {
-							group.Id("logger").
+						BlockFunc(func(g *Group) {
+							g.Id("logger").
 								Op(":=").
 								Qual(loggerPkg, "WithPrefix").
 								Call(logParams...)
 							if len(errorVars) > 0 {
 								for _, e := range errorVars {
-									group.If(Id(e.Name)).Op("!=").Nil().Block(
+									g.If(Id(e.Name)).Op("!=").Nil().Block(
 										If(List(Id("e"), Id("ok")).
 											Op(":=").
 											Id(e.Name).Assert(Id("errLevel")).
@@ -212,18 +210,18 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 									)
 								}
 							} else {
-								group.Id("logger").Op("=").Qual(levelPkg, "Debug").Call(Id("logger"))
+								g.Id("logger").Op("=").Qual(levelPkg, "Debug").Call(Id("logger"))
 							}
-							group.Id("_").Op("=").Id("logger").Dot("Log").Call()
+							g.Id("_").Op("=").Id("logger").Dot("Log").Call(Lit("dur"), Qual("time", "Since").Call(Id("now")))
 						}).Call(Qual(timePkg, "Now").Call())
 
 					if len(results) > 0 {
-						group.List(results...).Op("=").Id("s").Dot("next").Dot(method.Name).Call(callParams...)
+						g.List(results...).Op("=").Id("s").Dot("next").Dot(method.Name).Call(callParams...)
 					} else {
-						group.Id("s").Dot("next").Dot(method.Name).Call(callParams...)
+						g.Id("s").Dot("next").Dot(method.Name).Call(callParams...)
 					}
 					if len(results) > 0 {
-						group.Return()
+						g.Return()
 					}
 				})
 		}

@@ -41,7 +41,6 @@ func GenServerOption(s options.Iface) func(f *file.GoFile) {
 							if len(ep.Params) > 0 {
 								g.List(reqData, Err()).Op(":=").Id(ep.ReqDecodeName).Call(Id("ctx"), Id("r"), Id("params"))
 								g.Do(gen.CheckErr(
-									//Id("serverErrorEncoder").Call(Id("ctx"), Id("w"), Err()),
 									Return(Nil(), Err()),
 								))
 							} else {
@@ -54,11 +53,8 @@ func GenServerOption(s options.Iface) func(f *file.GoFile) {
 								),
 							).Call(Id(ep.Name).Call(Id("svc"))).Call(Id("ctx"), reqData)
 							g.Do(gen.CheckErr(
-								//Id("serverErrorEncoder").Call(Id("ctx"), Id("w"), Err()),
 								Return(Nil(), Err()),
 							))
-							//g.Id("encodeJSONResponse").Call(Id("ctx"), Id("w"), Id("resp"))
-
 							g.Return(Id("resp"), Nil())
 						}),
 						Append(Id(optionName).Dot("before"), Id(optionName).Dot(lcName).Dot("before").Op("...")),

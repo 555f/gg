@@ -13,78 +13,9 @@ import (
 func GenClient(s options.Iface) func(f *file.GoFile) {
 	return func(f *file.GoFile) {
 		clientName := s.Name + "Client"
-		clientRecvName := strcase.ToLowerCamel(s.Name)
-
 		f.Type().Id(clientName).StructFunc(func(g *Group) {
-			g.Id("client").Op("*").Qual("net/http", "Client")
-			g.Id("target").String()
-			g.Id("incrementID").Uint64()
-			g.Id("methodOpts").Op("*").Id("clientMethodOptions")
+			g.Op("*").Qual("github.com/555f/jsonrpc", "Client")
 		})
-
-		f.Func().Params(Id(clientRecvName).Op("*").Id(clientName)).Id("autoIncrementID").Params().Uint64().Block(
-			Return(Do(f.Import("sync/atomic", "AddUint64")).Call(Op("&").Id(clientRecvName).Dot("incrementID"), Lit(1))),
-		)
-
-		f.Func().Params(Id(clientRecvName).Op("*").Id(clientName)).Id("Execute").Params(Id("requests").Op("...").Id("clientRequester")).Params(Op("*").Id("BatchResult"), Error()).Block(
-			Id(clientRecvName).Dot("incrementID").Op("=").Lit(0),
-			List(Id("req"), Err()).Op(":=").Do(f.Import("net/http", "NewRequest")).Call(Lit("POST"), Id(clientRecvName).Dot("target"), Nil()),
-			Do(gen.CheckErr(Return(Nil(), Err()))),
-			Id("idsIndex").Op(":=").Id("make").Call(Map(Uint64()).Int(), Len(Id("requests"))),
-			Id("rpcRequests").Op(":=").Id("make").Call(Index().Id("clientReq"), Len(Id("requests"))),
-			For(List(Id("_"), Id("beforeFunc")).Op(":=").Range().Id(clientRecvName).Dot("methodOpts").Dot("before")).Block(
-				Id("req").Op("=").Id("req").Dot("WithContext").Call(
-					Id("beforeFunc").Call(Id("req").Dot("Context").Call(), Id("req")),
-				),
-			),
-			For(List(Id("i"), Id("request")).Op(":=").Range().Id("requests")).Block(
-				Id("req").Op("=").Id("req").Dot("WithContext").Call(Id("request").Dot("context").Call()),
-				For(List(Id("_"), Id("beforeFunc")).Op(":=").Range().Id("request").Dot("before").Call()).Block(
-					Id("req").Op("=").Id("req").Dot("WithContext").Call(
-						Id("beforeFunc").Call(Id("req").Dot("Context").Call(), Id("req")),
-					),
-				),
-				List(Id("methodName"), Id("params")).Op(":=").Id("request").Dot("makeRequest").Call(),
-				Id("r").Op(":=").Id("clientReq").Values(
-					Id("ID").Op(":").Id(clientRecvName).Dot("autoIncrementID").Call(),
-					Id("Version").Op(":").Lit("2.0"),
-					Id("Method").Op(":").Id("methodName"),
-					Id("Params").Op(":").Id("params"),
-				),
-				Id("idsIndex").Index(Id("r").Dot("ID")).Op("=").Id("i"),
-				Id("rpcRequests").Index(Id("i")).Op("=").Id("r"),
-			),
-			Id("buf").Op(":=").Do(f.Import("bytes", "NewBuffer")).Call(Nil()),
-			If(Err().Op(":=").Do(f.Import("encoding/json", "NewEncoder")).Call(Id("buf")).Dot("Encode").Call(Id("rpcRequests")), Err().Op("!=").Nil()).Block(
-				Return(Nil(), Err()),
-			),
-			Id("req").Dot("Body").Op("=").Do(f.Import("io", "NopCloser")).Call(Id("buf")),
-			List(Id("resp"), Err()).Op(":=").Id(clientRecvName).Dot("client").Dot("Do").Call(Id("req")),
-			Do(gen.CheckErr(Return(Nil(), Err()))),
-			Id("responses").Op(":=").Id("make").Call(Index().Id("clientResp"), Len(Id("requests"))),
-			If(Err().Op(":=").Do(f.Import("encoding/json", "NewDecoder")).Call(Id("resp").Dot("Body")).Dot("Decode").Call(Op("&").Id("responses")), Err().Op("!=").Nil()).Block(
-				Return(Nil(), Err()),
-			),
-			Id("batchResult").Op(":=").Op("&").Id("BatchResult").Values(
-				Id("results").Op(":").Id("make").Call(Index().Any(), Len(Id("requests"))),
-			),
-
-			For(List(Id("_"), Id("response")).Op(":=").Range().Id("responses")).Block(
-				For(List(Id("_"), Id("afterFunc")).Op(":=").Range().Id(clientRecvName).Dot("methodOpts").Dot("after")).Block(
-					Id("afterFunc").Call(Id("resp").Dot("Request").Dot("Context").Call(), Id("resp"), Id("response").Dot("Result")),
-				),
-				Id("i").Op(":=").Id("idsIndex").Index(Id("response").Dot("ID")),
-				Id("request").Op(":=").Id("requests").Index(Id("i")),
-				For(List(Id("_"), Id("afterFunc")).Op(":=").Range().Id("request").Dot("after").Call()).Block(
-					Id("afterFunc").Call(Id("resp").Dot("Request").Dot("Context").Call(), Id("resp"), Id("response").Dot("Result")),
-				),
-				List(Id("result"), Err()).Op(":=").Id("request").Dot("makeResult").Call(Id("response").Dot("Result")),
-				Do(gen.CheckErr(Return(Nil(), Err()))),
-				Id("batchResult").Dot("results").Index(Id("i")).Op("=").Id("result"),
-			),
-			Return(Id("batchResult"), Nil()),
-		)
-
 		for _, endpoint := range s.Endpoints {
 			methodRequestName := s.Name + endpoint.MethodName + "Request"
 			recvName := strcase.ToLowerCamel(endpoint.MethodName)
@@ -100,8 +31,6 @@ func GenClient(s options.Iface) func(f *file.GoFile) {
 
 			f.Type().Id(methodRequestName).StructFunc(func(g *Group) {
 				g.Id("c").Op("*").Id(clientName)
-				g.Id("client").Op("*").Qual("net/http", "Client")
-				g.Id("methodOpts").Op("*").Id("clientMethodOptions")
 				g.Id("params").StructFunc(func(g *Group) {
 					for _, param := range endpoint.Params {
 						if len(param.Params) > 0 {
@@ -113,6 +42,9 @@ func GenClient(s options.Iface) func(f *file.GoFile) {
 						g.Add(makeRequestStructParam(nil, param, f.Import))
 					}
 				})
+				g.Id("before").Index().Qual("github.com/555f/jsonrpc", "ClientBeforeFunc")
+				g.Id("after").Index().Qual("github.com/555f/jsonrpc", "ClientAfterFunc")
+				g.Id("ctx").Qual("context", "Context")
 			})
 
 			for _, param := range endpoint.Params {
@@ -127,7 +59,7 @@ func GenClient(s options.Iface) func(f *file.GoFile) {
 				}
 			}
 
-			f.Func().Params(Id(recvName).Op("*").Id(methodRequestName)).Id("makeRequest").Params().Params(String(), Any()).
+			f.Func().Params(Id(recvName).Op("*").Id(methodRequestName)).Id("MakeRequest").Params().Params(String(), Any()).
 				BlockFunc(func(g *Group) {
 					g.Var().Id("params").StructFunc(func(g *Group) {
 						for _, param := range endpoint.BodyParams {
@@ -151,7 +83,37 @@ func GenClient(s options.Iface) func(f *file.GoFile) {
 					)
 				})
 
-			f.Func().Params(Id(recvName).Op("*").Id(methodRequestName)).Id("makeResult").Params(Id("data").Index().Byte()).Params(Any(), Error()).
+			f.Func().Params(Id(recvName).Op("*").Id(methodRequestName)).Id("SetBefore").Params(
+				Id("before").Op("...").Qual("github.com/555f/jsonrpc", "ClientBeforeFunc"),
+			).Op("*").Id(methodRequestName).Block(
+				Id(recvName).Dot("before").Op("=").Id("before"),
+				Return(Id(recvName)),
+			)
+
+			f.Func().Params(Id(recvName).Op("*").Id(methodRequestName)).Id("SetAfter").Params(
+				Id("after").Op("...").Qual("github.com/555f/jsonrpc", "ClientAfterFunc"),
+			).Op("*").Id(methodRequestName).Block(
+				Id(recvName).Dot("after").Op("=").Id("after"),
+				Return(Id(recvName)),
+			)
+
+			f.Func().Params(Id(recvName).Op("*").Id(methodRequestName)).Id("WithContext").Params(
+				Id("ctx").Qual("context", "Context"),
+			).Op("*").Id(methodRequestName).Block(
+				Id(recvName).Dot("ctx").Op("=").Id("ctx"),
+				Return(Id(recvName)),
+			)
+
+			f.Func().Params(Id(recvName).Op("*").Id(methodRequestName)).Id("RawExecute").Params().Params(
+				Index().Byte(),
+				Map(Uint64()).Int(),
+				Op("*").Qual("net/http", "Response"),
+				Error(),
+			).Block(
+				Return(Id(recvName).Dot("c").Dot("RawExecute").Call(Id(recvName))),
+			)
+
+			f.Func().Params(Id(recvName).Op("*").Id(methodRequestName)).Id("MakeResult").Params(Id("data").Index().Byte()).Params(Any(), Error()).
 				BlockFunc(func(g *Group) {
 					if len(endpoint.BodyResults) > 0 {
 						g.Var().Id("result").Id(resultName)
@@ -170,16 +132,16 @@ func GenClient(s options.Iface) func(f *file.GoFile) {
 					}
 				})
 
-			f.Func().Params(Id(recvName).Op("*").Id(methodRequestName)).Id("before").Params().Index().Id("ClientBeforeFunc").Block(
-				Return(Id(recvName).Dot("methodOpts").Dot("before")),
+			f.Func().Params(Id(recvName).Op("*").Id(methodRequestName)).Id("Before").Params().Index().Qual("github.com/555f/jsonrpc", "ClientBeforeFunc").Block(
+				Return(Id(recvName).Dot("before")),
 			)
 
-			f.Func().Params(Id(recvName).Op("*").Id(methodRequestName)).Id("after").Params().Index().Id("ClientAfterFunc").Block(
-				Return(Id(recvName).Dot("methodOpts").Dot("after")),
+			f.Func().Params(Id(recvName).Op("*").Id(methodRequestName)).Id("After").Params().Index().Qual("github.com/555f/jsonrpc", "ClientAfterFunc").Block(
+				Return(Id(recvName).Dot("after")),
 			)
 
-			f.Func().Params(Id(recvName).Op("*").Id(methodRequestName)).Id("context").Params().Do(f.Import("context", "Context")).Block(
-				Return(Id(recvName).Dot("methodOpts").Dot("ctx")),
+			f.Func().Params(Id(recvName).Op("*").Id(methodRequestName)).Id("Context").Params().Do(f.Import("context", "Context")).Block(
+				Return(Id(recvName).Dot("ctx")),
 			)
 
 			f.Func().Params(Id(recvName).Op("*").Id(methodRequestName)).Id("Execute").Params().
@@ -195,7 +157,7 @@ func GenClient(s options.Iface) func(f *file.GoFile) {
 						batchResultID = Id("_")
 						resultAssignOp = "="
 					}
-					g.List(batchResultID, Err()).Op(resultAssignOp).Id(recvName).Dot("c").Dot("Execute").Call(Id(recvName))
+					g.List(batchResultID, Err()).Op(resultAssignOp).Id(recvName).Dot("c").Dot("Client").Dot("Execute").Call(Id(recvName))
 					g.Do(gen.CheckErr(Return()))
 
 					if len(endpoint.BodyResults) > 0 {
@@ -228,42 +190,32 @@ func GenClient(s options.Iface) func(f *file.GoFile) {
 							g.Id(param.Name).Add(types.Convert(param.Type, f.Import))
 						}
 					}
-					g.Id("opts").Op("...").Id("ClientMethodOption")
 				}).Op("*").Id(methodRequestName).BlockFunc(func(g *Group) {
-				g.Id("m").Op(":=").Op("&").Id(methodRequestName).Values(
-					Id("client").Op(":").Id(recvName).Dot("client"),
-					Id("methodOpts").Op(":").Op("&").Id("clientMethodOptions").Values(
-						Id("ctx").Op(":").Qual("context", "TODO").Call(),
-					),
+				g.Id("r").Op(":=").Op("&").Id(methodRequestName).Values(
+					Id("ctx").Op(":").Qual("context", "TODO").Call(),
 					Id("c").Op(":").Id(recvName),
 				)
 				for _, param := range endpoint.Params {
 					if param.Required {
-						g.Id("m").Dot("params").Dot(param.Name).Op("=").Id(param.Name)
+						g.Id("r").Dot("params").Dot(param.Name).Op("=").Id(param.Name)
 					}
 				}
-				g.For(List(Id("_"), Id("o")).Op(":=").Range().Id("opts")).Block(
-					Id("o").Call(Id("m").Dot("methodOpts")),
-				)
-				g.Return(Id("m"))
+				g.Return(Id("r"))
 			})
 		}
 		f.Func().Id("New"+s.Name+"Client").Params(
 			Id("target").String(),
-			Id("opts").Op("...").Id("ClientMethodOption"),
+			Id("opts").Op("...").Qual("github.com/555f/jsonrpc", "ClientOption"),
 		).Op("*").Id(clientName).BlockFunc(
 			func(g *Group) {
-				g.Id("c").Op(":=").Op("&").Id(clientName).Values(
-					Id("target").Op(":").Id("target"),
-					Id("client").Op(":").Qual("net/http", "DefaultClient"),
-					Id("methodOpts").Op(":").Op("&").Id("clientMethodOptions").Values(
-						Id("ctx").Op(":").Qual("context", "TODO").Call(),
+				g.Return(
+					Op("&").Id(clientName).Values(
+						Id("Client").Op(":").Qual("github.com/555f/jsonrpc", "NewClient").Call(
+							Id("target"),
+							Id("opts").Op("..."),
+						),
 					),
 				)
-				g.For(List(Id("_"), Id("o")).Op(":=").Range().Id("opts")).Block(
-					Id("o").Call(Id("c").Dot("methodOpts")),
-				)
-				g.Return(Id("c"))
 			},
 		)
 	}

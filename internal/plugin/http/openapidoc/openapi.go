@@ -1,8 +1,6 @@
 package openapidoc
 
 import (
-	"strings"
-
 	openapi2 "github.com/555f/gg/internal/openapi"
 
 	"github.com/555f/gg/internal/plugin/http/httperror"
@@ -108,7 +106,7 @@ func Gen(openAPI openapi2.OpenAPI, services []options.Iface, httpErrors []httper
 						Type:       "object",
 						Properties: openapi2.Properties{},
 					}
-					if len(ep.BodyResults) == 1 && ep.DisabledWrapResponse {
+					if len(ep.BodyResults) == 1 && ep.NoWrapResponse {
 						responseSchema = b.SchemaByType(ep.BodyResults[0].Title, "", ep.BodyResults[0].Type)
 					} else {
 						for _, result := range ep.BodyResults {
@@ -158,11 +156,7 @@ func Gen(openAPI openapi2.OpenAPI, services []options.Iface, httpErrors []httper
 						Schema:      b.SchemaByType(param.Title, "", param.Type),
 					})
 				}
-				path := ep.Path
-				for _, name := range ep.ParamsNameIdx {
-					path = strings.Replace(path, ":"+name, "{"+name+"}", -1)
-				}
-				b.AddPath(ep.HTTPMethod, path, o)
+				b.AddPath(ep.HTTPMethod, ep.Path, o)
 			}
 		}
 		p, _ := b.Build()

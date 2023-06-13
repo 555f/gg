@@ -8,18 +8,6 @@ import (
 	. "github.com/dave/jennifer/jen"
 )
 
-func makeGetQueryParam(parentParam, param *options.EndpointParam, importFn types.QualFunc) *Statement {
-	fldName := param.FldNameUnExport
-	if parentParam != nil {
-		fldName = parentParam.FldNameUnExport + param.FldName
-	}
-	paramID := Id("param").Dot(fldName)
-	return If(Id("s").Op(":=").Id("q").Dot("Get").Call(Lit(param.Name)), Id("s").Op("!=").Lit("")).Block(
-		Add(gen.ParseValue(Id("s"), paramID, "=", param.Type, importFn)),
-		Do(gen.CheckErr(Return())),
-	)
-}
-
 func makeAddQueryParam(recvName string, parentParam, param *options.EndpointParam, qualFunc types.QualFunc, timeFormat string) *Statement {
 	fldName := param.FldNameUnExport
 	if parentParam != nil {

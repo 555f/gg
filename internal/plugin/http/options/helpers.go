@@ -36,7 +36,6 @@ func nameReqDecode(ifaceName string, methodName string) string {
 func makeEndpointParam(
 	parent *EndpointParam,
 	param *types.Var,
-	paramsIdxName map[string]int,
 ) (epParam *EndpointParam, errs error) {
 	opts, err := paramDecode(param)
 	if err != nil {
@@ -62,11 +61,7 @@ func makeEndpointParam(
 		name = opts.Name
 	}
 	paramType := opts.HTTPType
-	if _, ok := paramsIdxName[param.Name]; ok {
-		paramType = "path"
-		name = param.Name
-		epParam.Required = true
-	}
+
 	epParam.HTTPType = paramType
 	epParam.Name = name
 
@@ -74,7 +69,7 @@ func makeEndpointParam(
 		if named, ok := param.Type.(*types.Named); ok {
 			if st, ok := named.Type.(*types.Struct); ok {
 				for _, field := range st.Fields {
-					p, err := makeEndpointParam(epParam, field.Var, paramsIdxName)
+					p, err := makeEndpointParam(epParam, field.Var)
 					if err != nil {
 						errs = multierror.Append(errs, err)
 						continue

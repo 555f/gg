@@ -168,21 +168,21 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 					Id("s").Op("*").Id(nameStruct),
 				).
 				Id(method.Name).Add(types.Convert(method.Sig, f.Import)).
-				BlockFunc(func(group *Group) {
-					group.Defer().
+				BlockFunc(func(g *Group) {
+					g.Defer().
 						Func().
 						Params(
 							Id("now").Qual(timePkg, "Time"),
 						).
-						BlockFunc(func(group *Group) {
-							group.Id("logger").
+						BlockFunc(func(g *Group) {
+							g.Id("logger").
 								Op(":=").
 								Qual(loggerPkg, "With").
 								Call(logParams...)
 							if len(errorVars) > 0 {
 								for _, e := range errorVars {
-									group.Id("logLever").Op(":=").Qual(loggerPkg, "LevelDebug")
-									group.If(Id(e.Name)).Op("!=").Nil().Block(
+									g.Id("logLever").Op(":=").Qual(loggerPkg, "LevelDebug")
+									g.If(Id(e.Name)).Op("!=").Nil().Block(
 										Id("logLever").Op("=").Qual(loggerPkg, "LevelError"),
 										If(List(Id("e"), Id("ok")).
 											Op(":=").
@@ -203,7 +203,8 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 									)
 								}
 							}
-							group.Id("logger").Dot("Log").Call(
+							g.Id("logger").Op("=").Qual(loggerPkg, "With").Call(Lit("dur"), Qual("time", "Since").Call(Id("now")))
+							g.Id("logger").Dot("Log").Call(
 								Qual("context", "TODO").Call(),
 								Id("logLever"),
 								Lit(fmt.Sprintf("call method - %s", method.Name)),
@@ -211,12 +212,12 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 						}).Call(Qual(timePkg, "Now").Call())
 
 					if len(results) > 0 {
-						group.List(results...).Op("=").Id("s").Dot("next").Dot(method.Name).Call(callParams...)
+						g.List(results...).Op("=").Id("s").Dot("next").Dot(method.Name).Call(callParams...)
 					} else {
-						group.Id("s").Dot("next").Dot(method.Name).Call(callParams...)
+						g.Id("s").Dot("next").Dot(method.Name).Call(callParams...)
 					}
 					if len(results) > 0 {
-						group.Return()
+						g.Return()
 					}
 				})
 		}

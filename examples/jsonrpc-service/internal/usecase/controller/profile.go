@@ -20,6 +20,9 @@ type ProfileController interface {
 	// @http-path:"profile.create"
 	Create(
 		// @http-required
+		// @http-type:"header" @http-name:"X-Token"
+		token string,
+		// @http-required
 		firstName string,
 		// @http-required
 		lastName string,

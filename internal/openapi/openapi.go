@@ -74,9 +74,16 @@ func (b *Builder) schemaByTypeRecursive(title, description string, schema *Schem
 				Properties:  map[string]*Schema{},
 				Description: description,
 			}
-			b.schemaByTypeRecursive(title, description, refSchema, t.Type)
-			b.AddComponent(t.Name, refSchema)
+
+			if _, ok := b.openAPI.Components.Schemas[t.Name]; !ok {
+				b.AddComponent(t.Name, refSchema)
+
+				b.schemaByTypeRecursive(title, description, refSchema, t.Type)
+
+			}
+
 			schema.Ref = b.makeRef(t)
+
 			return
 		case "encoding/json":
 			schema.Description = title

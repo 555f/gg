@@ -88,13 +88,9 @@ func GenClient(s options.Iface, errorWrapper *options.ErrorWrapper) func(f *file
 							for _, param := range endpoint.PathParams {
 								pathParamsMap[param.Name] = param
 							}
-
 							for i, part := range parts {
-								startIndex := strings.Index(part, "{")
-								endIndex := strings.Index(part, "}")
-
-								if startIndex != -1 && endIndex != -1 {
-									paramName := part[startIndex+1 : endIndex]
+								if strings.HasPrefix(part, ":") {
+									paramName := part[1:]
 									if param, ok := pathParamsMap[paramName]; ok {
 										parts[i] = "%s"
 										if tp, ok := param.Type.(*types.Basic); ok {
@@ -207,7 +203,7 @@ func GenClient(s options.Iface, errorWrapper *options.ErrorWrapper) func(f *file
 					}),
 					Do(func(s *Statement) {
 						s.Var().Id("respBody")
-						if !endpoint.DisabledWrapResponse {
+						if !endpoint.NoWrapResponse {
 							s.StructFunc(gen.WrapResponse(endpoint.WrapResponse, endpoint.BodyResults, f.Import))
 						} else if len(endpoint.BodyResults) == 1 {
 							s.Add(types.Convert(endpoint.BodyResults[0].Type, f.Import))
@@ -220,7 +216,7 @@ func GenClient(s options.Iface, errorWrapper *options.ErrorWrapper) func(f *file
 						Return(),
 					)),
 					ReturnFunc(func(g *Group) {
-						if !endpoint.DisabledWrapResponse {
+						if !endpoint.NoWrapResponse {
 							var ids []Code
 							for _, name := range endpoint.WrapResponse {
 								ids = append(ids, Dot(strcase.ToCamel(name)))

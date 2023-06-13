@@ -79,6 +79,9 @@ func DecodeField(parent *ConfigField, f *types.StructFieldType) (cf ConfigField,
 	if t, ok := f.Var.Tags.Get("cfg-dev-value"); ok {
 		cf.DevValue = t.Value
 	}
+	if _, ok := f.Var.Tags.Get("cfg-use-zero"); ok {
+		cf.UseZero = true
+	}
 
 	cf.Name = strings.ToUpper(strcase.ToScreamingSnake(f.Var.Name))
 	cf.Zero = f.Var.Zero

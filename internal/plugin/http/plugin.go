@@ -13,7 +13,6 @@ import (
 	"github.com/555f/gg/internal/plugin/http/apidoc"
 	"github.com/555f/gg/internal/plugin/http/generic"
 	"github.com/555f/gg/internal/plugin/http/httperror"
-	"github.com/555f/gg/internal/plugin/http/jsonrpc"
 	"github.com/555f/gg/internal/plugin/http/openapidoc"
 	"github.com/555f/gg/internal/plugin/http/options"
 	"github.com/555f/gg/internal/plugin/http/rest"
@@ -135,65 +134,64 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 			pkgPath := path.Dir(serverOutput)
 
 			if _, ok := pkgPathVisited[pkgPath+s.Type]; !ok {
+				rest.GenTypes()(f)
+				rest.GenErrorEncoder(errorWrapper)(f)
+				rest.GenHandler()(f)
+
 				switch s.Type {
 				case "rest":
-					rest.GenServer(errorWrapper)(f)
+
 				case "jsonrpc":
-					jsonrpc.GenServer()(f)
+					//jsonrpc.GenServer()(f)
 				}
 				pkgPathVisited[pkgPath+s.Type] = struct{}{}
 			}
 
 			if _, ok := pkgPathVisited[pkgPath]; !ok {
-				generic.GenServer()(f)
 				generic.GenMetric()(f)
 				pkgPathVisited[pkgPath] = struct{}{}
 			}
 
-			switch s.Type {
-			case "rest":
-				rest.GenEncDec(s)(f)
-				rest.GenServerOption(s)(f)
-				rest.GenMetric(s)(f)
-			case "jsonrpc":
-				jsonrpc.GenEncDec(s)(f)
-				jsonrpc.GenServerOption(s)(f)
-			}
-			generic.GenServerOption(s)(f)
-			generic.GenServerEndpoints(s)(f)
+			rest.GenStruct(s)(f)
+
+			rest.GenMetric(s)(f)
+
+			//switch s.Type {
+			//case "rest":
+			//case "jsonrpc":
+			//jsonrpc.GenEncDec(s)(f)
+			//jsonrpc.GenServerOption(s)(f)
+			//}
 		}
 	}
 
-	if len(clientServices) > 0 {
-		pkgPathVisited := map[string]struct{}{}
-		for _, s := range clientServices {
-			f, ok := fileSet[clientOutput]
-			if !ok {
-				f = file.NewGoFile(ctx.Module, clientOutput)
-				fileSet[clientOutput] = f
-				files = append(files, f)
-			}
-			pkgPath := path.Dir(clientOutput)
-			if _, ok := pkgPathVisited[pkgPath]; !ok {
-				generic.GenClient()(f)
-
-				switch s.Type {
-				case "rest":
-					generic.GenRESTClient()(f)
-				case "jsonrpc":
-					generic.GenJSONRPCClient()(f)
-				}
-
-				pkgPathVisited[pkgPath] = struct{}{}
-			}
-			switch s.Type {
-			case "rest":
-				rest.GenClient(s, errorWrapper)(f)
-			case "jsonrpc":
-				jsonrpc.GenClient(s)(f)
-			}
-		}
-	}
+	//if len(clientServices) > 0 {
+	//	pkgPathVisited := map[string]struct{}{}
+	//	for _, s := range clientServices {
+	//		f, ok := fileSet[clientOutput]
+	//		if !ok {
+	//			f = file.NewGoFile(ctx.Module, clientOutput)
+	//			fileSet[clientOutput] = f
+	//			files = append(files, f)
+	//		}
+	//		pkgPath := path.Dir(clientOutput)
+	//		if _, ok := pkgPathVisited[pkgPath]; !ok {
+	//			//generic.GenClient()(f)
+	//			//switch s.Type {
+	//			//case "rest":
+	//			//generic.GenRESTClient()(f)
+	//			//case "jsonrpc":
+	//			//}
+	//			pkgPathVisited[pkgPath] = struct{}{}
+	//		}
+	//		switch s.Type {
+	//		case "rest":
+	//			rest.GenClient(s, errorWrapper)(f)
+	//		case "jsonrpc":
+	//			//jsonrpc.GenClient(s)(f)
+	//		}
+	//	}
+	//}
 	return
 }
 

@@ -34,9 +34,9 @@ type ProfileControllerLoggingMiddleware struct {
 	logger log.Logger
 }
 
-func (s *ProfileControllerLoggingMiddleware) Create(firstName string, lastName string, address string) (profile *dto.Profile, err error) {
+func (s *ProfileControllerLoggingMiddleware) Create(token string, firstName string, lastName string, address string) (profile *dto.Profile, err error) {
 	defer func(now time.Time) {
-		logger := log.WithPrefix(s.logger, "message", "call method - Create", "firstName", firstName, "lastName", lastName, "address", address)
+		logger := log.WithPrefix(s.logger, "message", "call method - Create", "token", token, "firstName", firstName, "lastName", lastName, "address", address)
 		if err != nil {
 			if e, ok := err.(errLevel); ok {
 				logger = levelLogger(e, logger)
@@ -51,9 +51,9 @@ func (s *ProfileControllerLoggingMiddleware) Create(firstName string, lastName s
 		} else {
 			logger = level.Debug(logger)
 		}
-		_ = logger.Log()
+		_ = logger.Log("dur", time.Since(now))
 	}(time.Now())
-	profile, err = s.next.Create(firstName, lastName, address)
+	profile, err = s.next.Create(token, firstName, lastName, address)
 	return
 }
 func (s *ProfileControllerLoggingMiddleware) Remove(id string) (err error) {
@@ -73,7 +73,7 @@ func (s *ProfileControllerLoggingMiddleware) Remove(id string) (err error) {
 		} else {
 			logger = level.Debug(logger)
 		}
-		_ = logger.Log()
+		_ = logger.Log("dur", time.Since(now))
 	}(time.Now())
 	err = s.next.Remove(id)
 	return
