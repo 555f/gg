@@ -41,6 +41,7 @@ func GenHandler() func(f *file.GoFile) {
 
 					g.Id("statusCode").Op(":=").Lit(200)
 
+					g.Id("rw").Dot("Header").Call().Dot("Set").Call(Lit("Content-Type"), Lit("application/json"))
 					g.Id("rw").Dot("WriteHeader").Call(Id("statusCode"))
 
 					//if len(ep.BodyResults) > 0 {

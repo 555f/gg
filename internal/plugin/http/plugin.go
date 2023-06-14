@@ -2,6 +2,7 @@ package http
 
 import (
 	_ "embed"
+	"github.com/555f/gg/internal/plugin/http/jsonrpc"
 	"go/token"
 	"os"
 	"path"
@@ -165,33 +166,33 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 		}
 	}
 
-	//if len(clientServices) > 0 {
-	//	pkgPathVisited := map[string]struct{}{}
-	//	for _, s := range clientServices {
-	//		f, ok := fileSet[clientOutput]
-	//		if !ok {
-	//			f = file.NewGoFile(ctx.Module, clientOutput)
-	//			fileSet[clientOutput] = f
-	//			files = append(files, f)
-	//		}
-	//		pkgPath := path.Dir(clientOutput)
-	//		if _, ok := pkgPathVisited[pkgPath]; !ok {
-	//			//generic.GenClient()(f)
-	//			//switch s.Type {
-	//			//case "rest":
-	//			//generic.GenRESTClient()(f)
-	//			//case "jsonrpc":
-	//			//}
-	//			pkgPathVisited[pkgPath] = struct{}{}
-	//		}
-	//		switch s.Type {
-	//		case "rest":
-	//			rest.GenClient(s, errorWrapper)(f)
-	//		case "jsonrpc":
-	//			//jsonrpc.GenClient(s)(f)
-	//		}
-	//	}
-	//}
+	if len(clientServices) > 0 {
+		pkgPathVisited := map[string]struct{}{}
+		for _, s := range clientServices {
+			f, ok := fileSet[clientOutput]
+			if !ok {
+				f = file.NewGoFile(ctx.Module, clientOutput)
+				fileSet[clientOutput] = f
+				files = append(files, f)
+			}
+			pkgPath := path.Dir(clientOutput)
+			if _, ok := pkgPathVisited[pkgPath]; !ok {
+				//			//generic.GenClient()(f)
+				//			//switch s.Type {
+				//			//case "rest":
+				//			//generic.GenRESTClient()(f)
+				//			//case "jsonrpc":
+				//			//}
+				//			pkgPathVisited[pkgPath] = struct{}{}
+			}
+			switch s.Type {
+			case "rest":
+				//			rest.GenClient(s, errorWrapper)(f)
+			case "jsonrpc":
+				jsonrpc.GenClient(s)(f)
+			}
+		}
+	}
 	return
 }
 
