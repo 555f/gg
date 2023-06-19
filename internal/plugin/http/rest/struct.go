@@ -129,6 +129,7 @@ func GenStruct(s options.Iface) func(f *file.GoFile) {
 			if len(ep.Params) > 0 {
 				f.Func().Id(reqDecName).ParamsFunc(func(g *Group) {
 					//g.Id("ctx").Qual("context", "Context")
+					g.Id("pathParams").Qual("net/url", "Values")
 					g.Id("r").Op("*").Qual("net/http", "Request")
 					g.Do(func(s *Statement) {
 						if len(ep.BodyParams) > 0 {
@@ -207,7 +208,7 @@ func GenStruct(s options.Iface) func(f *file.GoFile) {
 
 					if len(ep.PathParams) > 0 {
 						for _, p := range ep.PathParams {
-							g.Id("pathParams").Op(":=").Id("pathParamsFromContext").Call(Id("r").Dot("Context").Call())
+							// g.Id("pathParams").Op(":=").Id("pathParamsFromContext").Call(Id("r").Dot("Context").Call())
 
 							g.If(Id("s").Op(":=").Id("pathParams").Dot("Get").Call(Lit(p.Name)), Id("s").Op("!=").Lit("")).Block(
 								Add(gen.ParseValue(Id("s"), Id("param").Dot(p.FldName), "=", p.Type, f.Import)),
@@ -255,29 +256,33 @@ func GenStruct(s options.Iface) func(f *file.GoFile) {
 				g.Id(ep.MethodName).StructFunc(func(g *Group) {
 
 					if s.Type == "jsonrpc" {
-						g.Comment("RPCHandler handler for github.com/555f/jsonrpc")
-						g.Id("RPCHandler").Func().Params().Params(
+						g.Comment("Handler handler for github.com/555f/jsonrpc")
+						g.Id("Handler").Func().Params().Params(
 							String(),
 							Qual("github.com/555f/jsonrpc", "Endpoint"),
 							Qual("github.com/555f/jsonrpc", "ReqDecode"),
 						)
 					} else {
-						g.Comment("HTTPHandler handler for net/http")
-						g.Id("HTTPHandler").Func().Params(
+						g.Comment("Handler handler for net/http")
+						g.Id("Handler").Func().Params(
 							Op("...").Id("Option"),
-						).Params(Qual("net/http", "Handler"))
+						).Params(
+							String(),
+							String(),
+							Qual("net/http", "Handler"),
+						)
 
-						g.Comment("EchoHandler handler for github.com/labstack/echo/v4")
-						g.Id("EchoHandler").
-							Func().
-							Params(
-								Op("...").Id("Option"),
-							).
-							Params(
-								String(),
-								String(),
-								Qual("github.com/labstack/echo/v4", "HandlerFunc"),
-							)
+						// g.Comment("EchoHandler handler for github.com/labstack/echo/v4")
+						// g.Id("EchoHandler").
+						// 	Func().
+						// 	Params(
+						// 		Op("...").Id("Option"),
+						// 	).
+						// 	Params(
+						// 		String(),
+						// 		String(),
+						// 		Qual("github.com/labstack/echo/v4", "HandlerFunc"),
+						// 	)
 					}
 				})
 			}
@@ -312,8 +317,7 @@ func GenStruct(s options.Iface) func(f *file.GoFile) {
 				})
 
 				if s.Type == "jsonrpc" {
-
-					g.Id("result").Dot(ep.MethodName).Dot("RPCHandler").Op("=").
+					g.Id("result").Dot(ep.MethodName).Dot("Handler").Op("=").
 						Func().
 						Params().
 						Params(
@@ -325,9 +329,9 @@ func GenStruct(s options.Iface) func(f *file.GoFile) {
 						g.Return(Lit(ep.Path), Id(epName).Call(Id("svc")), Id(reqDecName))
 					})
 				} else {
-					g.Id("result").Dot(ep.MethodName).Dot("HTTPHandler").
-						Op("=").Func().
-						Params(Id("opts").Op("...").Id("Option")).
+					epHandlerName := strcase.ToLowerCamel(ep.MethodName) + "Handler"
+					g.Id(epHandlerName).Op(":=").Func().
+						Params(Id("opts").Index().Id("Option")).
 						Params(Qual("net/http", "Handler")).
 						Block(
 							Return(
@@ -337,31 +341,45 @@ func GenStruct(s options.Iface) func(f *file.GoFile) {
 							),
 						)
 
-					g.Id("result").Dot(ep.MethodName).Dot("EchoHandler").Op("=").
-						Func().
+					g.Id("result").Dot(ep.MethodName).Dot("Handler").
+						Op("=").Func().
+						Params(Id("opts").Op("...").Id("Option")).
 						Params(
-							Id("opts").Op("...").Id("Option"),
+							String(),
+							String(),
+							Qual("net/http", "Handler"),
 						).
-						Params(
-							String(),
-							String(),
-							Qual("github.com/labstack/echo/v4", "HandlerFunc"),
-						).BlockFunc(func(g *Group) {
-						g.Id("handlerFunc").Op(":=").Func().Params(Id("c").Qual("github.com/labstack/echo/v4", "Context")).Error().BlockFunc(func(g *Group) {
-							g.Id("r").Op(":=").Id("c").Dot("Request").Call()
-							g.Id("pathParams").Op(":=").Id("pathParamsFromEchoContext").Call(Id("c"))
-							g.Id("r").Op("=").Id("r").Dot("WithContext").Call(Id("pathParamsToContext").Call(Id("r").Dot("Context").Call(), Id("pathParams")))
+						Block(
+							Return(
+								Lit(ep.HTTPMethod), Lit(ep.Path), Id(epHandlerName).Call(Id("opts")),
+							),
+						)
 
-							g.Id("applyHandlerOptions").Call(Append(Id("gOpts"), Id("opts").Op("..."))).Call(
-								httpHandler,
-							).Dot("ServeHTTP").Call(
-								Id("c").Dot("Response").Call().Dot("Writer"),
-								Id("r"),
-							)
-							g.Return(Nil())
-						})
-						g.Return(Lit(ep.HTTPMethod), Lit(ep.Path), Id("handlerFunc"))
-					})
+					// g.Id("result").Dot(ep.MethodName).Dot("EchoHandler").Op("=").
+					// 	Func().
+					// 	Params(
+					// 		Id("opts").Op("...").Id("Option"),
+					// 	).
+					// 	Params(
+					// 		String(),
+					// 		String(),
+					// 		Qual("github.com/labstack/echo/v4", "HandlerFunc"),
+					// 	).BlockFunc(func(g *Group) {
+					// 	g.Id("handlerFunc").Op(":=").Func().Params(Id("c").Qual("github.com/labstack/echo/v4", "Context")).Error().BlockFunc(func(g *Group) {
+					// 		g.Id("r").Op(":=").Id("c").Dot("Request").Call()
+					// 		g.Id("pathParams").Op(":=").Id("pathParamsFromEchoContext").Call(Id("c"))
+					// 		g.Id("r").Op("=").Id("r").Dot("WithContext").Call(Id("pathParamsToContext").Call(Id("r").Dot("Context").Call(), Id("pathParams")))
+
+					// 		g.Id("applyHandlerOptions").Call(Append(Id("gOpts"), Id("opts").Op("..."))).Call(
+					// 			httpHandler,
+					// 		).Dot("ServeHTTP").Call(
+					// 			Id("c").Dot("Response").Call().Dot("Writer"),
+					// 			Id("r"),
+					// 		)
+					// 		g.Return(Nil())
+					// 	})
+					// 	g.Return(Lit(ep.HTTPMethod), Lit(ep.Path), Id("handlerFunc"))
+					// })
 				}
 			}
 			g.Return(Id("result"))

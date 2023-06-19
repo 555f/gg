@@ -17,42 +17,56 @@ func GenHandler() func(f *file.GoFile) {
 					Id("rw").Qual("net/http", "ResponseWriter"),
 					Id("r").Op("*").Qual("net/http", "Request"),
 				).BlockFunc(func(g *Group) {
-					g.Var().Id("wb").Op("=").Make(Index().Byte(), Lit(0), Lit(10485760)) // 10MB
-					g.Id("buf").Op(":=").Qual("bytes", "NewBuffer").Call(Id("wb"))
-					g.List(Id("written"), Id("err")).Op(":=").Qual("io", "Copy").Call(Id("buf"), Id("r").Dot("Body"))
-					g.Do(serverErrorEncoder)
-					g.List(Id("params"), Err()).Op(":=").Id("reqDec").Call(
-						//Id("r").Dot("Context").Call(),
-						Id("r"),
-						Id("wb").Index(Op(":").Id("written")),
+					g.Var().Id("params").Any()
+					g.Var().Id("result").Any()
+					g.Var().Err().Error()
+
+					g.If(Id("reqDec").Op("!=").Nil()).Block(
+						Id("pathParams").Op(":=").Id("pathParamsFromContext").Call(Id("r").Dot("Context").Call()),
+						Var().Id("wb").Op("=").Make(Index().Byte(), Lit(0), Lit(10485760)), // 10MB
+						Id("buf").Op(":=").Qual("bytes", "NewBuffer").Call(Id("wb")),
+						List(Id("written"), Id("err")).Op(":=").Qual("io", "Copy").Call(Id("buf"), Id("r").Dot("Body")),
+						Do(serverErrorEncoder),
+						List(Id("params"), Err()).Op("=").Id("reqDec").Call(
+							//Id("r").Dot("Context").Call(),
+							Id("pathParams"),
+							Id("r"),
+							Id("wb").Index(Op(":").Id("written")),
+						),
+						Do(serverErrorEncoder),
 					)
-					g.Do(serverErrorEncoder)
-					g.List(Id("result"), Err()).Op(":=").Id("ep").Call(
+
+					g.List(Id("result"), Err()).Op("=").Id("ep").Call(
 						Id("r").Dot("Context").Call(),
 						Id("params"),
 					)
 					g.Do(serverErrorEncoder)
 
-					g.List(Id("result"), Err()).Op("=").Id("respEnc").Call(
-						//Id("r").Dot("Context").Call(),
-						Id("result"),
+					g.If(Id("respEnc").Op("!=").Nil()).Block(
+						List(Id("result"), Err()).Op("=").Id("respEnc").Call(
+							//Id("r").Dot("Context").Call(),
+							Id("result"),
+						),
+						Do(serverErrorEncoder),
 					)
-					g.Do(serverErrorEncoder)
 
 					g.Id("statusCode").Op(":=").Lit(200)
 
-					g.Id("rw").Dot("Header").Call().Dot("Set").Call(Lit("Content-Type"), Lit("application/json"))
-					g.Id("rw").Dot("WriteHeader").Call(Id("statusCode"))
-
 					//if len(ep.BodyResults) > 0 {
-					g.List(Id("data"), Err()).Op(":=").Qual("encoding/json", "Marshal").Call(Id("result"))
-					g.Do(serverErrorEncoder)
-					g.If(
-						List(Id("_"), Err()).Op(":=").Id("rw").Dot("Write").Call(Id("data")),
-						Err().Op("!=").Nil(),
-					).Block(
-						Return(),
+					g.If(Id("result").Op("!=").Nil()).Block(
+						Id("rw").Dot("Header").Call().Dot("Set").Call(Lit("Content-Type"), Lit("application/json")),
+
+						List(Id("data"), Err()).Op(":=").Qual("encoding/json", "Marshal").Call(Id("result")),
+						Do(serverErrorEncoder),
+						If(
+							List(Id("_"), Err()).Op(":=").Id("rw").Dot("Write").Call(Id("data")),
+							Err().Op("!=").Nil(),
+						).Block(
+							Return(),
+						),
 					)
+
+					g.Id("rw").Dot("WriteHeader").Call(Id("statusCode"))
 					//}
 
 					//func profileControllerRemoveHTTPHandler(ep func(ctx context.Context, request any) (response any, err error)) http.HandlerFunc {

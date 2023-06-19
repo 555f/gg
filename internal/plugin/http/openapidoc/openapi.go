@@ -156,6 +156,15 @@ func Gen(openAPI openapi2.OpenAPI, services []options.Iface, httpErrors []httper
 						Schema:      b.SchemaByType(param.Title, "", param.Type),
 					})
 				}
+				for _, h := range ep.OpenapiHeaders {
+					o.Parameters = append(o.Parameters, openapi2.Parameter{
+						In:          "header",
+						Name:        h.Name,
+						Description: h.Title,
+						// Required:    param.Required,
+					})
+				}
+
 				b.AddPath(ep.HTTPMethod, ep.Path, o)
 			}
 		}

@@ -24,6 +24,7 @@ var (
 
 	reqDecFunc = Func().Params(
 		//Id("ctx").Qual("context", "Context"),
+		Id("pathParams").Qual("net/url", "Values"),
 		Id("request").Op("*").Qual("net/http", "Request"),
 		Id("params").Qual("encoding/json", "RawMessage"),
 	).Params(
@@ -64,6 +65,7 @@ func GenTypes() func(f *file.GoFile) {
 		f.Type().Id("MiddlewareFunc").Func().Params(
 			Qual("net/http", "Handler"),
 		).Qual("net/http", "Handler")
+		f.Type().Id("PopulatePathParamsFunc").Func().Params().Qual("net/url", "Values")
 
 		f.Func().Id("applyOptions").Params(Id("opts").Op("...").Id(optionName)).Id(optionName).Block(
 			Return(
@@ -87,6 +89,7 @@ func GenTypes() func(f *file.GoFile) {
 								Id("r").Op("*").Qual("net/http", "Request"),
 							).Block(
 								Id("ctx").Op(":=").Id("r").Dot("Context").Call(),
+
 								For(List(Id("_"), Id("beforeFunc")).Op(":=")).Range().Id("o").Dot("before").Block(
 									Id("ctx").Op("=").Id("beforeFunc").Call(Id("ctx"), Id("r")),
 								),
@@ -130,7 +133,7 @@ func GenTypes() func(f *file.GoFile) {
 		f.Type().Id("contextKey").Int()
 		f.Const().Id("pathParamsContextKey").Id("contextKey").Op("=").Iota()
 
-		f.Func().Id("pathParamsToContext").Params(
+		f.Func().Id("PathParamsToContext").Params(
 			Id("ctx").Qual("context", "Context"),
 			Id("pathParams").Qual("net/url", "Values"),
 		).Qual("context", "Context").Block(
@@ -158,19 +161,19 @@ func GenTypes() func(f *file.GoFile) {
 			Return(Id("h")),
 		)
 
-		f.Func().Id("pathParamsFromEchoContext").Params(
-			Id("c").Qual("github.com/labstack/echo/v4", "Context"),
-		).Qual("net/url", "Values").Block(
-			Id("paramNames").Op(":=").Id("c").Dot("ParamNames").Call(),
-			Id("paramValues").Op(":=").Id("c").Dot("ParamValues").Call(),
-			Id("values").Op(":=").Qual("net/url", "Values").Values(),
-			For(
-				List(Id("i"), Id("name")).Op(":=").Range().Id("paramNames"),
-			).Block(
+		// f.Func().Id("pathParamsFromEchoContext").Params(
+		// 	Id("c").Qual("github.com/labstack/echo/v4", "Context"),
+		// ).Qual("net/url", "Values").Block(
+		// 	Id("paramNames").Op(":=").Id("c").Dot("ParamNames").Call(),
+		// 	Id("paramValues").Op(":=").Id("c").Dot("ParamValues").Call(),
+		// 	Id("values").Op(":=").Qual("net/url", "Values").Values(),
+		// 	For(
+		// 		List(Id("i"), Id("name")).Op(":=").Range().Id("paramNames"),
+		// 	).Block(
 
-				Id("values").Dot("Set").Call(Id("name"), Id("paramValues").Index(Id("i"))),
-			),
-			Return(Id("values")),
-		)
+		// 		Id("values").Dot("Set").Call(Id("name"), Id("paramValues").Index(Id("i"))),
+		// 	),
+		// 	Return(Id("values")),
+		// )
 	}
 }

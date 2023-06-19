@@ -48,6 +48,7 @@ type Iface struct {
 	Endpoints    []Endpoint
 	Type         string
 	ErrorWrapper ErrorWrapper
+	HTTPReq      string
 }
 
 type Server struct {
@@ -91,6 +92,7 @@ type Endpoint struct {
 	ContentTypes       []string
 	AcceptTypes        []string
 	OpenapiTags        []string
+	OpenapiHeaders     []OpenapiHeader
 	QueryValues        []QueryValue
 	WrapResponse       []string
 	Params             []*EndpointParam
@@ -138,6 +140,11 @@ type EndpointResult struct {
 	FldNameUnExport string
 	Format          string
 	Omitempty       bool
+}
+
+type OpenapiHeader struct {
+	Title string
+	Name  string
 }
 
 func DecodeErrorWrapper(errorWrapperPath, defaultErrorPath string, structs []*gg.Struct) (errorWrapper *ErrorWrapper, errs error) {
@@ -228,7 +235,9 @@ func Decode(iface *gg.Interface) (opts Iface, errs error) {
 	for _, tag := range errorTags {
 		opts.Server.Errors = append(opts.Server.Errors, tag.Value)
 	}
-
+	if t, ok := iface.Named.Tags.Get("http-req"); ok {
+		opts.HTTPReq = t.Value
+	}
 	for _, method := range iface.Named.Interface().Methods {
 		epOpts, err := endpointDecode(opts, method)
 		if err != nil {
@@ -292,6 +301,14 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 	if t, ok := method.Tags.Get("http-openapi-tags"); ok {
 		opts.OpenapiTags = []string{t.Value}
 		opts.OpenapiTags = append(opts.OpenapiTags, t.Options...)
+	}
+	openapiHeaderTags := method.Tags.GetSlice("http-openapi-header")
+	for _, t := range openapiHeaderTags {
+		title, _ := t.Param("title")
+		opts.OpenapiHeaders = append(opts.OpenapiHeaders, OpenapiHeader{
+			Title: title,
+			Name:  t.Value,
+		})
 	}
 	if t, ok := method.Tags.Get("http-content-types"); ok {
 		opts.ContentTypes = []string{t.Value}

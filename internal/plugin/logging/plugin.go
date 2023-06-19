@@ -85,8 +85,8 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 				}
 				callParams []Code
 				results    []Code
-				logResults []Code
-				errorVars  []*types.Var
+				logResults = []Code{Id("logger")}
+				errorVar   *types.Var
 				contextVar *types.Var
 				paramNames = map[string]int{}
 			)
@@ -122,13 +122,14 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 					errs = multierror.Append(errs, errors.Error("the parameter name cannot be empty or the logging-param-name parameter must be set", param.Position))
 					continue
 				}
-				logParams = append(logParams, makeLog(name, param.Type))
+				logParams = append(logParams, Lit(name), makeParamLog(param))
 				paramNames[name]++
 			}
+
 			for _, result := range method.Sig.Results {
 				results = append(results, Id(result.Name))
-				if result.IsError {
-					errorVars = append(errorVars, result)
+				if errorVar == nil && result.IsError {
+					errorVar = result
 					continue
 				}
 				opts, err := makeResultOptions(result.Tags)
@@ -148,7 +149,7 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 					continue
 				}
 				paramNames[name]++
-				logResults = append(logResults, makeLog(name, result.Type))
+				logResults = append(logResults, Lit(name), makeParamLog(result))
 			}
 
 			if len(opts.LogContexts) > 0 && contextVar == nil {
@@ -184,31 +185,30 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 								Op(":=").
 								Qual(loggerPkg, "WithPrefix").
 								Call(logParams...)
-							if len(errorVars) > 0 {
-								for _, e := range errorVars {
-									g.If(Id(e.Name)).Op("!=").Nil().Block(
+							if errorVar != nil {
+								g.If(Id(errorVar.Name)).Op("!=").Nil().Block(
+									If(List(Id("e"), Id("ok")).
+										Op(":=").
+										Id(errorVar.Name).Assert(Id("errLevel")).
+										Op(";").Id("ok"),
+									).Block(
+										Id("logger").Op("=").Id("levelLogger").Call(Id("e"), Id("logger")),
+									).Else().Block(
+										Id("logger").Op("=").Qual(levelPkg, "Error").Call(Id("logger")),
+									).Line().
 										If(List(Id("e"), Id("ok")).
 											Op(":=").
-											Id(e.Name).Assert(Id("errLevel")).
+											Id(errorVar.Name).Assert(Id("logError")).
 											Op(";").Id("ok"),
 										).Block(
-											Id("logger").Op("=").Id("levelLogger").Call(Id("e"), Id("logger")),
-										).Else().Block(
-											Id("logger").Op("=").Qual(levelPkg, "Error").Call(Id("logger")),
-										).Line().
-											If(List(Id("e"), Id("ok")).
-												Op(":=").
-												Id(e.Name).Assert(Id("logError")).
-												Op(";").Id("ok"),
-											).Block(
-											Id("logger").Op("=").Qual(loggerPkg, "WithPrefix").Call(Id("logger"), Lit(e.Name), Id("e").Dot("LogError").Call()),
-										).Else().Block(
-											Id("logger").Op("=").Qual(loggerPkg, "WithPrefix").Call(Id("logger"), Lit(e.Name), Id(e.Name)),
-										),
+										Id("logger").Op("=").Qual(loggerPkg, "WithPrefix").Call(Id("logger"), Lit(errorVar.Name), Id("e").Dot("LogError").Call()),
 									).Else().Block(
-										Id("logger").Op("=").Qual(levelPkg, "Debug").Call(Id("logger")),
-									)
-								}
+										Id("logger").Op("=").Qual(loggerPkg, "WithPrefix").Call(Id("logger"), Lit(errorVar.Name), Id(errorVar.Name)),
+									),
+								).Else().Block(
+									Id("logger").Op("=").Qual(levelPkg, "Debug").Call(Id("logger")),
+									Id("logger").Op("=").Qual(loggerPkg, "WithPrefix").Call(logResults...),
+								)
 							} else {
 								g.Id("logger").Op("=").Qual(levelPkg, "Debug").Call(Id("logger"))
 							}

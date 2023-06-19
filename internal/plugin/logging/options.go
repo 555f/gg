@@ -17,6 +17,17 @@ type methodOptions struct {
 	LogContexts []logContext
 }
 
+type paramOptions struct {
+	Name    string
+	Skip    bool
+	Context logContext
+}
+
+type resultOptions struct {
+	Name string
+	Skip bool
+}
+
 func makeMethodOptions(module *types.Module, method *types.Func) (opts methodOptions, err error) {
 	if _, ok := method.Tags.Get("logging-skip"); ok {
 		opts.Skip = true
@@ -37,17 +48,6 @@ func makeMethodOptions(module *types.Module, method *types.Func) (opts methodOpt
 		})
 	}
 	return
-}
-
-type paramOptions struct {
-	Name    string
-	Skip    bool
-	Context logContext
-}
-
-type resultOptions struct {
-	Name string
-	Skip bool
 }
 
 func makeParamOptions(pkg *types.PackageType, tags types.Tags) (opts paramOptions, err error) {

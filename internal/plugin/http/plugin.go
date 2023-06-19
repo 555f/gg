@@ -2,7 +2,6 @@ package http
 
 import (
 	_ "embed"
-	"github.com/555f/gg/internal/plugin/http/jsonrpc"
 	"go/token"
 	"os"
 	"path"
@@ -10,18 +9,19 @@ import (
 	"strings"
 
 	"github.com/555f/gg/internal/openapi"
-
 	"github.com/555f/gg/internal/plugin/http/apidoc"
 	"github.com/555f/gg/internal/plugin/http/generic"
 	"github.com/555f/gg/internal/plugin/http/httperror"
+	"github.com/555f/gg/internal/plugin/http/jsonrpc"
 	"github.com/555f/gg/internal/plugin/http/openapidoc"
 	"github.com/555f/gg/internal/plugin/http/options"
 	"github.com/555f/gg/internal/plugin/http/rest"
 	"github.com/555f/gg/pkg/errors"
 	"github.com/555f/gg/pkg/file"
 	"github.com/555f/gg/pkg/gg"
-	"github.com/hashicorp/go-multierror"
+	"github.com/555f/gg/pkg/strcase"
 
+	"github.com/hashicorp/go-multierror"
 	"gopkg.in/yaml.v3"
 )
 
@@ -43,11 +43,13 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 	clientOutput := ctx.Options.GetStringWithDefault("client-output", "internal/server/client.go")
 	openapiOutput := ctx.Options.GetStringWithDefault("openapi-output", "docs/openapi.yaml")
 	apiDocOutput := ctx.Options.GetStringWithDefault("apidoc-output", "docs/apidoc.html")
+	httpReqOutput := ctx.Options.GetStringWithDefault("httpreq-output", ".http")
 
 	serverOutput = filepath.Join(ctx.Module.Dir, serverOutput)
 	clientOutput = filepath.Join(ctx.Module.Dir, clientOutput)
 	openapiOutput = filepath.Join(ctx.Module.Dir, openapiOutput)
 	apiDocOutput = filepath.Join(ctx.Module.Dir, apiDocOutput)
+	httpReqOutput = filepath.Join(ctx.Module.Dir, httpReqOutput)
 
 	var (
 		serverServices  []options.Iface
@@ -122,8 +124,14 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 	fileSet := map[string]*file.GoFile{}
 	if len(serverServices) > 0 {
 		pkgPathVisited := map[string]struct{}{}
-
 		for _, s := range serverServices {
+
+			if s.HTTPReq != "" {
+				hrf := file.NewTxtFile(filepath.Join(httpReqOutput, strcase.ToSnake(s.Name)+".http"))
+				generic.GenHTTPReq(s)(hrf)
+				files = append(files, hrf)
+			}
+
 			f, ok := fileSet[serverOutput]
 			if !ok {
 				f = file.NewGoFile(ctx.Module, serverOutput)
@@ -138,13 +146,6 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 				rest.GenTypes()(f)
 				rest.GenErrorEncoder(errorWrapper)(f)
 				rest.GenHandler()(f)
-
-				switch s.Type {
-				case "rest":
-
-				case "jsonrpc":
-					//jsonrpc.GenServer()(f)
-				}
 				pkgPathVisited[pkgPath+s.Type] = struct{}{}
 			}
 
@@ -154,20 +155,12 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 			}
 
 			rest.GenStruct(s)(f)
-
 			rest.GenMetric(s)(f)
-
-			//switch s.Type {
-			//case "rest":
-			//case "jsonrpc":
-			//jsonrpc.GenEncDec(s)(f)
-			//jsonrpc.GenServerOption(s)(f)
-			//}
 		}
 	}
 
 	if len(clientServices) > 0 {
-		pkgPathVisited := map[string]struct{}{}
+		// pkgPathVisited := map[string]struct{}{}
 		for _, s := range clientServices {
 			f, ok := fileSet[clientOutput]
 			if !ok {
@@ -175,19 +168,19 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 				fileSet[clientOutput] = f
 				files = append(files, f)
 			}
-			pkgPath := path.Dir(clientOutput)
-			if _, ok := pkgPathVisited[pkgPath]; !ok {
-				//			//generic.GenClient()(f)
-				//			//switch s.Type {
-				//			//case "rest":
-				//			//generic.GenRESTClient()(f)
-				//			//case "jsonrpc":
-				//			//}
-				//			pkgPathVisited[pkgPath] = struct{}{}
-			}
+			// pkgPath := path.Dir(clientOutput)
+			// if _, ok := pkgPathVisited[pkgPath]; !ok {
+			//			//generic.GenClient()(f)
+			//			//switch s.Type {
+			//			//case "rest":
+			//			//generic.GenRESTClient()(f)
+			//			//case "jsonrpc":
+			//			//}
+			//			pkgPathVisited[pkgPath] = struct{}{}
+			// }
 			switch s.Type {
 			case "rest":
-				//			rest.GenClient(s, errorWrapper)(f)
+				rest.GenClient(s, errorWrapper)(f)
 			case "jsonrpc":
 				jsonrpc.GenClient(s)(f)
 			}
