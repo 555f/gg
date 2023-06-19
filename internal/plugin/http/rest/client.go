@@ -23,7 +23,7 @@ func GenClient(s options.Iface, errorWrapper *options.ErrorWrapper) func(f *file
 		})
 		for _, endpoint := range s.Endpoints {
 			methodRequestName := s.Name + endpoint.MethodName + "Request"
-			recvName := strcase.ToLowerCamel(endpoint.MethodName)
+			recvName := strcase.ToLowerCamel(endpoint.MethodName) + "Request"
 
 			f.Type().Id(methodRequestName).StructFunc(func(g *Group) {
 				g.Id("c").Op("*").Id(clientName)

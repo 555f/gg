@@ -223,10 +223,10 @@ func Decode(iface *gg.Interface) (opts Iface, errs error) {
 	}
 	if _, ok := iface.Named.Tags.Get("http-openapi"); ok {
 		opts.Openapi.Enable = true
-		if t, ok := iface.Named.Tags.Get("http-openapi-tags"); ok {
-			opts.Openapi.Tags = []string{t.Value}
-			opts.Openapi.Tags = append(opts.Openapi.Tags, t.Options...)
-		}
+	}
+	if t, ok := iface.Named.Tags.Get("http-openapi-tags"); ok {
+		opts.Openapi.Tags = []string{t.Value}
+		opts.Openapi.Tags = append(opts.Openapi.Tags, t.Options...)
 	}
 	if _, ok := iface.Named.Tags.Get("http-api-doc"); ok {
 		opts.APIDoc.Enable = true
@@ -344,7 +344,7 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 	if t, ok := method.Tags.Get("http-accept-types"); ok {
 		switch t.Value {
 		default:
-			errs = multierror.Append(errs, errors.Error("invalid http-content-types, use 'json', 'xml', 'urlencoded' or 'multipart'", t.Position))
+			errs = multierror.Append(errs, errors.Error("invalid http-accept-types, use 'json', 'xml', 'urlencoded' or 'multipart'", t.Position))
 		case "json", "xml", "urlencoded", "multipart":
 			opts.RespRootXMLName = t.Params["root-xml"]
 			opts.AcceptTypes = []string{t.Value}

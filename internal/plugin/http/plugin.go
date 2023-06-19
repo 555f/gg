@@ -160,7 +160,7 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 	}
 
 	if len(clientServices) > 0 {
-		// pkgPathVisited := map[string]struct{}{}
+		pkgPathVisited := map[string]struct{}{}
 		for _, s := range clientServices {
 			f, ok := fileSet[clientOutput]
 			if !ok {
@@ -168,16 +168,14 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 				fileSet[clientOutput] = f
 				files = append(files, f)
 			}
-			// pkgPath := path.Dir(clientOutput)
-			// if _, ok := pkgPathVisited[pkgPath]; !ok {
-			//			//generic.GenClient()(f)
-			//			//switch s.Type {
-			//			//case "rest":
-			//			//generic.GenRESTClient()(f)
-			//			//case "jsonrpc":
-			//			//}
-			//			pkgPathVisited[pkgPath] = struct{}{}
-			// }
+			pkgPath := path.Dir(clientOutput)
+			if _, ok := pkgPathVisited[pkgPath]; !ok {
+				switch s.Type {
+				case "rest":
+					generic.GenRESTClient()(f)
+				}
+				pkgPathVisited[pkgPath] = struct{}{}
+			}
 			switch s.Type {
 			case "rest":
 				rest.GenClient(s, errorWrapper)(f)
