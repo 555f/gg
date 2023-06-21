@@ -42,6 +42,12 @@ var (
 
 func GenTypes() func(f *file.GoFile) {
 	return func(f *file.GoFile) {
+
+		f.Type().Id("contentTypeInvalidError").Struct()
+
+		f.Func().Params(Op("*").Id("contentTypeInvalidError")).Id("Error").Params().String().Block(Return(Lit("content type invalid")))
+		f.Func().Params(Op("*").Id("contentTypeInvalidError")).Id("StatusCode").Params().Int().Block(Return(Lit(400)))
+
 		f.Type().Id("pathParams").Interface(
 			Id("Param").Params(String()).String(),
 		)

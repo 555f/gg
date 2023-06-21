@@ -142,9 +142,12 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 			pkgPath := path.Dir(serverOutput)
 
 			if _, ok := pkgPathVisited[pkgPath]; !ok {
-				rest.GenTypes()(f)
-				rest.GenErrorEncoder(errorWrapper)(f)
-				rest.GenHTTPHandler()(f)
+				switch s.Type {
+				case "rest":
+					rest.GenTypes()(f)
+					rest.GenErrorEncoder(errorWrapper)(f)
+					rest.GenHTTPHandler()(f)
+				}
 				pkgPathVisited[pkgPath] = struct{}{}
 			}
 

@@ -47,6 +47,7 @@ type Iface struct {
 	APIDoc       APIDoc
 	Endpoints    []Endpoint
 	Type         string
+	Lib          string
 	ErrorWrapper ErrorWrapper
 	HTTPReq      string
 }
@@ -75,13 +76,13 @@ type QueryValue struct {
 }
 
 type Endpoint struct {
-	Name               string
-	MethodName         string
-	Title              string
-	Description        string
-	ReqStructName      string
-	RespStructName     string
-	ReqDecodeName      string
+	Name        string
+	MethodName  string
+	Title       string
+	Description string
+	// ReqStructName      string
+	// RespStructName     string
+	// ReqDecodeName      string
 	HTTPMethod         string
 	Path               string
 	ParamsIdxName      map[string]int
@@ -206,13 +207,17 @@ func Decode(iface *gg.Interface) (opts Iface, errs error) {
 	opts.Title = iface.Named.Title
 	opts.Description = iface.Named.Description
 	opts.PkgPath = iface.Named.Pkg.Path
-	opts.Type = "echo"
+	opts.Type = "rest"
+	opts.Lib = "echo"
 	if t, ok := iface.Named.Tags.Get("http-type"); ok {
 		switch t.Value {
 		default:
-			errs = multierror.Append(errs, errors.Error("invalid http type, valid values echo, http, jsonrpc", t.Position))
-		case "echo", "http", "jsonrpc":
+			errs = multierror.Append(errs, errors.Error("invalid http type, valid values rest, jsonrpc", t.Position))
+		case "rest", "jsonrpc":
 			opts.Type = t.Value
+		}
+		if len(t.Options) > 0 {
+			opts.Lib = t.Options[0]
 		}
 	}
 	if _, ok := iface.Named.Tags.Get("http-server"); ok {
@@ -253,9 +258,9 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 	opts.MethodName = method.Name
 	opts.Title = method.Title
 	opts.Description = method.Description
-	opts.ReqStructName = nameStructReq(ifaceOpts.Name, method.Name)
-	opts.RespStructName = nameStructResp(ifaceOpts.Name, method.Name)
-	opts.ReqDecodeName = nameReqDecode(ifaceOpts.Name, method.Name)
+	// opts.ReqStructName = nameStructReq(ifaceOpts.Name, method.Name)
+	// opts.RespStructName = nameStructResp(ifaceOpts.Name, method.Name)
+	// opts.ReqDecodeName = nameReqDecode(ifaceOpts.Name, method.Name)
 	opts.TimeFormat = time.RFC3339
 	opts.Sig = method.Sig
 

@@ -101,7 +101,6 @@ func GenStruct(s options.Iface) func(f *file.GoFile) {
 
 			if len(ep.Results) > 0 {
 				f.Func().Id(respEncName).Params(
-					//Id("ctx").Qual("context", "Context"),
 					Id("result").Any(),
 				).Params(
 					Any(),
@@ -109,18 +108,21 @@ func GenStruct(s options.Iface) func(f *file.GoFile) {
 				).BlockFunc(func(g *Group) {
 					if len(ep.BodyResults) > 0 {
 						if !ep.NoWrapResponse {
-							g.Var().Id("bodyResp").StructFunc(gen.WrapResponse(ep.WrapResponse, ep.Results, f.Import))
+							g.Var().Id("wrapResult").StructFunc(gen.WrapResponse(ep.WrapResponse, ep.Results, f.Import))
 							for _, r := range ep.Results {
-								g.Id("bodyResp").Do(func(s *Statement) {
+								g.Id("wrapResult").Do(func(s *Statement) {
 									for _, name := range ep.WrapResponse {
 										s.Dot(strcase.ToCamel(name))
 									}
 								}).Dot(r.FldNameExport).Op("=").Id("result").Assert(Op("*").Id(respName)).Dot(r.FldNameExport)
 							}
-							g.Return(Id("bodyResp"), Nil())
+
+							g.Id("result").Op("=").Id("wrapResult")
+
 						} else if len(ep.BodyResults) == 1 {
-							g.Return(Id("result").Assert(Op("*").Id(respName)).Dot(ep.BodyResults[0].FldNameExport), Nil())
+							g.Id("result").Op("=").Id("result").Assert(Op("*").Id(respName)).Dot(ep.BodyResults[0].FldNameExport)
 						}
+						g.Return(Id("result"), Nil())
 					} else {
 						g.Return(Nil(), Nil())
 					}
@@ -129,7 +131,6 @@ func GenStruct(s options.Iface) func(f *file.GoFile) {
 
 			if len(ep.Params) > 0 {
 				f.Func().Id(reqDecName).ParamsFunc(func(g *Group) {
-					//g.Id("ctx").Qual("context", "Context")
 					g.Id("pathParams").Id("pathParams")
 					g.Id("r").Op("*").Qual("net/http", "Request")
 					g.Do(func(s *Statement) {
@@ -158,9 +159,8 @@ func GenStruct(s options.Iface) func(f *file.GoFile) {
 
 							g.Switch(Id("contentType")).BlockFunc(func(g *Group) {
 								g.Default().Block(
-									Return(Nil(), Err()),
+									Return(Nil(), Op("&").Id("contentTypeInvalidError").Values()),
 								)
-
 								for _, contentType := range ep.ContentTypes {
 									switch contentType {
 									case "xml":
@@ -250,80 +250,93 @@ func GenStruct(s options.Iface) func(f *file.GoFile) {
 		f.Func().Id("SetupRoutes" + s.Name).ParamsFunc(func(g *Group) {
 			g.Id("svc").Do(f.Import(s.PkgPath, s.Name))
 			switch s.Type {
+			case "rest":
+				switch s.Lib {
+				case "echo":
+					g.Id("s").Op("*").Qual("github.com/labstack/echo/v4", "Echo")
+					g.Id("middlewares").Op("...").Add(echoMiddlewareFunc)
+				case "http":
+					g.Id("s").Op("*").Qual("net/http", "ServeMux")
+				}
 			case "jsonrpc":
-				g.Id("s").Op("*").Qual("github.com/555f/jsonrpc", "Server")
-			case "echo":
-				g.Id("s").Op("*").Qual("github.com/labstack/echo/v4", "Echo")
-				g.Id("middlewares").Op("...").Add(echoMiddlewareFunc)
-			case "http":
-				g.Id("s").Op("*").Qual("net/http", "ServeMux")
+				switch s.Lib {
+				case "std":
+					g.Id("s").Op("*").Qual("github.com/555f/jsonrpc", "Server")
+				}
 			}
 		}).BlockFunc(func(g *Group) {
 			for _, ep := range s.Endpoints {
 				epName := strcase.ToLowerCamel(s.Name+ep.MethodName) + "Endpoint"
 				reqDecName := strcase.ToLowerCamel(s.Name+ep.MethodName) + "ReqDec"
 				respEncName := strcase.ToLowerCamel(s.Name+ep.MethodName) + "RespEnc"
+
 				switch s.Type {
-				case "jsonrpc":
-					g.Id("s").Dot("Register").Call(
-						Lit(ep.Path),
-						Id(epName).Call(Id("svc")),
-						Id(reqDecName),
-					)
-				case "http":
-					g.Id("s").Dot("Handle").Call(
-						Lit(ep.Path),
+				case "rest":
+					switch s.Lib {
+					case "http":
+						g.Id("s").Dot("Handle").Call(
+							Lit(ep.Path),
 
-						Qual("net/http", "HandlerFunc").Call(
-							Func().Params(
-								Id("w").Qual("net/http", "ResponseWriter"),
-								Id("r").Op("*").Qual("net/http", "Request"),
-							).Block(
+							Qual("net/http", "HandlerFunc").Call(
+								Func().Params(
+									Id("w").Qual("net/http", "ResponseWriter"),
+									Id("r").Op("*").Qual("net/http", "Request"),
+								).Block(
 
-								If(Id("r").Dot("Method").Op("==").Lit(ep.HTTPMethod)).Block(
-									Id("httpHandler").CallFunc(func(g *Group) {
-										g.Id(epName).Call(Id("svc"))
-										if len(ep.Params) > 0 {
-											g.Id(reqDecName)
-										} else {
-											g.Nil()
-										}
-										if len(ep.Results) > 0 {
-											g.Id(respEncName)
-										} else {
-											g.Nil()
-										}
-										g.Op("&").Id("pathParamsNoop").Values()
-									}).Dot("ServeHTTP").Call(Id("w"), Id("r")),
+									If(Id("r").Dot("Method").Op("==").Lit(ep.HTTPMethod)).Block(
+										Id("httpHandler").CallFunc(func(g *Group) {
+											g.Id(epName).Call(Id("svc"))
+											if len(ep.Params) > 0 {
+												g.Id(reqDecName)
+											} else {
+												g.Nil()
+											}
+											if len(ep.Results) > 0 {
+												g.Id(respEncName)
+											} else {
+												g.Nil()
+											}
+											g.Op("&").Id("pathParamsNoop").Values()
+										}).Dot("ServeHTTP").Call(Id("w"), Id("r")),
+									),
 								),
 							),
-						),
-					)
-				case "echo":
-					g.Id("s").Dot("Add").Call(
-						Lit(ep.HTTPMethod),
-						Lit(ep.Path),
-						Func().Params(
-							Id("ctx").Qual("github.com/labstack/echo/v4", "Context"),
-						).Error().Block(
-							Id("httpHandler").CallFunc(func(g *Group) {
-								g.Id(epName).Call(Id("svc"))
-								if len(ep.Params) > 0 {
-									g.Id(reqDecName)
-								} else {
-									g.Nil()
-								}
-								if len(ep.Results) > 0 {
-									g.Id(respEncName)
-								} else {
-									g.Nil()
-								}
-								g.Id("ctx")
-							}).Dot("ServeHTTP").Call(Id("ctx").Dot("Response").Call().Dot("Writer"), Id("ctx").Dot("Request").Call()),
-							Return(Nil()),
-						),
-						Id("middlewares").Op("..."),
-					)
+						)
+					case "echo":
+						g.Id("s").Dot("Add").Call(
+							Lit(ep.HTTPMethod),
+							Lit(ep.Path),
+							Func().Params(
+								Id("ctx").Qual("github.com/labstack/echo/v4", "Context"),
+							).Error().Block(
+								Id("httpHandler").CallFunc(func(g *Group) {
+									g.Id(epName).Call(Id("svc"))
+									if len(ep.Params) > 0 {
+										g.Id(reqDecName)
+									} else {
+										g.Nil()
+									}
+									if len(ep.Results) > 0 {
+										g.Id(respEncName)
+									} else {
+										g.Nil()
+									}
+									g.Id("ctx")
+								}).Dot("ServeHTTP").Call(Id("ctx").Dot("Response").Call().Dot("Writer"), Id("ctx").Dot("Request").Call()),
+								Return(Nil()),
+							),
+							Id("middlewares").Op("..."),
+						)
+					}
+				case "jsonrpc":
+					switch s.Lib {
+					case "std":
+						g.Id("s").Dot("Register").Call(
+							Lit(ep.Path),
+							Id(epName).Call(Id("svc")),
+							Id(reqDecName),
+						)
+					}
 				}
 			}
 		}).Line()

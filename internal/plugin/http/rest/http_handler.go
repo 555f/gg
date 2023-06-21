@@ -46,13 +46,8 @@ func GenHTTPHandler() func(f *file.GoFile) {
 							Id("result"),
 						),
 						Do(serverErrorEncoder),
-					)
 
-					g.Id("statusCode").Op(":=").Lit(200)
-
-					g.If(Id("result").Op("!=").Nil()).Block(
 						Id("rw").Dot("Header").Call().Dot("Set").Call(Lit("Content-Type"), Lit("application/json")),
-
 						List(Id("data"), Err()).Op(":=").Qual("encoding/json", "Marshal").Call(Id("result")),
 						Do(serverErrorEncoder),
 						If(
@@ -62,6 +57,9 @@ func GenHTTPHandler() func(f *file.GoFile) {
 							Return(),
 						),
 					)
+
+					g.Id("statusCode").Op(":=").Lit(200)
+
 					g.Id("rw").Dot("WriteHeader").Call(Id("statusCode"))
 				}),
 			),
