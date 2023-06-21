@@ -11,7 +11,6 @@ import (
 func GenErrorEncoder(errorWrapper *options.ErrorWrapper) func(f *file.GoFile) {
 	return func(f *file.GoFile) {
 		f.Func().Id("serverErrorEncoder").Params(
-			//Id("ctx").Qual("context", "Context"),
 			Id("w").Qual("net/http", "ResponseWriter"),
 			Err().Error(),
 		).BlockFunc(func(g *Group) {

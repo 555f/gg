@@ -206,12 +206,12 @@ func Decode(iface *gg.Interface) (opts Iface, errs error) {
 	opts.Title = iface.Named.Title
 	opts.Description = iface.Named.Description
 	opts.PkgPath = iface.Named.Pkg.Path
-	opts.Type = "rest"
+	opts.Type = "echo"
 	if t, ok := iface.Named.Tags.Get("http-type"); ok {
 		switch t.Value {
 		default:
-			errs = multierror.Append(errs, errors.Error("invalid http type, valid values rest, jsonrpc", t.Position))
-		case "rest", "jsonrpc":
+			errs = multierror.Append(errs, errors.Error("invalid http type, valid values echo, http, jsonrpc", t.Position))
+		case "echo", "http", "jsonrpc":
 			opts.Type = t.Value
 		}
 	}

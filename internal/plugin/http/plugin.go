@@ -125,7 +125,6 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 	if len(serverServices) > 0 {
 		pkgPathVisited := map[string]struct{}{}
 		for _, s := range serverServices {
-
 			if s.HTTPReq != "" {
 				hrf := file.NewTxtFile(filepath.Join(httpReqOutput, strcase.ToSnake(s.Name)+".http"))
 				generic.GenHTTPReq(s)(hrf)
@@ -142,15 +141,10 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 
 			pkgPath := path.Dir(serverOutput)
 
-			if _, ok := pkgPathVisited[pkgPath+s.Type]; !ok {
+			if _, ok := pkgPathVisited[pkgPath]; !ok {
 				rest.GenTypes()(f)
 				rest.GenErrorEncoder(errorWrapper)(f)
-				rest.GenHandler()(f)
-				pkgPathVisited[pkgPath+s.Type] = struct{}{}
-			}
-
-			if _, ok := pkgPathVisited[pkgPath]; !ok {
-				generic.GenMetric()(f)
+				rest.GenHTTPHandler()(f)
 				pkgPathVisited[pkgPath] = struct{}{}
 			}
 
