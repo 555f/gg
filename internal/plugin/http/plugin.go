@@ -135,18 +135,20 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 			if !ok {
 				f = file.NewGoFile(ctx.Module, serverOutput)
 
+				rest.GenTypes()(f)
+				rest.GenErrorEncoder(errorWrapper)(f)
+				rest.GenHTTPHandler()(f)
+
 				fileSet[serverOutput] = f
 				files = append(files, f)
 			}
 
-			pkgPath := path.Dir(serverOutput)
+			pkgPath := path.Dir(serverOutput) + s.Name
 
 			if _, ok := pkgPathVisited[pkgPath]; !ok {
 				switch s.Type {
 				case "rest":
-					rest.GenTypes()(f)
-					rest.GenErrorEncoder(errorWrapper)(f)
-					rest.GenHTTPHandler()(f)
+					rest.GenOptions(s)(f)
 				}
 				pkgPathVisited[pkgPath] = struct{}{}
 			}

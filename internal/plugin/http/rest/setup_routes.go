@@ -254,7 +254,6 @@ func GenStruct(s options.Iface) func(f *file.GoFile) {
 				switch s.Lib {
 				case "echo":
 					g.Id("s").Op("*").Qual("github.com/labstack/echo/v4", "Echo")
-					g.Id("middlewares").Op("...").Add(echoMiddlewareFunc)
 				case "http":
 					g.Id("s").Op("*").Qual("net/http", "ServeMux")
 				}
@@ -264,12 +263,17 @@ func GenStruct(s options.Iface) func(f *file.GoFile) {
 					g.Id("s").Op("*").Qual("github.com/555f/jsonrpc", "Server")
 				}
 			}
+			g.Id("opts").Op("...").Id(s.Name + "Option")
 		}).BlockFunc(func(g *Group) {
+			g.Id("o").Op(":=").Op("&").Id(s.Name + "Options").Values()
+			g.For(List(Id("_"), Id("opt")).Op(":=").Range().Id("opts")).Block(
+				Id("opt").Call(Id("o")),
+			)
+
 			for _, ep := range s.Endpoints {
 				epName := strcase.ToLowerCamel(s.Name+ep.MethodName) + "Endpoint"
 				reqDecName := strcase.ToLowerCamel(s.Name+ep.MethodName) + "ReqDec"
 				respEncName := strcase.ToLowerCamel(s.Name+ep.MethodName) + "RespEnc"
-
 				switch s.Type {
 				case "rest":
 					switch s.Lib {
@@ -325,7 +329,7 @@ func GenStruct(s options.Iface) func(f *file.GoFile) {
 								}).Dot("ServeHTTP").Call(Id("ctx").Dot("Response").Call().Dot("Writer"), Id("ctx").Dot("Request").Call()),
 								Return(Nil()),
 							),
-							Id("middlewares").Op("..."),
+							Append(Id("o").Dot("middleware"), Id("o").Dot("middleware"+ep.MethodName).Op("...")).Op("..."),
 						)
 					}
 				case "jsonrpc":
