@@ -76,13 +76,10 @@ type QueryValue struct {
 }
 
 type Endpoint struct {
-	Name        string
-	MethodName  string
-	Title       string
-	Description string
-	// ReqStructName      string
-	// RespStructName     string
-	// ReqDecodeName      string
+	Name               string
+	MethodName         string
+	Title              string
+	Description        string
 	HTTPMethod         string
 	Path               string
 	ParamsIdxName      map[string]int
