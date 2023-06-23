@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	fnRegex = regexp.MustCompile("^([A-Za-z0-9_]+)\\(\\).+$")
+	fnRegex = regexp.MustCompile(`^([A-Za-z0-9_]+)\\(\\).+$`)
 )
 
 type ErrorWrapperField struct {
@@ -255,9 +255,6 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 	opts.MethodName = method.Name
 	opts.Title = method.Title
 	opts.Description = method.Description
-	// opts.ReqStructName = nameStructReq(ifaceOpts.Name, method.Name)
-	// opts.RespStructName = nameStructResp(ifaceOpts.Name, method.Name)
-	// opts.ReqDecodeName = nameReqDecode(ifaceOpts.Name, method.Name)
 	opts.TimeFormat = time.RFC3339
 	opts.Sig = method.Sig
 
@@ -349,10 +346,7 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 			errs = multierror.Append(errs, errors.Error("invalid http-accept-types, use 'json', 'xml', 'urlencoded' or 'multipart'", t.Position))
 		case "json", "xml", "urlencoded", "multipart":
 			opts.RespRootXMLName = t.Params["root-xml"]
-			opts.AcceptTypes = []string{t.Value}
-			for _, option := range t.Options {
-				opts.AcceptTypes = append(opts.AcceptTypes, option)
-			}
+			opts.AcceptTypes = append([]string{t.Value}, t.Options...)
 		}
 	}
 	queryValues := method.Tags.GetSlice("http-query-value")
