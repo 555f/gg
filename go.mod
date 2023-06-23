@@ -3,7 +3,7 @@ module github.com/555f/gg
 go 1.19
 
 require (
-	github.com/555f/curlbuilder v1.0.0
+	github.com/555f/curlbuilder v1.0.1
 	github.com/alecthomas/chroma v0.10.0
 	github.com/dave/jennifer v1.6.0
 	github.com/fatih/color v1.13.0
