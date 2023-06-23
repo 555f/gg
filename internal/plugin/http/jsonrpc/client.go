@@ -16,23 +16,23 @@ func GenClient(s options.Iface) func(f *file.GoFile) {
 		f.Type().Id(clientName).StructFunc(func(g *Group) {
 			g.Op("*").Qual("github.com/555f/jsonrpc", "Client")
 		})
-		for _, endpoint := range s.Endpoints {
-			methodRequestName := s.Name + endpoint.MethodName + "Request"
-			recvName := strcase.ToLowerCamel(endpoint.MethodName)
-			resultName := s.Name + endpoint.MethodName + "BatchResult"
-			path := strcase.ToLowerCamel(s.Name) + "." + strcase.ToLowerCamel(endpoint.MethodName)
-			if endpoint.Path != "" {
-				path = endpoint.Path
+		for _, ep := range s.Endpoints {
+			methodRequestName := s.Name + ep.MethodName + "Request"
+			recvName := strcase.ToLowerCamel(ep.MethodName)
+			resultName := s.Name + ep.MethodName + "BatchResult"
+			path := strcase.ToLowerCamel(s.Name) + "." + strcase.ToLowerCamel(ep.MethodName)
+			if ep.Path != "" {
+				path = ep.Path
 			}
 
-			if len(endpoint.BodyResults) > 0 {
-				f.Type().Id(resultName).StructFunc(gen.WrapResponse(endpoint.WrapResponse, endpoint.BodyResults, f.Import))
+			if len(ep.BodyResults) > 0 {
+				f.Type().Id(resultName).StructFunc(gen.WrapResponse(ep.WrapResponse, ep.BodyResults, f.Import))
 			}
 
 			f.Type().Id(methodRequestName).StructFunc(func(g *Group) {
 				g.Id("c").Op("*").Id(clientName)
 				g.Id("params").StructFunc(func(g *Group) {
-					for _, param := range endpoint.Params {
+					for _, param := range ep.Params {
 						if len(param.Params) > 0 {
 							for _, childParam := range param.Params {
 								g.Add(makeRequestStructParam(param, childParam, f.Import))
@@ -47,7 +47,7 @@ func GenClient(s options.Iface) func(f *file.GoFile) {
 				g.Id("ctx").Qual("context", "Context")
 			})
 
-			for _, param := range endpoint.Params {
+			for _, param := range ep.Params {
 				if len(param.Params) > 0 {
 					for _, childParam := range param.Params {
 						f.Add(makeSetFunc(recvName, methodRequestName, param, childParam, f.Import))
@@ -62,7 +62,7 @@ func GenClient(s options.Iface) func(f *file.GoFile) {
 			f.Func().Params(Id(recvName).Op("*").Id(methodRequestName)).Id("MakeRequest").Params().Params(String(), Any()).
 				BlockFunc(func(g *Group) {
 					g.Var().Id("params").StructFunc(func(g *Group) {
-						for _, param := range endpoint.BodyParams {
+						for _, param := range ep.BodyParams {
 							jsonTag := param.Name
 							fld := g.Id(param.FldName)
 							if !param.Required {
@@ -73,7 +73,7 @@ func GenClient(s options.Iface) func(f *file.GoFile) {
 						}
 					})
 
-					for _, param := range endpoint.BodyParams {
+					for _, param := range ep.BodyParams {
 						g.Id("params").Dot(param.FldName).Op("=").Id(recvName).Dot("params").Dot(param.Name)
 					}
 
@@ -115,7 +115,7 @@ func GenClient(s options.Iface) func(f *file.GoFile) {
 
 			f.Func().Params(Id(recvName).Op("*").Id(methodRequestName)).Id("MakeResult").Params(Id("data").Index().Byte()).Params(Any(), Error()).
 				BlockFunc(func(g *Group) {
-					if len(endpoint.BodyResults) > 0 {
+					if len(ep.BodyResults) > 0 {
 						g.Var().Id("result").Id(resultName)
 						g.If(
 							Err().Op(":=").Do(f.Import("encoding/json", "Unmarshal")).Call(
@@ -146,30 +146,30 @@ func GenClient(s options.Iface) func(f *file.GoFile) {
 
 			f.Func().Params(Id(recvName).Op("*").Id(methodRequestName)).Id("Execute").Params().
 				ParamsFunc(func(g *Group) {
-					for _, result := range endpoint.Sig.Results {
+					for _, result := range ep.Sig.Results {
 						g.Id(result.Name).Add(types.Convert(result.Type, f.Import))
 					}
 				}).
 				BlockFunc(func(g *Group) {
 					batchResultID := Id("batchResult")
 					resultAssignOp := ":="
-					if len(endpoint.BodyResults) == 0 {
+					if len(ep.BodyResults) == 0 {
 						batchResultID = Id("_")
 						resultAssignOp = "="
 					}
 					g.List(batchResultID, Err()).Op(resultAssignOp).Id(recvName).Dot("c").Dot("Client").Dot("Execute").Call(Id(recvName))
 					g.Do(gen.CheckErr(Return()))
 
-					if len(endpoint.BodyResults) > 0 {
+					if len(ep.BodyResults) > 0 {
 						g.Id("clientResult").Op(":=").Id("batchResult").Dot("At").Call(Lit(0)).Assert(Id(resultName))
 					}
 
 					g.ReturnFunc(func(g *Group) {
 						var ids []Code
-						for _, name := range endpoint.WrapResponse {
+						for _, name := range ep.WrapResponse {
 							ids = append(ids, Dot(strcase.ToCamel(name)))
 						}
-						for _, result := range endpoint.Sig.Results {
+						for _, result := range ep.Sig.Results {
 							if result.IsError {
 								g.Id(result.Name)
 								continue
