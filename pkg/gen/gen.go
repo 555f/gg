@@ -65,6 +65,11 @@ func ParseValue(id, assignID Code, op string, t any, qualFunc types.QualFunc) (s
 			case "Duration":
 				s.List(assignID, Err()).Op(op).Qual("time", "ParseDuration").Call(id)
 			}
+		case "github.com/google/uuid":
+			switch t.Name {
+			case "UUID":
+				s.Add(assignID).Op(op).Qual(t.Pkg.Path, "MustParse").Call(id)
+			}
 		case "gopkg.in/guregu/null.v4":
 			switch t.Name {
 			case "String":
@@ -137,7 +142,7 @@ func ExtractFields(v any) []*types.StructFieldType {
 		return t.Fields
 	case *types.Named:
 		switch t.Pkg.Path {
-		case "net/url", "time", "gopkg.in/guregu/null.v4":
+		case "net/url", "time", "gopkg.in/guregu/null.v4", "github.com/google/uuid":
 			return nil
 		}
 		return ExtractFields(t.Type)

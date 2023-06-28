@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	fnRegex = regexp.MustCompile(`^([A-Za-z0-9_]+)\\(\\).+$`)
+	fnRegex = regexp.MustCompile(`^([A-Za-z0-9_]+)\(\).+$`)
 )
 
 type ErrorWrapperField struct {
@@ -180,6 +180,7 @@ func DecodeErrorWrapper(errorWrapperPath, defaultErrorPath string, structs []*gg
 
 				var methodName string
 				matches := fnRegex.FindAllStringSubmatch(t.Value, -1)
+				fmt.Println(matches)
 				if len(matches) > 0 && len(matches[0]) == 2 {
 					methodName = matches[0][1]
 				} else {

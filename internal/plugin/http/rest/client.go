@@ -121,7 +121,11 @@ func GenClient(s options.Iface, errorWrapper *options.ErrorWrapper) func(f *file
 					CustomFunc(Options{Multi: true}, func(g *Group) {
 						if len(endpoint.BodyParams) > 0 {
 							for _, param := range endpoint.BodyParams {
-								g.Id("body").Dot(param.FldName).Op("=").Id(recvName).Dot("params").Dot(param.FldNameUnExport)
+								fldName := param.FldNameUnExport
+								if param.Parent != nil {
+									fldName = param.Parent.FldNameUnExport + param.FldName
+								}
+								g.Id("body").Dot(param.FldName).Op("=").Id(recvName).Dot("params").Dot(fldName)
 							}
 
 							g.Var().Id("reqData").Qual("bytes", "Buffer")
