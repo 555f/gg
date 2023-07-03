@@ -171,7 +171,7 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 			if _, ok := pkgPathVisited[pkgPath]; !ok {
 				switch s.Type {
 				case "rest":
-					generic.GenRESTClient()(f)
+					rest.GenClientTypes()(f)
 				}
 				pkgPathVisited[pkgPath] = struct{}{}
 			}
