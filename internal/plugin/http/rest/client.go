@@ -12,6 +12,44 @@ import (
 	. "github.com/dave/jennifer/jen"
 )
 
+var clientOptionName = "clientOptions"
+
+func GenClientTypes() func(f *file.GoFile) {
+	return func(f *file.GoFile) {
+		f.Type().Id("ClientBeforeFunc").Func().Params(
+			Qual("context", "Context"),
+			Op("*").Qual("net/http", "Request"),
+		).Params(Qual("context", "Context"), Error())
+		f.Type().Id("ClientAfterFunc").Func().Params(
+			Qual("context", "Context"),
+			Op("*").Qual("net/http", "Response"),
+		).Qual("context", "Context")
+
+		f.Type().Id(clientOptionName).Struct(
+			Id("ctx").Qual("context", "Context"),
+			Id("before").Index().Id("ClientBeforeFunc"),
+			Id("after").Index().Id("ClientAfterFunc"),
+		)
+
+		f.Type().Id("ClientOption").Func().Params(Op("*").Id(clientOptionName))
+		f.Func().Id("WithContext").Params(Id("ctx").Qual("context", "Context")).Id("ClientOption").Block(
+			Return(Func().Params(Id("o").Op("*").Id(clientOptionName)).Block(
+				Id("o").Dot("ctx").Op("=").Id("ctx"),
+			)),
+		)
+		f.Func().Id("Before").Params(Id("before").Op("...").Id("ClientBeforeFunc")).Id("ClientOption").Block(
+			Return(Func().Params(Id("o").Op("*").Id(clientOptionName)).Block(
+				Id("o").Dot("before").Op("=").Append(Id("o").Dot("before"), Id("before").Op("...")),
+			)),
+		)
+		f.Func().Id("After").Params(Id("after").Op("...").Id("ClientAfterFunc")).Id("ClientOption").Block(
+			Return(Func().Params(Id("o").Op("*").Id(clientOptionName)).Block(
+				Id("o").Dot("after").Op("=").Append(Id("o").Dot("after"), Id("after").Op("...")),
+			)),
+		)
+	}
+}
+
 func GenClient(s options.Iface, errorWrapper *options.ErrorWrapper) func(f *file.GoFile) {
 	return func(f *file.GoFile) {
 		clientName := s.Name + "Client"
@@ -19,7 +57,7 @@ func GenClient(s options.Iface, errorWrapper *options.ErrorWrapper) func(f *file
 		f.Type().Id(clientName).StructFunc(func(g *Group) {
 			g.Id("client").Op("*").Qual("net/http", "Client")
 			g.Id("target").String()
-
+			g.Id("opts").Op("*").Id(clientOptionName)
 		})
 		for _, endpoint := range s.Endpoints {
 			methodRequestName := s.Name + endpoint.MethodName + "Request"
@@ -28,7 +66,7 @@ func GenClient(s options.Iface, errorWrapper *options.ErrorWrapper) func(f *file
 			f.Type().Id(methodRequestName).StructFunc(func(g *Group) {
 				g.Id("c").Op("*").Id(clientName)
 				g.Id("client").Op("*").Qual("net/http", "Client")
-				g.Id("methodOpts").Op("*").Id("clientMethodOptions")
+				g.Id("opts").Op("*").Id(clientOptionName)
 				g.Id("params").StructFunc(func(g *Group) {
 					for _, param := range endpoint.Params {
 						if len(param.Params) > 0 {
@@ -54,7 +92,10 @@ func GenClient(s options.Iface, errorWrapper *options.ErrorWrapper) func(f *file
 				}
 			}
 
-			f.Func().Params(Id(recvName).Op("*").Id(methodRequestName)).Id("Execute").Params(Id("opts").Op("...").Id("ClientMethodOption")).
+			f.Func().Params(Id(recvName).Op("*").Id(methodRequestName)).Id("Execute").
+				Params(
+					Id("opts").Op("...").Id("ClientOption"),
+				).
 				ParamsFunc(func(g *Group) {
 					for _, result := range endpoint.Sig.Results {
 						g.Id(result.Name).Add(types.Convert(result.Type, f.Import))
@@ -62,7 +103,7 @@ func GenClient(s options.Iface, errorWrapper *options.ErrorWrapper) func(f *file
 				}).
 				Block(
 					For(List(Id("_"), Id("o")).Op(":=").Range().Id("opts")).Block(
-						Id("o").Call(Id(recvName).Dot("methodOpts")),
+						Id("o").Call(Id(recvName).Dot("opts")),
 					),
 					Do(func(s *Statement) {
 						if len(endpoint.BodyParams) > 0 {
@@ -79,7 +120,7 @@ func GenClient(s options.Iface, errorWrapper *options.ErrorWrapper) func(f *file
 							})
 						}
 					}),
-					List(Id("ctx"), Id("cancel")).Op(":=").Qual("context", "WithCancel").Call(Id(recvName).Dot("methodOpts").Dot("ctx")),
+					List(Id("ctx"), Id("cancel")).Op(":=").Qual("context", "WithCancel").Call(Id(recvName).Dot("opts").Dot("ctx")),
 					Do(func(s *Statement) {
 						if len(endpoint.PathParams) > 0 {
 							var paramsCall []Code
@@ -163,15 +204,23 @@ func GenClient(s options.Iface, errorWrapper *options.ErrorWrapper) func(f *file
 							))
 						}
 					}),
-					For(List(Id("_"), Id("before")).Op(":=").Range().Id(recvName).Dot("methodOpts").Dot("before")).Block(
-						Id("ctx").Op("=").Id("before").Call(Id("ctx"), Id("req")),
+
+					Id("before").Op(":=").Append(Id(recvName).Dot("c").Dot("opts").Dot("before"), Id(recvName).Dot("opts").Dot("before").Op("...")),
+					For(List(Id("_"), Id("before")).Op(":=").Range().Id("before")).Block(
+						List(Id("ctx"), Err()).Op("=").Id("before").Call(Id("ctx"), Id("req")),
+						Do(gen.CheckErr(
+							Id("cancel").Call(),
+							Return(),
+						)),
 					),
 					List(Id("resp"), Err()).Op(":=").Id(recvName).Dot("client").Dot("Do").Call(Id("req")),
 					Do(gen.CheckErr(
 						Id("cancel").Call(),
 						Return(),
 					)),
-					For(List(Id("_"), Id("after")).Op(":=").Range().Id(recvName).Dot("methodOpts").Dot("after")).Block(
+
+					Id("after").Op(":=").Append(Id(recvName).Dot("c").Dot("opts").Dot("after"), Id(recvName).Dot("opts").Dot("after").Op("...")),
+					For(List(Id("_"), Id("after")).Op(":=").Range().Id("after")).Block(
 						Id("ctx").Op("=").Id("after").Call(Id("ctx"), Id("resp")),
 					),
 					Defer().Id("resp").Dot("Body").Dot("Close").Call(),
@@ -251,7 +300,7 @@ func GenClient(s options.Iface, errorWrapper *options.ErrorWrapper) func(f *file
 				Op("*").Id(methodRequestName).BlockFunc(func(g *Group) {
 				g.Id("m").Op(":=").Op("&").Id(methodRequestName).Values(
 					Id("client").Op(":").Id(recvName).Dot("client"),
-					Id("methodOpts").Op(":").Op("&").Id("clientMethodOptions").Values(
+					Id("opts").Op(":").Op("&").Id(clientOptionName).Values(
 						Id("ctx").Op(":").Qual("context", "TODO").Call(),
 					),
 					Id("c").Op(":").Id(recvName),
@@ -264,11 +313,19 @@ func GenClient(s options.Iface, errorWrapper *options.ErrorWrapper) func(f *file
 				g.Return(Id("m"))
 			})
 		}
-		f.Func().Id("New" + s.Name + "Client").Params(Id("target").String()).Op("*").Id(clientName).BlockFunc(
+		f.Func().Id("New"+s.Name+"Client").
+			Params(
+				Id("target").String(),
+				Id("opts").Op("...").Id("ClientOption"),
+			).Op("*").Id(clientName).BlockFunc(
 			func(g *Group) {
 				g.Id("c").Op(":=").Op("&").Id(clientName).Values(
 					Id("target").Op(":").Id("target"),
 					Id("client").Op(":").Qual("net/http", "DefaultClient"),
+					Id("opts").Op(":").Op("&").Id(clientOptionName).Values(),
+				)
+				g.For(List(Id("_"), Id("o")).Op(":=").Range().Id("opts")).Block(
+					Id("o").Call(Id("c").Dot("opts")),
 				)
 				g.Return(Id("c"))
 			},
