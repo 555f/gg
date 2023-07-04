@@ -27,7 +27,7 @@ type Plugin struct {
 	ctx *gg.Context
 }
 
-func (p *Plugin) Name() string { return "logging" }
+func (p *Plugin) Name() string { return "klog" }
 
 func (p *Plugin) Exec() (files []file.File, errs error) {
 	output := filepath.Join(p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("output", "internal/logging/logging.go"))
