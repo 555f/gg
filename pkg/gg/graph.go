@@ -54,7 +54,7 @@ func (g *Graph) Dependencies(root string) NodeSet {
 	return out
 }
 
-func (g *Graph) registerPlugin(plugin Plugin) error {
+func (g *Graph) add(plugin Plugin) error {
 	g.nodes[plugin.Name()] = struct{}{}
 	g.plugins[plugin.Name()] = plugin
 

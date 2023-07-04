@@ -1,6 +1,6 @@
 package middleware
 
-import controller "github.com/f555/gg-examples/internal/usecase/controller"
+import controller "github.com/555f/gg/examples/rest-service/internal/usecase/controller"
 
 type ProfileControllerMiddleware func(controller.ProfileController) controller.ProfileController
 

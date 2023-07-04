@@ -180,11 +180,15 @@ func GenStruct(s options.Iface) func(f *file.GoFile) {
 									case "urlencoded":
 										g.Case(Lit("application/x-www-form-urlencoded")).BlockFunc(func(g *Group) {
 											g.Err().Op("=").Id("r").Dot("ParseForm").Call()
-											g.Do(serverErrorEncoder)
+											g.Do(gen.CheckErr(
+												Return(Nil(), Err()),
+											))
 											for _, p := range ep.BodyParams {
-												g.Add(gen.ParseValue(Id("r").Dot("Form").Dot("Get").Call(Lit(p.Name)), Id("param"+p.FldName), "=", p.Type, f.Import))
+												g.Add(gen.ParseValue(Id("r").Dot("Form").Dot("Get").Call(Lit(p.Name)), Id("param").Dot(p.FldName), "=", p.Type, f.Import))
 												if b, ok := p.Type.(*types.Basic); (ok && !b.IsString()) || !ok {
-													g.Do(serverErrorEncoder)
+													g.Do(gen.CheckErr(
+														Return(Nil(), Err()),
+													))
 												}
 											}
 										})
@@ -192,12 +196,14 @@ func GenStruct(s options.Iface) func(f *file.GoFile) {
 										g.Case(Lit("multipart/form-data")).BlockFunc(func(g *Group) {
 											g.Err().Op("=").Id("r").Dot("ParseMultipartForm").Call(Lit(ep.MultipartMaxMemory))
 											g.Do(gen.CheckErr(
-												g.Do(serverErrorEncoder),
+												Return(Nil(), Err()),
 											))
 											for _, p := range ep.BodyParams {
-												g.Add(gen.ParseValue(Id("r").Dot("FormValue").Call(Lit(p.Name)), Id("param"+p.FldName), "=", p.Type, f.Import))
+												g.Add(gen.ParseValue(Id("r").Dot("FormValue").Call(Lit(p.Name)), Id("param").Dot(p.FldName), "=", p.Type, f.Import))
 												if b, ok := p.Type.(*types.Basic); (ok && !b.IsString()) || !ok {
-													g.Do(serverErrorEncoder)
+													g.Do(gen.CheckErr(
+														Return(Nil(), Err()),
+													))
 												}
 											}
 										})

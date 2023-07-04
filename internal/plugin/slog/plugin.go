@@ -3,10 +3,8 @@ package logging
 import (
 	"fmt"
 	"go/token"
-	"path"
 	"path/filepath"
 	"strconv"
-	"strings"
 
 	"github.com/555f/gg/pkg/errors"
 	"github.com/555f/gg/pkg/file"
@@ -19,18 +17,21 @@ import (
 )
 
 type middlewarePlugin interface {
-	NameMiddleware(named *types.Named) string
+	PkgPath(named *types.Named) string
+	NameMiddleware(namedType *types.Named) string
 	Output() string
 }
 
-type Plugin struct{}
+type Plugin struct {
+	ctx *gg.Context
+}
 
 func (p *Plugin) Name() string { return "slog" }
 
-func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
-	output := filepath.Join(ctx.Module.Dir, ctx.Options.GetStringWithDefault("output", "internal/logging/logging.go"))
-	f := file.NewGoFile(ctx.Module, output)
-	middlewarePlugin, ok := ctx.Plugin("middleware").(middlewarePlugin)
+func (p *Plugin) Exec() (files []file.File, errs error) {
+	output := filepath.Join(p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("output", "internal/logging/logging.go"))
+	f := file.NewGoFile(p.ctx.Module, output)
+	middlewarePlugin, ok := p.ctx.Plugin("middleware").(middlewarePlugin)
 	if !ok {
 		errs = multierror.Append(errs, errors.Error("middleware plugin not found", token.Position{}))
 		return
@@ -56,10 +57,10 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 				),
 		)
 
-	for _, iface := range ctx.Interfaces {
+	for _, iface := range p.ctx.Interfaces {
 		nameStruct := p.NameStruct(iface.Named)
 		nameMiddleware := middlewarePlugin.NameMiddleware(iface.Named)
-		pkgMiddleware := path.Dir(path.Join(ctx.Module.Path, strings.Replace(middlewarePlugin.Output(), ctx.Module.Dir, "", -1)))
+		pkgMiddleware := middlewarePlugin.PkgPath(iface.Named)
 
 		f.Type().Id(nameStruct).Struct(
 			Id("next").Qual(iface.Named.Pkg.Path, iface.Named.Name),
@@ -67,7 +68,7 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 		)
 
 		for _, method := range iface.Type.Methods {
-			opts, err := makeMethodOptions(ctx.Module, method)
+			opts, err := makeMethodOptions(p.ctx.Module, method)
 			if err != nil {
 				errs = multierror.Append(errs, err)
 				continue

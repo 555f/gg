@@ -5,9 +5,13 @@ import (
 	"github.com/555f/gg/pkg/types"
 )
 
+var pluginFactories = map[string]PluginFactory{}
+
+type PluginFactory func(ctx *Context) Plugin
+
 type Plugin interface {
 	Name() string
-	Exec(ctx *Context) (files []file.File, errs error)
+	Exec() (files []file.File, errs error)
 	Dependencies() []string
 }
 
@@ -64,6 +68,8 @@ func (o Options) GetInt(name string) int {
 
 type Context struct {
 	pluginGraph *Graph
+	Workdir     string
+	PkgPath     string
 	Module      *types.Module
 	Interfaces  []*Interface
 	Structs     []*Struct
@@ -74,12 +80,9 @@ func (c *Context) Plugin(name string) Plugin {
 	return c.pluginGraph.plugins[name]
 }
 
-type PluginFactory func() Plugin
-
-var pluginGraph = newGraph()
-
-func RegisterPlugin(plugin Plugin) {
-	if err := pluginGraph.registerPlugin(plugin); err != nil {
-		panic(err)
+func RegisterPlugin(name string, f PluginFactory) {
+	if _, ok := pluginFactories[name]; ok {
+		panic("plugin " + name + " has already registered")
 	}
+	pluginFactories[name] = f
 }

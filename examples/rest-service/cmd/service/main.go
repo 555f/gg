@@ -1,14 +1,18 @@
 package main
 
 import (
-	"net/http"
+	"fmt"
 
-	"github.com/f555/gg-examples/internal/interface/controller"
-	"github.com/f555/gg-examples/internal/server"
+	"github.com/555f/gg/examples/rest-service/internal/config"
+	"github.com/555f/gg/examples/rest-service/internal/interface/controller"
+	"github.com/555f/gg/examples/rest-service/internal/server"
 
+	"github.com/labstack/echo/v4"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"golang.org/x/exp/slog"
 )
 
 func main() {
@@ -18,15 +22,22 @@ func main() {
 		collectors.NewGoCollector(),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 	)
+	cfg, errs := config.New()
+	if len(errs) > 0 {
+		for i := 0; i < len(errs); i++ {
+			slog.Error("config load", errs[i])
+		}
+	}
 
-	t := server.NewRESTServer(
-		server.ProfileController(
-			new(controller.ProfileController),
-			server.ProfileControllerMetricMiddleware(registry, nil),
-		),
-	)
+	e := echo.New()
+	e.HideBanner = true
+	e.HidePort = true
 
-	t.AddRoute("GET", "/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}), nil, nil, nil)
+	server.SetupRoutesProfileController(new(controller.ProfileController), e)
 
-	_ = http.ListenAndServe(":8080", t)
+	e.GET("/metrics", echo.WrapHandler(promhttp.HandlerFor(registry, promhttp.HandlerOpts{})))
+
+	if err := e.Start(fmt.Sprintf("%s:%d", cfg.Addr, cfg.Port)); err != nil {
+		slog.Error("start server", err)
+	}
 }

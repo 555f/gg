@@ -1,10 +1,11 @@
 packages:
   - ./internal/usecase/controller/...
+  - ./internal/config/...
   - ./pkg/dto/...
   - ./pkg/errors/...
 plugins:
   http:
-    error-wrapper: ~/pkg/errors/ErrorWrapper
-    error-default: ~/pkg/errors/DefaultError
-    openapi-tpl: docs/openapi.tpl.yaml
+    error-wrapper: pkg/errors/ErrorWrapper
+    error-default: pkg/errors/DefaultError
+    openapi-tpl: ./docs/openapi.tpl.yaml
     client-output: ./pkg/client/client.go

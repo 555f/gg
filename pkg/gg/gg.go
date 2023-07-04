@@ -16,7 +16,7 @@ import (
 	stdpackages "golang.org/x/tools/go/packages"
 )
 
-func Run(packages []*stdpackages.Package, plugins map[string]any) (allFiles []file.File, errs error) {
+func Run(wd string, packages []*stdpackages.Package, plugins map[string]any) (allFiles []file.File, errs error) {
 	module, err := Module(packages)
 	if err != nil {
 		errs = multierror.Append(errs, errors.Error("the golang module was not found, see for more details https://go.dev/blog/using-go-modules", token.Position{}))
@@ -36,6 +36,7 @@ func Run(packages []*stdpackages.Package, plugins map[string]any) (allFiles []fi
 
 	interfaceSet := map[string][]*Interface{}
 	structSet := map[string][]*Struct{}
+	pluginUsesSet := map[string][]token.Position{}
 
 	for _, s := range structs {
 		if !s.Named.IsExported {
@@ -47,22 +48,9 @@ func Run(packages []*stdpackages.Package, plugins map[string]any) (allFiles []fi
 		if len(s.Named.Tags) == 0 {
 			continue
 		}
-		pluginUsesSet := map[string]struct{}{}
 		for _, t := range s.Named.Tags.GetSlice("gg") {
-			pluginUsesSet[t.Value] = struct{}{}
+			pluginUsesSet[t.Value] = append(pluginUsesSet[t.Value], s.Named.Position)
 			structSet[t.Value] = append(structSet[t.Value], s)
-		}
-		for name := range pluginUsesSet {
-			plugin, ok := pluginGraph.plugins[name]
-			if !ok {
-				errs = multierror.Append(errs, errors.Warn(fmt.Sprintf("plugin not found: %s", name), s.Named.Position))
-				continue
-			}
-			for _, dep := range plugin.Dependencies() {
-				if _, ok := pluginUsesSet[dep]; !ok {
-					errs = multierror.Append(errs, errors.Error(fmt.Sprintf("%s depends on: %s, you need to add it", plugin.Name(), dep), s.Named.Position))
-				}
-			}
 		}
 	}
 
@@ -76,45 +64,58 @@ func Run(packages []*stdpackages.Package, plugins map[string]any) (allFiles []fi
 		if len(iface.Named.Tags) == 0 {
 			continue
 		}
-		pluginUsesSet := map[string]struct{}{}
 		for _, t := range iface.Named.Tags.GetSlice("gg") {
-			pluginUsesSet[t.Value] = struct{}{}
+			pluginUsesSet[t.Value] = append(pluginUsesSet[t.Value], iface.Named.Position)
 			interfaceSet[t.Value] = append(interfaceSet[t.Value], iface)
-		}
-		for name := range pluginUsesSet {
-			plugin, ok := pluginGraph.plugins[name]
-			if !ok {
-				errs = multierror.Append(errs, errors.Warn(fmt.Sprintf("plugin not found: %s", name), iface.Named.Position))
-				continue
-			}
-			for _, dep := range plugin.Dependencies() {
-				if _, ok := pluginUsesSet[dep]; !ok {
-					errs = multierror.Append(errs, errors.Error(fmt.Sprintf("%s depends on: %s, you need to add it", plugin.Name(), dep), iface.Named.Position))
-				}
-			}
 		}
 	}
 
-	sortedPlugins := pluginGraph.Sorted()
-	for i := len(sortedPlugins) - 1; i >= 0; i-- {
-		plugin := sortedPlugins[i]
-		name := plugin.Name()
-		options, _ := plugins[name].(map[string]any)
+	var pluginGraph = newGraph()
 
+	pkgPath := module.Path + strings.Replace(wd, module.Dir, "", -1)
+
+	for name, f := range pluginFactories {
 		if len(interfaceSet[name]) > 0 || len(structSet[name]) > 0 {
+			options, _ := plugins[name].(map[string]any)
 			ctx := &Context{
 				pluginGraph: pluginGraph,
+				Workdir:     wd,
+				PkgPath:     pkgPath,
 				Module:      module,
 				Interfaces:  interfaceSet[name],
 				Structs:     structSet[name],
 				Options:     Options{m: options},
 			}
-			files, err := plugin.Exec(ctx)
-			if err != nil {
-				errs = multierror.Append(errs, err)
-			}
-			allFiles = append(allFiles, files...)
+			plugin := f(ctx)
+			pluginGraph.add(plugin)
 		}
+	}
+	sortedPlugins := pluginGraph.Sorted()
+
+	for name, positions := range pluginUsesSet {
+		plugin, ok := pluginGraph.plugins[name]
+		if !ok {
+			for _, pos := range positions {
+				errs = multierror.Append(errs, errors.Warn(fmt.Sprintf("plugin not found: %s", name), pos))
+			}
+			continue
+		}
+		for _, dep := range plugin.Dependencies() {
+			if _, ok := pluginUsesSet[dep]; !ok {
+				for _, pos := range positions {
+					errs = multierror.Append(errs, errors.Error(fmt.Sprintf("%s depends on: %s, you need to add it", plugin.Name(), dep), pos))
+				}
+			}
+		}
+	}
+
+	for i := len(sortedPlugins) - 1; i >= 0; i-- {
+		plugin := sortedPlugins[i]
+		files, err := plugin.Exec()
+		if err != nil {
+			errs = multierror.Append(errs, err)
+		}
+		allFiles = append(allFiles, files...)
 	}
 	return
 }

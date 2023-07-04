@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/555f/gg/pkg/file"
 	"github.com/555f/gg/pkg/gg"
@@ -12,15 +14,14 @@ import (
 )
 
 type Plugin struct {
-	output string
+	ctx *gg.Context
 }
 
 func (p *Plugin) Name() string { return "middleware" }
 
-func (p *Plugin) Exec(ctx *gg.Context) ([]file.File, error) {
-	p.output = filepath.Join(ctx.Module.Dir, ctx.Options.GetStringWithDefault("output", "internal/middleware/middleware.go"))
-	f := file.NewGoFile(ctx.Module, p.output)
-	for _, iface := range ctx.Interfaces {
+func (p *Plugin) Exec() ([]file.File, error) {
+	f := file.NewGoFile(p.ctx.Module, p.Output())
+	for _, iface := range p.ctx.Interfaces {
 		nameMiddleware := p.NameMiddleware(iface.Named)
 		nameMiddlewareChain := p.NameMiddlewareChain(iface.Named)
 
@@ -56,6 +57,10 @@ func (p *Plugin) Exec(ctx *gg.Context) ([]file.File, error) {
 	return []file.File{f}, nil
 }
 
+func (p *Plugin) PkgPath(named *types.Named) string {
+	return path.Dir(path.Join(p.ctx.Module.Path, strings.Replace(p.Output(), p.ctx.Workdir, "", -1)))
+}
+
 func (p *Plugin) NameMiddlewareChain(named *types.Named) string {
 	return strcase.ToCamel(named.Name) + "MiddlewareChain"
 }
@@ -65,7 +70,7 @@ func (p *Plugin) NameMiddleware(namedType *types.Named) string {
 }
 
 func (p *Plugin) Output() string {
-	return p.output
+	return filepath.Join(p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("output", "internal/middleware/middleware.go"))
 }
 
 func (p *Plugin) Dependencies() []string { return nil }

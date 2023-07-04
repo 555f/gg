@@ -1,9 +1,7 @@
-// @gg:"test"
-
 package controller
 
 import (
-	"github.com/f555/gg-examples/pkg/dto"
+	"github.com/555f/gg/examples/rest-service/pkg/dto"
 )
 
 // ProfileController Профиль пользователя
@@ -44,7 +42,7 @@ type ProfileController interface {
 		err error,
 	)
 	// DownloadFile
-	// @http-path:"/profiles/{id}/file"
+	// @http-path:"/profiles/:id/file"
 	// @http-method:"GET"
 	DownloadFile(
 		// @http-required

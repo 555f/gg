@@ -6,7 +6,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strings"
 
 	"github.com/555f/gg/internal/openapi"
 	"github.com/555f/gg/internal/plugin/http/apidoc"
@@ -34,22 +33,30 @@ var styleCSS string
 //go:embed files/vue.min.js
 var vueJS string
 
-type Plugin struct{}
+type Plugin struct {
+	ctx *gg.Context
+}
 
 func (p *Plugin) Name() string { return "http" }
 
-func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
-	serverOutput := ctx.Options.GetStringWithDefault("server-output", "internal/server/server.go")
-	clientOutput := ctx.Options.GetStringWithDefault("client-output", "internal/server/client.go")
-	openapiOutput := ctx.Options.GetStringWithDefault("openapi-output", "docs/openapi.yaml")
-	apiDocOutput := ctx.Options.GetStringWithDefault("apidoc-output", "docs/apidoc.html")
-	httpReqOutput := ctx.Options.GetStringWithDefault("httpreq-output", ".http")
-
-	serverOutput = filepath.Join(ctx.Module.Dir, serverOutput)
-	clientOutput = filepath.Join(ctx.Module.Dir, clientOutput)
-	openapiOutput = filepath.Join(ctx.Module.Dir, openapiOutput)
-	apiDocOutput = filepath.Join(ctx.Module.Dir, apiDocOutput)
-	httpReqOutput = filepath.Join(ctx.Module.Dir, httpReqOutput)
+func (p *Plugin) Exec() (files []file.File, errs error) {
+	serverOutput := filepath.Join(
+		p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("server-output", "internal/server/server.go"),
+	)
+	clientOutput := filepath.Join(
+		p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("client-output", "internal/server/client.go"),
+	)
+	openapiOutput := filepath.Join(
+		p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("openapi-output", "docs/openapi.yaml"),
+	)
+	apiDocOutput := filepath.Join(
+		p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("apidoc-output", "docs/apidoc.html"),
+	)
+	httpReqOutput := filepath.Join(
+		p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("httpreq-output", ".http"),
+	)
+	errorWrapperPath := p.ctx.Options.GetString("error-wrapper")
+	defaultErrorPath := p.ctx.Options.GetString("error-default")
 
 	var (
 		serverServices  []options.Iface
@@ -59,19 +66,17 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 		errorWrapper    *options.ErrorWrapper
 	)
 
-	errorWrapperPath := ctx.Options.GetString("error-wrapper")
-	defaultErrorPath := ctx.Options.GetString("error-default")
-
 	if errorWrapperPath != "" && defaultErrorPath != "" {
+		errorWrapperPath = filepath.Join(p.ctx.PkgPath, errorWrapperPath)
+		defaultErrorPath = filepath.Join(p.ctx.PkgPath, defaultErrorPath)
+
 		var err error
-		defaultErrorPath = strings.Replace(defaultErrorPath, "~", ctx.Module.Path, 1)
-		errorWrapperPath = strings.Replace(errorWrapperPath, "~", ctx.Module.Path, 1)
-		errorWrapper, err = options.DecodeErrorWrapper(errorWrapperPath, defaultErrorPath, ctx.Structs)
+		errorWrapper, err = options.DecodeErrorWrapper(errorWrapperPath, defaultErrorPath, p.ctx.Structs)
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		}
 	}
-	for _, iface := range ctx.Interfaces {
+	for _, iface := range p.ctx.Interfaces {
 		s, err := options.Decode(iface)
 		if err != nil {
 			errs = multierror.Append(errs, err)
@@ -91,7 +96,7 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 	}
 
 	if len(apidocServices) > 0 || len(openapiServices) > 0 {
-		httpErrors := httperror.Load(ctx.Structs, errorWrapper)
+		httpErrors := httperror.Load(p.ctx.Structs, errorWrapper)
 
 		if len(apidocServices) > 0 {
 			adFile := file.NewTxtFile(apiDocOutput)
@@ -103,9 +108,9 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 		}
 		if len(openapiServices) > 0 {
 			var openAPI openapi.OpenAPI
-			openapiTmpl := ctx.Options.GetString("openapi-tpl")
+			openapiTmpl := p.ctx.Options.GetString("openapi-tpl")
 			if openapiTmpl != "" {
-				openapiTmplPath := path.Join(ctx.Module.Dir, openapiTmpl)
+				openapiTmplPath := path.Join(p.ctx.Workdir, openapiTmpl)
 				data, err := os.ReadFile(openapiTmplPath)
 				if err != nil {
 					errs = multierror.Append(errs, errors.Error(err.Error(), token.Position{}))
@@ -133,7 +138,7 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 
 			f, ok := fileSet[serverOutput]
 			if !ok {
-				f = file.NewGoFile(ctx.Module, serverOutput)
+				f = file.NewGoFile(p.ctx.Module, serverOutput)
 
 				rest.GenTypes()(f)
 				rest.GenErrorEncoder(errorWrapper)(f)
@@ -163,7 +168,7 @@ func (p *Plugin) Exec(ctx *gg.Context) (files []file.File, errs error) {
 		for _, s := range clientServices {
 			f, ok := fileSet[clientOutput]
 			if !ok {
-				f = file.NewGoFile(ctx.Module, clientOutput)
+				f = file.NewGoFile(p.ctx.Module, clientOutput)
 				fileSet[clientOutput] = f
 				files = append(files, f)
 			}

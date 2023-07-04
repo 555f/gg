@@ -75,7 +75,7 @@ func GenHTTPReq(s options.Iface) func(f *file.TxtFile) {
 				}
 			}
 
-			uri := "{{scheme}}://{{host}}:{{port}}" + strings.Join(pathParts, "/")
+			uri := "{{scheme}}://{{host}}" + strings.Join(pathParts, "/")
 
 			f.WriteText("### %s - %s\n", ep.Title, ep.Description)
 			for i := 0; i < len(ep.ParamsNameIdx); i++ {

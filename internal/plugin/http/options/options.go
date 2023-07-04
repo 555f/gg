@@ -162,9 +162,11 @@ func DecodeErrorWrapper(errorWrapperPath, defaultErrorPath string, structs []*gg
 	}
 	if errorWrapperStruct == nil {
 		errs = multierror.Append(errs, errors.Error("not found error wrapper struct "+errorWrapperPath, token.Position{}))
+		return
 	}
 	if defaultErrorStruct == nil {
 		errs = multierror.Append(errs, errors.Error("not found default error struct "+defaultErrorPath, token.Position{}))
+		return
 	}
 	errorWrapper = &ErrorWrapper{
 		Struct:  errorWrapperStruct,

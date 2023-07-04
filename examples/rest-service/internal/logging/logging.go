@@ -1,9 +1,9 @@
 package logging
 
 import (
-	middleware "github.com/f555/gg-examples/internal/middleware"
-	controller "github.com/f555/gg-examples/internal/usecase/controller"
-	dto "github.com/f555/gg-examples/pkg/dto"
+	middleware "github.com/555f/gg/examples/rest-service/internal/middleware"
+	controller "github.com/555f/gg/examples/rest-service/internal/usecase/controller"
+	dto "github.com/555f/gg/examples/rest-service/pkg/dto"
 	log "github.com/go-kit/log"
 	level "github.com/go-kit/log/level"
 	"time"
@@ -50,8 +50,9 @@ func (s *ProfileControllerLoggingMiddleware) Create(firstName string, lastName s
 			}
 		} else {
 			logger = level.Debug(logger)
+			logger = log.WithPrefix(logger, "profile", "")
 		}
-		_ = logger.Log()
+		_ = logger.Log("dur", time.Since(now))
 	}(time.Now())
 	profile, err = s.next.Create(firstName, lastName, address, zip)
 	return
@@ -72,8 +73,9 @@ func (s *ProfileControllerLoggingMiddleware) DownloadFile(id string) (data strin
 			}
 		} else {
 			logger = level.Debug(logger)
+			logger = log.WithPrefix(logger, "data", data)
 		}
-		_ = logger.Log()
+		_ = logger.Log("dur", time.Since(now))
 	}(time.Now())
 	data, err = s.next.DownloadFile(id)
 	return
@@ -94,8 +96,9 @@ func (s *ProfileControllerLoggingMiddleware) Remove(id string) (err error) {
 			}
 		} else {
 			logger = level.Debug(logger)
+			logger = log.WithPrefix(logger)
 		}
-		_ = logger.Log()
+		_ = logger.Log("dur", time.Since(now))
 	}(time.Now())
 	err = s.next.Remove(id)
 	return

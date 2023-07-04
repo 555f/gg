@@ -1,8 +1,8 @@
 package controller
 
 import (
-	"github.com/f555/gg-examples/internal/usecase/controller"
-	"github.com/f555/gg-examples/pkg/dto"
+	"github.com/555f/gg/examples/rest-service/internal/usecase/controller"
+	"github.com/555f/gg/examples/rest-service/pkg/dto"
 )
 
 var _ controller.ProfileController = &ProfileController{}
