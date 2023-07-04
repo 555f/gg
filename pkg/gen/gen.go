@@ -68,7 +68,7 @@ func ParseValue(id, assignID Code, op string, t any, qualFunc types.QualFunc) (s
 		case "github.com/google/uuid":
 			switch t.Name {
 			case "UUID":
-				s.Add(assignID).Op(op).Qual(t.Pkg.Path, "MustParse").Call(id)
+				s.List(assignID, Err()).Op(op).Qual(t.Pkg.Path, "Parse").Call(id)
 			}
 		case "gopkg.in/guregu/null.v4":
 			switch t.Name {
