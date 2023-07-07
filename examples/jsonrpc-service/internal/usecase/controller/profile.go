@@ -3,7 +3,7 @@
 package controller
 
 import (
-	"github.com/f555/gg-examples/pkg/dto"
+	"github.com/555f/gg/examples/jsonrpc-service/pkg/dto"
 )
 
 // ProfileController Профиль пользователя
@@ -13,14 +13,13 @@ import (
 // @gg:"logging"
 // @http-api-doc
 // @http-type:"jsonrpc"
-// @http-client:"pkg/client/client.go"
-// @http-server:"internal/transport/server.go"
+// @http-client
+// @http-server
 type ProfileController interface {
 	// Create Создать профиль
 	// @http-path:"profile.create"
 	Create(
 		// @http-required
-		// @http-type:"header" @http-name:"X-Token"
 		token string,
 		// @http-required
 		firstName string,

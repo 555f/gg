@@ -253,29 +253,29 @@ func GenStruct(s options.Iface) func(f *file.GoFile) {
 			}
 		}
 		f.Commentf("// SetupRoutes%s route init for service", s.Name)
-		f.Func().Id("SetupRoutes" + s.Name).ParamsFunc(func(g *Group) {
-			g.Id("svc").Do(f.Import(s.PkgPath, s.Name))
-			switch s.Type {
-			case "rest":
-				switch s.Lib {
-				case "echo":
-					g.Id("s").Op("*").Qual("github.com/labstack/echo/v4", "Echo")
-				case "http":
-					g.Id("s").Op("*").Qual("net/http", "ServeMux")
-				}
-			case "jsonrpc":
-				switch s.Lib {
-				case "std":
+		f.Func().Id("SetupRoutes" + s.Name).
+			ParamsFunc(func(g *Group) {
+				g.Id("svc").Do(f.Import(s.PkgPath, s.Name))
+				switch s.Type {
+				case "rest":
+					switch s.Lib {
+					case "echo":
+						g.Id("s").Op("*").Qual("github.com/labstack/echo/v4", "Echo")
+					case "http":
+						g.Id("s").Op("*").Qual("net/http", "ServeMux")
+					}
+					g.Id("opts").Op("...").Id(s.Name + "Option")
+				case "jsonrpc":
 					g.Id("s").Op("*").Qual("github.com/555f/jsonrpc", "Server")
 				}
-			}
-			g.Id("opts").Op("...").Id(s.Name + "Option")
-		}).BlockFunc(func(g *Group) {
-			g.Id("o").Op(":=").Op("&").Id(s.Name + "Options").Values()
-			g.For(List(Id("_"), Id("opt")).Op(":=").Range().Id("opts")).Block(
-				Id("opt").Call(Id("o")),
-			)
 
+			}).BlockFunc(func(g *Group) {
+			if s.Type == "rest" {
+				g.Id("o").Op(":=").Op("&").Id(s.Name + "Options").Values()
+				g.For(List(Id("_"), Id("opt")).Op(":=").Range().Id("opts")).Block(
+					Id("opt").Call(Id("o")),
+				)
+			}
 			for _, ep := range s.Endpoints {
 				epName := strcase.ToLowerCamel(s.Name+ep.MethodName) + "Endpoint"
 				reqDecName := strcase.ToLowerCamel(s.Name+ep.MethodName) + "ReqDec"
@@ -339,14 +339,25 @@ func GenStruct(s options.Iface) func(f *file.GoFile) {
 						)
 					}
 				case "jsonrpc":
-					switch s.Lib {
-					case "std":
-						g.Id("s").Dot("Register").Call(
-							Lit(ep.Path),
-							Id(epName).Call(Id("svc")),
-							Id(reqDecName),
-						)
-					}
+					g.Id("s").Dot("Register").Call(
+						Lit(ep.Path),
+						Id(epName).Call(Id("svc")),
+
+						Func().Params(
+							Id("ctx").Qual("context", "Context"),
+							Id("r").Op("*").Qual("net/http", "Request"),
+							Id("params").Qual("encoding/json", "RawMessage"),
+						).Params(
+							Id("result").Any(),
+							Err().Error(),
+						).Block(
+							Return(Id(reqDecName).Call(
+								Op("&").Id("pathParamsNoop").Values(),
+								Id("r"),
+								Id("params"),
+							)),
+						),
+					)
 				}
 			}
 		}).Line()

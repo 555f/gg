@@ -62,8 +62,9 @@ type Client struct {
 }
 
 type OpenAPI struct {
-	Enable bool
-	Tags   []string
+	Enable  bool
+	Tags    []string
+	Headers []OpenapiHeader
 }
 
 type APIDoc struct {
@@ -141,8 +142,9 @@ type EndpointResult struct {
 }
 
 type OpenapiHeader struct {
-	Title string
-	Name  string
+	Title    string
+	Name     string
+	Required bool
 }
 
 func DecodeErrorWrapper(errorWrapperPath, defaultErrorPath string, structs []*gg.Struct) (errorWrapper *ErrorWrapper, errs error) {
@@ -182,7 +184,6 @@ func DecodeErrorWrapper(errorWrapperPath, defaultErrorPath string, structs []*gg
 
 				var methodName string
 				matches := fnRegex.FindAllStringSubmatch(t.Value, -1)
-				fmt.Println(matches)
 				if len(matches) > 0 && len(matches[0]) == 2 {
 					methodName = matches[0][1]
 				} else {
@@ -232,6 +233,21 @@ func Decode(iface *gg.Interface) (opts Iface, errs error) {
 	if t, ok := iface.Named.Tags.Get("http-openapi-tags"); ok {
 		opts.Openapi.Tags = []string{t.Value}
 		opts.Openapi.Tags = append(opts.Openapi.Tags, t.Options...)
+	}
+	openapiHeaderTags := iface.Named.Tags.GetSlice("http-openapi-header")
+	for _, t := range openapiHeaderTags {
+		title, _ := t.Param("title")
+		oh := OpenapiHeader{
+			Title: title,
+			Name:  t.Value,
+		}
+		for _, v := range t.Options {
+			switch v {
+			case "required":
+				oh.Required = true
+			}
+		}
+		opts.Openapi.Headers = append(opts.Openapi.Headers, oh)
 	}
 	if _, ok := iface.Named.Tags.Get("http-api-doc"); ok {
 		opts.APIDoc.Enable = true
@@ -307,10 +323,17 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 	openapiHeaderTags := method.Tags.GetSlice("http-openapi-header")
 	for _, t := range openapiHeaderTags {
 		title, _ := t.Param("title")
-		opts.OpenapiHeaders = append(opts.OpenapiHeaders, OpenapiHeader{
+		oh := OpenapiHeader{
 			Title: title,
 			Name:  t.Value,
-		})
+		}
+		for _, v := range t.Options {
+			switch v {
+			case "required":
+				oh.Required = true
+			}
+		}
+		opts.OpenapiHeaders = append(opts.OpenapiHeaders, oh)
 	}
 	if t, ok := method.Tags.Get("http-content-types"); ok {
 		opts.ContentTypes = []string{t.Value}

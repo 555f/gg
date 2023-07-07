@@ -1,12 +1,13 @@
 package logging
 
 import (
-	middleware "github.com/f555/gg-examples/internal/middleware"
-	controller "github.com/f555/gg-examples/internal/usecase/controller"
-	dto "github.com/f555/gg-examples/pkg/dto"
+	"time"
+
+	middleware "github.com/555f/gg/examples/jsonrpc-service/internal/middleware"
+	controller "github.com/555f/gg/examples/jsonrpc-service/internal/usecase/controller"
+	dto "github.com/555f/gg/examples/jsonrpc-service/pkg/dto"
 	log "github.com/go-kit/log"
 	level "github.com/go-kit/log/level"
-	"time"
 )
 
 type errLevel interface {

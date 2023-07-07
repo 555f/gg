@@ -25,14 +25,12 @@ func Gen(openAPI openapi2.OpenAPI, services []options.Iface, httpErrors []httper
 			})
 		}
 		for _, service := range services {
+			headers := service.Openapi.Headers
+			tags := service.Openapi.Tags
 			httpErrors := service.Server.Errors
 			for _, ep := range service.Endpoints {
-				tags := ep.OpenapiTags
-				if len(tags) == 0 {
-					tags = service.Openapi.Tags
-				}
 				o := &openapi2.Operation{
-					Tags:        tags,
+					Tags:        append(tags, ep.OpenapiTags...),
 					Summary:     ep.Title,
 					Description: ep.Description,
 					OperationID: "",
@@ -76,7 +74,7 @@ func Gen(openAPI openapi2.OpenAPI, services []options.Iface, httpErrors []httper
 						}
 						for _, bodyType := range ep.ContentTypes {
 							switch bodyType {
-							case "json":
+							default:
 								o.RequestBody.Content["application/json"] = openapi2.Media{
 									Schema: &openapi2.Schema{
 										Type:       "object",
@@ -113,10 +111,11 @@ func Gen(openAPI openapi2.OpenAPI, services []options.Iface, httpErrors []httper
 							responseSchema.Properties[result.Name] = b.SchemaByType(result.Title, "", result.Type)
 						}
 					}
+					if !ep.NoWrapResponse && len(ep.WrapResponse) > 0 {
+						responseSchema.Properties = wrapScheme(ep.WrapResponse, responseSchema.Properties)
+					}
 					for _, bodyType := range ep.AcceptTypes {
 						switch bodyType {
-						//case "custom":
-						//	contentType, _ = resultContentType(ep.BodyResults)
 						case "json":
 							o.Responses[200].Content["application/json"] = openapi2.Media{
 								Schema: responseSchema,
@@ -156,15 +155,14 @@ func Gen(openAPI openapi2.OpenAPI, services []options.Iface, httpErrors []httper
 						Schema:      b.SchemaByType(param.Title, "", param.Type),
 					})
 				}
-				for _, h := range ep.OpenapiHeaders {
+				for _, h := range append(headers, ep.OpenapiHeaders...) {
 					o.Parameters = append(o.Parameters, openapi2.Parameter{
 						In:          "header",
 						Name:        h.Name,
 						Description: h.Title,
-						// Required:    param.Required,
+						Required:    h.Required,
 					})
 				}
-
 				b.AddPath(ep.HTTPMethod, ep.Path, o)
 			}
 		}

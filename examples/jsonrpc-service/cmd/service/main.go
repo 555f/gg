@@ -3,16 +3,13 @@ package main
 import (
 	"net/http"
 
-	"github.com/f555/gg-examples/internal/interface/controller"
-
-	"github.com/f555/gg-examples/internal/transport"
+	"github.com/555f/gg/examples/jsonrpc-service/internal/interface/controller"
+	"github.com/555f/gg/examples/jsonrpc-service/internal/server"
+	"github.com/555f/jsonrpc"
 )
 
 func main() {
-	t := transport.NewJSONRPCServer(
-		transport.ProfileController(
-			new(controller.ProfileController),
-		),
-	)
-	_ = http.ListenAndServe(":8080", t)
+	s := jsonrpc.NewServer()
+	server.SetupRoutesProfileController(new(controller.ProfileController), s)
+	_ = http.ListenAndServe(":8080", s)
 }
