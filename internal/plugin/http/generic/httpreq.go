@@ -85,25 +85,26 @@ func GenHTTPReq(s options.Iface) func(f *file.TxtFile) {
 			for _, h := range ep.OpenapiHeaders {
 				f.WriteText("# @prompt %s\n", strcase.ToLowerCamel(h.Name))
 			}
+			for _, h := range ep.HeaderParams {
+				f.WriteText("# @prompt %s\n", strcase.ToLowerCamel(h.Name))
+			}
 
 			switch s.HTTPReq {
 			case "http":
 				f.WriteText("%s %s HTTP/1.1\n", ep.HTTPMethod, uri)
-				if len(ep.OpenapiHeaders) > 0 {
-					for _, h := range ep.OpenapiHeaders {
-						f.WriteText(h.Name + ": \"{{" + strcase.ToLowerCamel(h.Name) + "}}\"")
-					}
+				for _, h := range ep.OpenapiHeaders {
+					f.WriteText(h.Name + ": \"{{" + strcase.ToLowerCamel(h.Name) + "}}\"")
 				}
 				if len(ep.BodyParams) > 0 {
 					f.WriteText("\n" + jsonFromParams(ep.BodyParams))
 				}
 			case "curl":
 				var headers []string
-
-				if len(ep.OpenapiHeaders) > 0 {
-					for _, h := range ep.OpenapiHeaders {
-						headers = append(headers, h.Name, "{{"+strcase.ToLowerCamel(h.Name)+"}}")
-					}
+				for _, h := range ep.OpenapiHeaders {
+					headers = append(headers, h.Name, "{{"+strcase.ToLowerCamel(h.Name)+"}}")
+				}
+				for _, h := range ep.HeaderParams {
+					headers = append(headers, h.Name, "{{"+strcase.ToLowerCamel(h.Name)+"}}")
 				}
 				cb := curlbuilder.New()
 				cb.SetMethod(ep.HTTPMethod)
