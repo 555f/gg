@@ -30,8 +30,12 @@ func Run(wd string, packages []*stdpackages.Package, plugins map[string]any) (al
 	if err != nil {
 		errs = multierror.Append(errs, err)
 	}
+
 	sort.Slice(interfaces, func(i, j int) bool {
 		return strings.Compare(interfaces[i].Named.Name, interfaces[j].Named.Name) > 0
+	})
+	sort.Slice(structs, func(i, j int) bool {
+		return strings.Compare(structs[i].Named.Name, structs[j].Named.Name) > 0
 	})
 
 	interfaceSet := map[string][]*Interface{}
