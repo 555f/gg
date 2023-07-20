@@ -433,10 +433,10 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 	for _, result := range method.Sig.Results {
 		if result.IsError {
 			if result.Name == "" {
-				errs = multierror.Append(errs, errors.Error("the parameter name cannot be empty or the http-name parameter must be set", result.Position))
+				errs = multierror.Append(errs, errors.Error("the result parameter name cannot be empty", result.Position))
 			}
 			if opts.Error != nil {
-				errs = multierror.Append(errs, errors.Error("the method has more than one error", result.Position))
+				errs = multierror.Append(errs, errors.Error("the result method has more than one error", result.Position))
 			}
 			opts.Error = result
 			continue
