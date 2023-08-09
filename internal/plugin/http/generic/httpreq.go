@@ -49,14 +49,16 @@ func jsonFromType(name string, t any) string {
 			buf.WriteString("\"\"")
 		}
 	}
-	buf.WriteString(",\n")
 	return buf.String()
 }
 
 func jsonFromParams(params []*options.EndpointParam) string {
 	var buf bytes.Buffer
 	buf.WriteString("{\n")
-	for _, p := range params {
+	for i, p := range params {
+		if i > 0 {
+			buf.WriteString(",\n")
+		}
 		buf.WriteString(jsonFromType(p.Name, p.Type))
 	}
 	buf.WriteString("}\n")
@@ -92,6 +94,7 @@ func GenHTTPReq(s options.Iface) func(f *file.TxtFile) {
 			switch s.HTTPReq {
 			case "http":
 				f.WriteText("%s %s HTTP/1.1\n", ep.HTTPMethod, uri)
+				f.WriteText("Content-Type: application/json")
 				for _, h := range ep.OpenapiHeaders {
 					f.WriteText(h.Name + ": \"{{" + strcase.ToLowerCamel(h.Name) + "}}\"")
 				}
@@ -99,7 +102,7 @@ func GenHTTPReq(s options.Iface) func(f *file.TxtFile) {
 					f.WriteText("\n" + jsonFromParams(ep.BodyParams))
 				}
 			case "curl":
-				var headers []string
+				headers := []string{"Content-Type", "application/json"}
 				for _, h := range ep.OpenapiHeaders {
 					headers = append(headers, h.Name, "{{"+strcase.ToLowerCamel(h.Name)+"}}")
 				}
