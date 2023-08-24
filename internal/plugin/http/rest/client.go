@@ -262,8 +262,17 @@ func GenClient(s options.Iface, errorWrapper *options.ErrorWrapper) func(f *file
 							s.Add(types.Convert(endpoint.BodyResults[0].Type, f.Import))
 						}
 					}),
+					Var().Id("reader").Qual("io", "ReadCloser"),
+
+					Switch(Id("resp").Dot("Header").Dot("Get").Call(Lit("Content-Encoding"))).Block(
+						Default().Block(Id("reader").Op("=").Id("resp").Dot("Body")),
+						Case(Lit("gzip")).Block(
+							List(Id("reader"), Err()).Op("=").Qual("compress/gzip", "NewReader").Call(Id("resp").Dot("Body")),
+							Defer().Id("reader").Dot("Close").Call(),
+						),
+					),
 					Id("err").Op("=").Qual("encoding/json", "NewDecoder").
-						Call(Id("resp").Dot("Body")).Dot("Decode").
+						Call(Id("reader")).Dot("Decode").
 						Call(Op("&").Id("respBody")),
 					Do(gen.CheckErr(
 						Return(),
