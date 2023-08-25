@@ -107,17 +107,21 @@ func GenClient(s options.Iface, errorWrapper *options.ErrorWrapper) func(f *file
 					),
 					Do(func(s *Statement) {
 						if len(endpoint.BodyParams) > 0 {
-							s.Var().Id("body").StructFunc(func(g *Group) {
-								for _, param := range endpoint.BodyParams {
-									jsonTag := param.Name
-									fld := g.Id(param.FldName)
-									if !param.Required {
-										jsonTag += ",omitempty"
-										fld.Op("*")
+							if len(endpoint.BodyParams) == 1 && endpoint.NoWrapRequest {
+								s.Var().Id("body").Add(types.Convert(endpoint.BodyParams[0].Type, f.Import))
+							} else {
+								s.Var().Id("body").StructFunc(func(g *Group) {
+									for _, param := range endpoint.BodyParams {
+										jsonTag := param.Name
+										fld := g.Id(param.FldName)
+										if !param.Required {
+											jsonTag += ",omitempty"
+											fld.Op("*")
+										}
+										fld.Add(types.Convert(param.Type, f.Import)).Tag(map[string]string{"json": jsonTag})
 									}
-									fld.Add(types.Convert(param.Type, f.Import)).Tag(map[string]string{"json": jsonTag})
-								}
-							})
+								})
+							}
 						}
 					}),
 					List(Id("ctx"), Id("cancel")).Op(":=").Qual("context", "WithCancel").Call(Id(recvName).Dot("opts").Dot("ctx")),
@@ -161,12 +165,16 @@ func GenClient(s options.Iface, errorWrapper *options.ErrorWrapper) func(f *file
 					)),
 					CustomFunc(Options{Multi: true}, func(g *Group) {
 						if len(endpoint.BodyParams) > 0 {
-							for _, param := range endpoint.BodyParams {
-								fldName := param.FldNameUnExport
-								if param.Parent != nil {
-									fldName = param.Parent.FldNameUnExport + param.FldName
+							if len(endpoint.BodyParams) == 1 && endpoint.NoWrapRequest {
+								g.Id("body").Op("=").Id(recvName).Dot("params").Dot(endpoint.BodyParams[0].FldNameUnExport)
+							} else {
+								for _, param := range endpoint.BodyParams {
+									fldName := param.FldNameUnExport
+									if param.Parent != nil {
+										fldName = param.Parent.FldNameUnExport + param.FldName
+									}
+									g.Id("body").Dot(param.FldName).Op("=").Id(recvName).Dot("params").Dot(fldName)
 								}
-								g.Id("body").Dot(param.FldName).Op("=").Id(recvName).Dot("params").Dot(fldName)
 							}
 
 							g.Var().Id("reqData").Qual("bytes", "Buffer")
@@ -255,41 +263,49 @@ func GenClient(s options.Iface, errorWrapper *options.ErrorWrapper) func(f *file
 						g.Return()
 					}),
 					Do(func(s *Statement) {
-						s.Var().Id("respBody")
-						if !endpoint.NoWrapResponse {
-							s.StructFunc(gen.WrapResponse(endpoint.WrapResponse, endpoint.BodyResults, f.Import))
-						} else if len(endpoint.BodyResults) == 1 {
-							s.Add(types.Convert(endpoint.BodyResults[0].Type, f.Import))
+						if len(endpoint.BodyResults) > 0 {
+							s.Var().Id("respBody")
+							if !endpoint.NoWrapResponse {
+								s.StructFunc(gen.WrapResponse(endpoint.WrapResponse, endpoint.BodyResults, f.Import))
+							} else if len(endpoint.BodyResults) == 1 {
+								s.Add(types.Convert(endpoint.BodyResults[0].Type, f.Import))
+							}
 						}
 					}),
-					Var().Id("reader").Qual("io", "ReadCloser"),
-
-					Switch(Id("resp").Dot("Header").Dot("Get").Call(Lit("Content-Encoding"))).Block(
-						Default().Block(Id("reader").Op("=").Id("resp").Dot("Body")),
-						Case(Lit("gzip")).Block(
-							List(Id("reader"), Err()).Op("=").Qual("compress/gzip", "NewReader").Call(Id("resp").Dot("Body")),
-							Defer().Id("reader").Dot("Close").Call(),
-						),
-					),
-					Id("err").Op("=").Qual("encoding/json", "NewDecoder").
-						Call(Id("reader")).Dot("Decode").
-						Call(Op("&").Id("respBody")),
-					Do(gen.CheckErr(
-						Return(),
-					)),
-					ReturnFunc(func(g *Group) {
-						if !endpoint.NoWrapResponse {
-							var ids []Code
-							for _, name := range endpoint.WrapResponse {
-								ids = append(ids, Dot(strcase.ToCamel(name)))
-							}
-							for _, result := range endpoint.BodyResults {
-								g.Id("respBody").Add(ids...).Dot(strcase.ToCamel(result.Name))
-							}
-						} else {
-							g.Id("respBody")
+					CustomFunc(Options{Multi: true}, func(g *Group) {
+						if len(endpoint.BodyResults) > 0 {
+							g.Var().Id("reader").Qual("io", "ReadCloser")
+							g.Switch(Id("resp").Dot("Header").Dot("Get").Call(Lit("Content-Encoding"))).Block(
+								Default().Block(Id("reader").Op("=").Id("resp").Dot("Body")),
+								Case(Lit("gzip")).Block(
+									List(Id("reader"), Err()).Op("=").Qual("compress/gzip", "NewReader").Call(Id("resp").Dot("Body")),
+									Defer().Id("reader").Dot("Close").Call(),
+								),
+							)
+							g.Id("err").Op("=").Qual("encoding/json", "NewDecoder").
+								Call(Id("reader")).Dot("Decode").
+								Call(Op("&").Id("respBody"))
+							g.Do(gen.CheckErr(
+								Return(),
+							))
 						}
 
+					}),
+
+					ReturnFunc(func(g *Group) {
+						if len(endpoint.BodyResults) > 0 {
+							if !endpoint.NoWrapResponse {
+								var ids []Code
+								for _, name := range endpoint.WrapResponse {
+									ids = append(ids, Dot(strcase.ToCamel(name)))
+								}
+								for _, result := range endpoint.BodyResults {
+									g.Id("respBody").Add(ids...).Dot(strcase.ToCamel(result.Name))
+								}
+							} else {
+								g.Id("respBody")
+							}
+						}
 						g.Nil()
 					}),
 				)

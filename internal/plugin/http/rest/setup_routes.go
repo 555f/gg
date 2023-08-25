@@ -162,17 +162,21 @@ func GenStruct(s options.Iface) func(f *file.GoFile) {
 									Return(Nil(), Op("&").Id("contentTypeInvalidError").Values()),
 								)
 								for _, contentType := range ep.ContentTypes {
+									bodyParams := Id("param")
+									if len(ep.BodyParams) == 1 && ep.NoWrapRequest {
+										bodyParams = bodyParams.Dot(ep.BodyParams[0].FldName)
+									}
 									switch contentType {
 									case "xml":
 										g.Case(Lit("application/xml")).BlockFunc(func(g *Group) {
-											g.Err().Op("=").Qual("encoding/xml", "Unmarshal").Call(Id("params"), Op("&").Id("param"))
+											g.Err().Op("=").Qual("encoding/xml", "Unmarshal").Call(Id("params"), Op("&").Add(bodyParams))
 											g.Do(gen.CheckErr(
 												Return(Nil(), Err()),
 											))
 										})
 									case "json":
 										g.Case(Lit("application/json")).BlockFunc(func(g *Group) {
-											g.Err().Op("=").Qual("encoding/json", "Unmarshal").Call(Id("params"), Op("&").Id("param"))
+											g.Err().Op("=").Qual("encoding/json", "Unmarshal").Call(Id("params"), Op("&").Add(bodyParams))
 											g.Do(gen.CheckErr(
 												Return(Nil(), Err()),
 											))

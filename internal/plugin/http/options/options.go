@@ -93,7 +93,6 @@ type Endpoint struct {
 	OpenapiTags        []string
 	OpenapiHeaders     []OpenapiHeader
 	QueryValues        []QueryValue
-	WrapResponse       []string
 	Params             []*EndpointParam
 	BodyParams         []*EndpointParam
 	QueryParams        []*EndpointParam
@@ -105,6 +104,8 @@ type Endpoint struct {
 	HeaderResults      []*EndpointResult
 	CookieResults      []*EndpointResult
 	Errors             []string
+	WrapResponse       []string
+	NoWrapRequest      bool
 	NoWrapResponse     bool
 	TimeFormat         string
 	Context            *types.Var
@@ -181,7 +182,6 @@ func DecodeErrorWrapper(errorWrapperPath, defaultErrorPath string, structs []*gg
 				if jsonTag, err := field.SysTags.Get("json"); err == nil {
 					name = jsonTag.Name
 				}
-
 				var methodName string
 				matches := fnRegex.FindAllStringSubmatch(t.Value, -1)
 				if len(matches) > 0 && len(matches[0]) == 2 {
@@ -389,6 +389,9 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 	if t, ok := method.Tags.Get("http-wrap-response"); ok {
 		opts.WrapResponse = strings.Split(t.Value, ".")
 	}
+	if _, ok := method.Tags.Get("http-nowrap-request"); ok {
+		opts.NoWrapRequest = true
+	}
 	if _, ok := method.Tags.Get("http-nowrap-response"); ok {
 		opts.NoWrapResponse = true
 	}
@@ -502,6 +505,9 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 	}
 	if opts.NoWrapResponse && len(opts.Results) != 1 {
 		errs = multierror.Append(errs, errors.Error("the \"@http-nowrap-response\" tag can be used for only one return parameter", method.Position))
+	}
+	if len(opts.BodyParams) != 1 && opts.NoWrapRequest {
+		errs = multierror.Append(errs, errors.Error("the \"@http-nowrap-request\" tag can be used for only one request body parameter", method.Position))
 	}
 	return
 }
