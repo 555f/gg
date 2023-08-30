@@ -81,9 +81,16 @@ func (p *Plugin) Exec() ([]file.File, error) {
 							Id("s").Dot(method.Name).Call(callParams...),
 						)
 					}).Call()
-					g.Return(
-						Id("m").Dot("next").Dot(method.Name).Call(callParams...),
-					)
+
+					callMethodCode := Id("m").Dot("next").Dot(method.Name).Call(callParams...)
+
+					if method.Sig.Results.HasError() {
+						g.Return(
+							callMethodCode,
+						)
+					} else {
+						g.Add(callMethodCode)
+					}
 				})
 		}
 

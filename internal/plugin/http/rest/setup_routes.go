@@ -71,7 +71,9 @@ func GenStruct(s options.Iface) func(f *file.GoFile) {
 								g.Id(ep.Error.Name)
 							}
 						})
-						s.Op(":=")
+						if len(ep.Results) > 0 || ep.Error != nil {
+							s.Op(":=")
+						}
 					}).Id("svc").Dot(ep.MethodName).CallFunc(func(g *Group) {
 						if ep.Context != nil {
 							g.Id("ctx")
