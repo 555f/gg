@@ -93,6 +93,16 @@ func (p *Plugin) Exec() ([]file.File, error) {
 			)
 		}
 
+		f.Func().Id(strcase.ToCamel(nameBaseMiddleware)).Params(
+			Id("mediator").Any(),
+		).Id(nameMiddleware).Block(
+			Return(Func().Params(Id("next").Qual(iface.Named.Pkg.Path, iface.Named.Name)).Params(Qual(iface.Named.Pkg.Path, iface.Named.Name))).Block(
+				Return(Op("&").Id(nameBaseMiddleware).Values(
+					Id("next").Op(":").Id("next"),
+					Id("mediator").Op(":").Id("mediator"),
+				)),
+			),
+		)
 	}
 
 	return []file.File{f}, nil
@@ -111,7 +121,7 @@ func (p *Plugin) NameMiddleware(namedType *types.Named) string {
 }
 
 func (p *Plugin) NameBaseMiddleware(namedType *types.Named) string {
-	return strcase.ToCamel(namedType.Name) + "BaseMiddleware"
+	return strcase.ToLowerCamel(namedType.Name) + "BaseMiddleware"
 }
 
 func (p *Plugin) NameBaseMiddlewareMethodIface(namedType *types.Named, method *types.Func) string {
