@@ -6,6 +6,15 @@ import (
 
 type Vars []*Var
 
+func (v Vars) HasError() bool {
+	for _, vv := range v {
+		if vv.IsError {
+			return true
+		}
+	}
+	return false
+}
+
 func (v Vars) LenFunc(f func(v *Var) bool) int {
 	l := len(v)
 	var offset int
