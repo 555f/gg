@@ -503,6 +503,16 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 	if len(opts.PathParams) != len(opts.ParamsNameIdx) {
 		errs = multierror.Append(errs, errors.Error("the method has no parameters found for the http-path tag, the required parameters: "+strings.Join(opts.ParamsNameIdx, ", "), method.Position))
 	}
+
+	pathParts := strings.Split(opts.Path, "/")
+	for _, p := range opts.BodyParams {
+		for _, v := range pathParts {
+			if p.Name == v {
+				errs = multierror.Append(errs, errors.Warn("a parameter in the path may not be defined: \""+v+"\"", method.Position))
+			}
+		}
+	}
+
 	if opts.NoWrapResponse && len(opts.Results) != 1 {
 		errs = multierror.Append(errs, errors.Error("the \"@http-nowrap-response\" tag can be used for only one return parameter", method.Position))
 	}
