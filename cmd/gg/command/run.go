@@ -77,7 +77,7 @@ var runCmd = &cobra.Command{
 			if len(pkg.Errors) > 0 {
 				foundPkgErr = true
 				for _, err := range pkg.Errors {
-					cmd.Printf("%s\n", red(err))
+					cmd.Printf("\n\n%s\n", red(err))
 				}
 			}
 		}
@@ -104,12 +104,12 @@ var runCmd = &cobra.Command{
 					var text string
 					if len(errorPoints) > 0 {
 						text += fmt.Sprintf(
-							"%d error(s) occurred:\n\t%s\n\n",
+							"\n\n%d error(s) occurred:\n\t%s\n\n",
 							len(errorPoints), strings.Join(errorPoints, "\n\t"))
 					}
 					if len(warningPoints) > 0 {
 						text += fmt.Sprintf(
-							"%d warning(s) occurred:\n\t%s\n\n",
+							"\n\n%d warning(s) occurred:\n\t%s\n\n",
 							len(warningPoints), strings.Join(warningPoints, "\n\t"))
 					}
 					return text
@@ -123,7 +123,7 @@ var runCmd = &cobra.Command{
 		}
 
 		if len(files) > 0 {
-			cmd.Printf(green("\nfiles was generated:\n"))
+			cmd.Printf(green("\n\nfiles was generated:\n"))
 			for _, f := range files {
 				data, err := f.Bytes()
 				if err != nil {
