@@ -1,0 +1,423 @@
+package rest
+
+import (
+	"github.com/555f/gg/internal/plugin/http/options"
+	"github.com/555f/gg/pkg/gen"
+	"github.com/555f/gg/pkg/strcase"
+	"github.com/555f/gg/pkg/types"
+	"github.com/dave/jennifer/jen"
+)
+
+type clientEndpointBuilder struct {
+	*BaseClientBuilder
+	iface     options.Iface
+	ep        options.Endpoint
+	qualifier Qualifier
+}
+
+func (b *clientEndpointBuilder) BuildReqStruct() ClientEndpointBuilder {
+	methodRequestName := b.methodRequestName()
+	clientName := b.clientName()
+
+	b.codes = append(b.codes,
+		jen.Type().Id(methodRequestName).StructFunc(func(g *jen.Group) {
+			g.Id("c").Op("*").Id(clientName)
+			g.Id("client").Op("*").Qual(httpPkg, "Client")
+			g.Id("opts").Op("*").Id(clientOptionName)
+			g.Id("params").StructFunc(func(g *jen.Group) {
+				if len(b.ep.Params) > 0 {
+					for _, param := range b.ep.Params {
+						if len(param.Params) > 0 {
+							for _, childParam := range param.Params {
+								g.Add(b.makeRequestStructParam(param, childParam, b.qualifier.Qual))
+							}
+							continue
+						}
+						g.Add(b.makeRequestStructParam(nil, param, b.qualifier.Qual))
+					}
+				}
+			})
+		}))
+	return b
+}
+
+func (b *clientEndpointBuilder) BuildSetters() ClientEndpointBuilder {
+	for _, param := range b.ep.Params {
+		if len(param.Params) > 0 {
+			for _, childParam := range param.Params {
+				b.buildSetter(param, childParam)
+			}
+		} else {
+			if !param.Required {
+				b.buildSetter(nil, param)
+			}
+		}
+	}
+	return b
+}
+
+func (b *clientEndpointBuilder) BuildReqMethod() ClientEndpointBuilder {
+	methodRequestName := b.methodRequestName()
+	recvName := b.recvName()
+	clientName := b.clientName()
+	methodReqName := b.methodReqName()
+
+	b.codes = append(b.codes, jen.Func().Params(jen.Id(recvName).Op("*").Id(clientName)).Id(methodReqName).
+		ParamsFunc(func(g *jen.Group) {
+			for _, param := range b.ep.Params {
+				if param.Required {
+					g.Id(param.FldNameUnExport).Add(types.Convert(param.Type, b.qualifier.Qual))
+				}
+			}
+		}).
+		Op("*").Id(methodRequestName).BlockFunc(func(g *jen.Group) {
+		g.Id("m").Op(":=").Op("&").Id(methodRequestName).Values(
+			jen.Id("client").Op(":").Id(recvName).Dot("opts").Dot("client"),
+			jen.Id("opts").Op(":").Op("&").Id(clientOptionName).Values(
+				jen.Id("ctx").Op(":").Qual("context", "TODO").Call(),
+			),
+			jen.Id("c").Op(":").Id(recvName),
+		)
+		for _, param := range b.ep.Params {
+			if param.Required {
+				g.Id("m").Dot("params").Dot(param.FldNameUnExport).Op("=").Id(param.FldNameUnExport)
+			}
+		}
+		g.Return(jen.Id("m"))
+	}))
+	return b
+}
+
+func (b *clientEndpointBuilder) BuildMethod() ClientEndpointBuilder {
+	recvName := b.recvName()
+	clientName := b.clientName()
+	methodReqName := b.methodReqName()
+
+	b.codes = append(b.codes, jen.Func().Params(jen.Id(recvName).Op("*").Id(clientName)).Id(b.ep.MethodName).
+		ParamsFunc(func(g *jen.Group) {
+			for _, param := range b.ep.Sig.Params {
+				g.Id(param.Name).Add(types.Convert(param.Type, b.qualifier.Qual))
+			}
+		}).
+		ParamsFunc(func(g *jen.Group) {
+			for _, result := range b.ep.BodyResults {
+				g.Id(result.Name).Add(types.Convert(result.Type, b.qualifier.Qual))
+			}
+			g.Err().Error()
+		}).
+		BlockFunc(func(g *jen.Group) {
+			g.ListFunc(func(g *jen.Group) {
+				for _, param := range b.ep.BodyResults {
+					g.Id(param.FldNameUnExport)
+				}
+				g.Err()
+			}).Op("=").Id(recvName).Dot(methodReqName).CallFunc(func(g *jen.Group) {
+				for _, param := range b.ep.Params {
+					if param.Required {
+						g.Id(param.FldNameUnExport)
+					}
+				}
+			}).CustomFunc(jen.Options{}, func(g *jen.Group) {
+				for _, param := range append(b.ep.BodyParams, b.ep.QueryParams...) {
+					if param.Required {
+						continue
+					}
+					methodSetName := param.FldName
+					fldName := jen.Id(param.FldNameUnExport)
+					if param.Parent != nil {
+						methodSetName = param.Parent.FldName + param.FldName
+						fldName = jen.Id(param.Parent.FldNameUnExport).Dot(param.FldName)
+					}
+					g.Dot("Set" + methodSetName).Call(fldName)
+				}
+			}).Dot("Execute").Call()
+			g.Return()
+		}))
+	return b
+}
+
+func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
+	methodRequestName := b.methodRequestName()
+	recvName := b.recvName()
+
+	b.codes = append(b.codes, jen.Func().Params(jen.Id(recvName).Op("*").Id(methodRequestName)).Id("Execute").
+		Params(
+			jen.Id("opts").Op("...").Id("ClientOption"),
+		).
+		ParamsFunc(func(g *jen.Group) {
+			for _, result := range b.ep.BodyResults {
+				g.Id(result.Name).Add(types.Convert(result.Type, b.qualifier.Qual))
+			}
+			g.Err().Error()
+		}).
+		Block(
+			jen.For(jen.List(jen.Id("_"), jen.Id("o")).Op(":=").Range().Id("opts")).Block(
+				jen.Id("o").Call(jen.Id(recvName).Dot("opts")),
+			),
+			jen.Do(func(s *jen.Statement) {
+				if len(b.ep.BodyParams) > 0 {
+					if len(b.ep.BodyParams) == 1 && b.ep.NoWrapRequest {
+						s.Var().Id("body").Add(types.Convert(b.ep.BodyParams[0].Type, b.qualifier.Qual))
+					} else {
+						s.Var().Id("body").StructFunc(func(g *jen.Group) {
+							for _, param := range b.ep.BodyParams {
+								jsonTag := param.Name
+								fld := g.Id(param.FldName)
+								if !param.Required {
+									jsonTag += ",omitempty"
+									if !isNamedType(param.Type) {
+										fld.Op("*")
+									}
+								}
+								fld.Add(types.Convert(param.Type, b.qualifier.Qual)).Tag(map[string]string{"json": jsonTag})
+							}
+						})
+					}
+				}
+			}),
+			jen.List(jen.Id("ctx"), jen.Id("cancel")).Op(":=").Qual("context", "WithCancel").Call(jen.Id(recvName).Dot("opts").Dot("ctx")),
+			jen.Do(func(s *jen.Statement) {
+				if len(b.ep.PathParams) > 0 {
+					var paramsCall []jen.Code
+					paramsCall = append(paramsCall, jen.Lit(b.ep.SprintfPath()))
+					for _, name := range b.ep.ParamsNameIdx {
+						paramsCall = append(paramsCall, jen.Id(recvName).Dot("params").Dot(name))
+					}
+					s.Id("path").Op(":=").Qual("fmt", "Sprintf").Call(paramsCall...)
+				} else {
+					s.Id("path").Op(":=").Lit(b.ep.Path)
+				}
+			}),
+			jen.List(jen.Id("req"), jen.Err()).Op(":=").Qual(httpPkg, "NewRequest").
+				Call(jen.Lit(b.ep.HTTPMethod), jen.Id(recvName).Dot("c").Dot("target").Op("+").Id("path"), jen.Nil()),
+			jen.Do(gen.CheckErr(
+				jen.Id("cancel").Call(),
+				jen.Return(),
+			)),
+			jen.CustomFunc(jen.Options{Multi: true}, func(g *jen.Group) {
+				if len(b.ep.BodyParams) > 0 {
+					if len(b.ep.BodyParams) == 1 && b.ep.NoWrapRequest {
+						g.Id("body").Op("=").Id(recvName).Dot("params").Dot(b.ep.BodyParams[0].FldNameUnExport)
+					} else {
+						for _, param := range b.ep.BodyParams {
+							fldName := param.FldNameUnExport
+							if param.Parent != nil {
+								fldName = param.Parent.FldNameUnExport + param.FldName
+							}
+							g.Id("body").Dot(param.FldName).Op("=").Id(recvName).Dot("params").Dot(fldName)
+						}
+					}
+
+					g.Var().Id("reqData").Qual("bytes", "Buffer")
+					g.Err().Op("=").Qual(jsonPkg, "NewEncoder").Call(jen.Op("&").Id("reqData")).Dot("Encode").Call(jen.Id("body"))
+					g.If(jen.Err().Op("!=").Nil()).Block(
+						jen.Id("cancel").Call(),
+						jen.Return(),
+					)
+					g.Id("req").Dot("Body").Op("=").Qual("io", "NopCloser").Call(jen.Op("&").Id("reqData"))
+				}
+			}),
+
+			jen.CustomFunc(jen.Options{Multi: true}, func(g *jen.Group) {
+				if len(b.ep.QueryParams) > 0 || len(b.ep.QueryValues) > 0 {
+					g.Id("q").Op(":=").Id("req").Dot("URL").Dot("Query").Call()
+
+					for _, param := range b.ep.QueryParams {
+						fldName := param.FldNameUnExport
+						if param.Parent != nil {
+							fldName = param.Parent.FldNameUnExport + param.FldName
+						}
+
+						paramID := jen.Id(recvName).Dot("params").Dot(fldName)
+
+						var code jen.Code
+
+						if param.Required {
+							code = jen.Id("q").Dot("Add").Call(jen.Lit(param.Name), gen.FormatValue(paramID, param.Type, b.qualifier.Qual, b.ep.TimeFormat))
+						} else {
+							if named, ok := param.Type.(*types.Named); ok {
+								if named.Pkg.Path == "gopkg.in/guregu/null.v4" {
+									code = jen.If(jen.Add(paramID).Dot("Valid")).Block(
+										jen.Id("q").Dot("Add").Call(jen.Lit(param.Name), gen.FormatValue(jen.Add(paramID), param.Type, b.qualifier.Qual, b.ep.TimeFormat)),
+									)
+								}
+							} else {
+								code = jen.If(jen.Add(paramID).Op("!=").Nil()).Block(
+									jen.Id("q").Dot("Add").Call(jen.Lit(param.Name), gen.FormatValue(jen.Op("*").Add(paramID), param.Type, b.qualifier.Qual, b.ep.TimeFormat)),
+								)
+							}
+						}
+						g.Add(code)
+					}
+					for _, param := range b.ep.QueryValues {
+						g.Id("q").Dot("Add").Call(jen.Lit(param.Name), jen.Lit(param.Value))
+					}
+					g.Id("req").Dot("URL").Dot("RawQuery").Op("=").Id("q").Dot("Encode").Call()
+				}
+
+				g.Id("req").Dot("Header").Dot("Add").Call(jen.Lit("Content-Type"), jen.Lit("application/json"))
+
+				for _, param := range b.ep.HeaderParams {
+					g.Id("req").Dot("Header").Dot("Add").Call(jen.Lit(param.Name), gen.FormatValue(jen.Id(recvName).Dot("params").Dot(param.FldNameUnExport), param.Type, b.qualifier.Qual, b.ep.TimeFormat))
+				}
+				for _, param := range b.ep.CookieParams {
+					g.Id("req").Dot("AddCookie").Call(jen.Op("&").Qual(httpPkg, "Cookie").Values(
+						jen.Id("Name").Op(":").Lit(param.Name),
+						jen.Id("Value").Op(":").Add(gen.FormatValue(jen.Id(recvName).Dot("params").Dot(param.FldNameUnExport), param.Type, b.qualifier.Qual, b.ep.TimeFormat)),
+					))
+				}
+			}),
+
+			jen.Id("before").Op(":=").Append(jen.Id(recvName).Dot("c").Dot("opts").Dot("before"), jen.Id(recvName).Dot("opts").Dot("before").Op("...")),
+			jen.For(jen.List(jen.Id("_"), jen.Id("before")).Op(":=").Range().Id("before")).Block(
+				jen.List(jen.Id("ctx"), jen.Err()).Op("=").Id("before").Call(jen.Id("ctx"), jen.Id("req")),
+				jen.Do(gen.CheckErr(
+					jen.Id("cancel").Call(),
+					jen.Return(),
+				)),
+			),
+			jen.List(jen.Id("resp"), jen.Err()).Op(":=").Id(recvName).Dot("client").Dot("Do").Call(jen.Id("req")),
+			jen.Do(gen.CheckErr(
+				jen.Id("cancel").Call(),
+				jen.Return(),
+			)),
+
+			jen.Id("after").Op(":=").Append(jen.Id(recvName).Dot("c").Dot("opts").Dot("after"), jen.Id(recvName).Dot("opts").Dot("after").Op("...")),
+			jen.For(jen.List(jen.Id("_"), jen.Id("after")).Op(":=").Range().Id("after")).Block(
+				jen.Id("ctx").Op("=").Id("after").Call(jen.Id("ctx"), jen.Id("resp")),
+			),
+			jen.Defer().Id("resp").Dot("Body").Dot("Close").Call(),
+			jen.Defer().Id("cancel").Call(),
+
+			jen.If(jen.Id("resp").Dot("StatusCode").Op(">").Lit(399)).BlockFunc(func(g *jen.Group) {
+				if b.errorWrapper != nil {
+					g.Var().Id("errorWrapper").Do(b.qualifier.Qual(b.errorWrapper.Struct.Named.Pkg.Path, b.errorWrapper.Struct.Named.Name))
+					g.Var().Id("bytes").Index().Byte()
+					g.List(jen.Id("bytes"), jen.Id("err")).Op("=").Qual(ioPkg, "ReadAll").Call(jen.Id("resp").Dot("Body"))
+					g.Do(gen.CheckErr(
+						jen.Return(),
+					))
+					g.Id("err").Op("=").Qual(jsonPkg, "Unmarshal").Call(jen.Id("bytes"), jen.Op("&").Id("errorWrapper"))
+					g.Do(gen.CheckErr(
+						jen.Id("err").Op("=").Qual(fmtPkg, "Errorf").Call(jen.Lit("unmarshal error (%s): %w"), jen.Id("bytes"), jen.Id("err")),
+						jen.Return(),
+					))
+					g.Id("err").Op("=").Op("&").Do(b.qualifier.Qual(b.errorWrapper.Default.Named.Pkg.Path, b.errorWrapper.Default.Named.Name)).ValuesFunc(func(g *jen.Group) {
+						for _, field := range b.errorWrapper.Fields {
+							g.Id(strcase.ToCamel(field.FldName)).Op(":").Id("errorWrapper").Dot(field.FldName)
+						}
+						if b.errorWrapper.HasStatusCode {
+							g.Id("StatusCode").Op(":").Id("resp").Dot("StatusCode")
+						}
+					})
+				}
+				g.Return()
+			}),
+			jen.Do(func(s *jen.Statement) {
+				if len(b.ep.BodyResults) > 0 {
+					s.Var().Id("respBody")
+					if !b.ep.NoWrapResponse {
+						s.StructFunc(gen.WrapResponse(b.ep.WrapResponse, b.ep.BodyResults, b.qualifier.Qual))
+					} else if len(b.ep.BodyResults) == 1 {
+						s.Add(types.Convert(b.ep.BodyResults[0].Type, b.qualifier.Qual))
+					}
+				}
+			}),
+			jen.CustomFunc(jen.Options{Multi: true}, func(g *jen.Group) {
+				if len(b.ep.BodyResults) > 0 {
+					g.Var().Id("reader").Qual("io", "ReadCloser")
+					g.Switch(jen.Id("resp").Dot("Header").Dot("Get").Call(jen.Lit("Content-Encoding"))).Block(
+						jen.Default().Block(jen.Id("reader").Op("=").Id("resp").Dot("Body")),
+						jen.Case(jen.Lit("gzip")).Block(
+							jen.List(jen.Id("reader"), jen.Err()).Op("=").Qual("compress/gzip", "NewReader").Call(jen.Id("resp").Dot("Body")),
+							jen.Defer().Id("reader").Dot("Close").Call(),
+						),
+					)
+					g.Id("err").Op("=").Qual(jsonPkg, "NewDecoder").
+						Call(jen.Id("reader")).Dot("Decode").
+						Call(jen.Op("&").Id("respBody"))
+					g.Do(gen.CheckErr(
+						jen.Return(),
+					))
+				}
+			}),
+
+			jen.ReturnFunc(func(g *jen.Group) {
+				if len(b.ep.BodyResults) > 0 {
+					if !b.ep.NoWrapResponse {
+						var ids []jen.Code
+						for _, name := range b.ep.WrapResponse {
+							ids = append(ids, jen.Dot(strcase.ToCamel(name)))
+						}
+						for _, result := range b.ep.BodyResults {
+							g.Id("respBody").Add(ids...).Dot(strcase.ToCamel(result.Name))
+						}
+					} else {
+						g.Id("respBody")
+					}
+				}
+				g.Nil()
+			}),
+		))
+	return b
+}
+
+func (b *clientEndpointBuilder) buildSetter(parentParam, param *options.EndpointParam) {
+	methodRequestName := b.methodRequestName()
+	recvName := b.recvName()
+
+	fldName := param.FldNameUnExport
+	fnName := param.FldName
+	if parentParam != nil {
+		fldName = parentParam.FldNameUnExport + param.FldName
+		fnName = parentParam.FldName + param.FldName
+	}
+	b.codes = append(b.codes,
+		jen.Func().Params(
+			jen.Id(recvName).Op("*").Id(methodRequestName),
+		).Id("Set"+fnName).Params(
+			jen.Id(fldName).Add(types.Convert(param.Type, b.qualifier.Qual)),
+		).Op("*").Id(methodRequestName).BlockFunc(func(g *jen.Group) {
+
+			g.Add(jen.CustomFunc(jen.Options{}, func(g *jen.Group) {
+				g.Id(recvName).Dot("params").Dot(fldName).Op("=")
+				if _, ok := param.Type.(*types.Named); !ok {
+					g.Op("&")
+				}
+				g.Id(fldName)
+			}))
+			g.Return(jen.Id(recvName))
+		}))
+}
+
+func (b *clientEndpointBuilder) clientName() string {
+	return clientStructName(b.iface)
+}
+
+func (b *clientEndpointBuilder) methodRequestName() string {
+	return b.iface.Name + b.ep.MethodName + "Request"
+}
+
+func (b *clientEndpointBuilder) recvName() string {
+	return "r"
+}
+
+func (b *clientEndpointBuilder) methodReqName() string {
+	return b.ep.MethodName + "Request"
+}
+
+func (b *clientEndpointBuilder) makeRequestStructParam(parentParam, param *options.EndpointParam, importFn types.QualFunc) jen.Code {
+	fldName := param.FldNameUnExport
+	if parentParam != nil {
+		fldName = parentParam.FldNameUnExport + param.FldName
+	}
+	paramID := jen.Id(fldName)
+
+	_, isBasicType := param.Type.(*types.Basic)
+
+	if !param.Required && isBasicType {
+		paramID.Op("*")
+	}
+	paramID.Add(types.Convert(param.Type, importFn))
+	return paramID
+}

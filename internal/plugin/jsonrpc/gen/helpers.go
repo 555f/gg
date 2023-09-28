@@ -1,7 +1,7 @@
-package rest
+package gen
 
 import (
-	"github.com/555f/gg/internal/plugin/http/options"
+	"github.com/555f/gg/internal/plugin/jsonrpc/options"
 	"github.com/555f/gg/pkg/strcase"
 	"github.com/555f/gg/pkg/types"
 )

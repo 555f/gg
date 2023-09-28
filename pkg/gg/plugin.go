@@ -68,6 +68,7 @@ func (o Options) GetInt(name string) int {
 
 type Context struct {
 	pluginGraph *Graph
+	Version     string
 	Workdir     string
 	PkgPath     string
 	Module      *types.Module

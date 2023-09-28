@@ -21,7 +21,7 @@ require (
 )
 
 require (
-	github.com/555f/jsonrpc v0.0.0-20230705114811-a8a4128b6545 // indirect
+	github.com/555f/jsonrpc v0.0.0-20230928132107-600256798a49 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/dlclark/regexp2 v1.4.0 // indirect

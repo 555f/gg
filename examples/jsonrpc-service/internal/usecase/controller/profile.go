@@ -8,22 +8,17 @@ import (
 
 // ProfileController Профиль пользователя
 // Методы для работы с профилем пользователя
-// @gg:"http"
+// @gg:"jsonrpc"
 // @gg:"middleware"
-// @gg:"logging"
-// @http-api-doc
-// @http-type:"jsonrpc"
-// @http-client
-// @http-server
+// @gg:"klog"
+// @jsonrpc-client
+// @jsonrpc-server
 type ProfileController interface {
 	// Create Создать профиль
-	// @http-path:"profile.create"
+	// @jsonrpc-name:"profile.create"
 	Create(
-		// @http-required
 		token string,
-		// @http-required
 		firstName string,
-		// @http-required
 		lastName string,
 		address string,
 	) (
@@ -31,9 +26,8 @@ type ProfileController interface {
 		err error,
 	)
 	// Remove Удалить профиль
-	// @http-path:"profile.delete"
+	// @jsonrpc-name:"profile.delete"
 	Remove(
-		// @http-required
 		id string,
 	) (
 		err error,

@@ -9,6 +9,7 @@ import (
 // @gg:"http"
 // @gg:"middleware"
 // @gg:"logging"
+// @http-type:"echo"
 // @http-openapi
 // @http-api-doc
 // @http-openapi-tags:"profile"

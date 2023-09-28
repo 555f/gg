@@ -1,6 +1,7 @@
 package options
 
 import (
+	"bytes"
 	"fmt"
 	"go/token"
 	"net/url"
@@ -31,9 +32,10 @@ type ErrorWrapperField struct {
 }
 
 type ErrorWrapper struct {
-	Struct  *gg.Struct
-	Default *gg.Struct
-	Fields  []ErrorWrapperField
+	Struct        *gg.Struct
+	Default       *gg.Struct
+	HasStatusCode bool
+	Fields        []ErrorWrapperField
 }
 
 type Iface struct {
@@ -47,7 +49,6 @@ type Iface struct {
 	APIDoc       APIDoc
 	Endpoints    []Endpoint
 	Type         string
-	Lib          string
 	ErrorWrapper ErrorWrapper
 	HTTPReq      string
 }
@@ -76,6 +77,60 @@ type QueryValue struct {
 	Value string
 }
 
+type EndpointParams []*EndpointParam
+
+func paramJSONFromType(name string, t any) string {
+	var buf bytes.Buffer
+
+	buf.WriteString("  " + strconv.Quote(name) + ":")
+
+	switch v := t.(type) {
+	case *types.Named:
+		name := v.Pkg.Path + "." + v.Name
+		switch name {
+		default:
+			if st := v.Struct(); st != nil {
+				buf.WriteString("{\n")
+				for _, f := range v.Struct().Fields {
+					name := f.Var.Name
+					if t, err := f.SysTags.Get("json"); err == nil {
+						name = t.Value()
+					}
+					buf.WriteString("  " + paramJSONFromType(name, f.Var.Type))
+				}
+				buf.WriteString("  }")
+			} else {
+				buf.WriteString("\"\"")
+			}
+		case "time.Time":
+			buf.WriteString("\"\"")
+		}
+
+	case *types.Slice, *types.Array:
+		buf.WriteString("[]")
+	case *types.Basic:
+		if v.IsNumeric() {
+			buf.WriteString("0")
+		} else {
+			buf.WriteString("\"\"")
+		}
+	}
+	return buf.String()
+}
+
+func (params EndpointParams) ToJSON() string {
+	var buf bytes.Buffer
+	buf.WriteString("{\n")
+	for i, p := range params {
+		if i > 0 {
+			buf.WriteString(",\n")
+		}
+		buf.WriteString(paramJSONFromType(p.Name, p.Type))
+	}
+	buf.WriteString("}\n")
+	return buf.String()
+}
+
 type Endpoint struct {
 	Name               string
 	MethodName         string
@@ -93,12 +148,12 @@ type Endpoint struct {
 	OpenapiTags        []string
 	OpenapiHeaders     []OpenapiHeader
 	QueryValues        []QueryValue
-	Params             []*EndpointParam
-	BodyParams         []*EndpointParam
-	QueryParams        []*EndpointParam
-	HeaderParams       []*EndpointParam
-	CookieParams       []*EndpointParam
-	PathParams         []*EndpointParam
+	Params             EndpointParams
+	BodyParams         EndpointParams
+	QueryParams        EndpointParams
+	HeaderParams       EndpointParams
+	CookieParams       EndpointParams
+	PathParams         EndpointParams
 	Results            []*EndpointResult
 	BodyResults        []*EndpointResult
 	HeaderResults      []*EndpointResult
@@ -111,6 +166,38 @@ type Endpoint struct {
 	Context            *types.Var
 	Error              *types.Var
 	Sig                *types.Sign
+}
+
+func (ep Endpoint) PathParts(fn func(name string) string) []string {
+	pathParts := strings.Split(ep.Path, "/")
+	for i := 0; i < len(pathParts); i++ {
+		s := pathParts[i]
+		if strings.HasPrefix(s, ":") {
+			pathParts[i] = fn(s[1:])
+		}
+	}
+	return pathParts
+}
+
+func (ep Endpoint) SprintfPath() string {
+	pathParamsMap := make(map[string]*EndpointParam, len(ep.PathParams))
+	for _, param := range ep.PathParams {
+		pathParamsMap[param.Name] = param
+	}
+	parts := ep.PathParts(func(name string) (result string) {
+		result = "%s"
+		if param, ok := pathParamsMap[name]; ok {
+			if tp, ok := param.Type.(*types.Basic); ok {
+				if tp.IsSigned() || tp.IsUnsigned() {
+					result = "%d"
+				} else if tp.IsFloat() {
+					result = "%f"
+				}
+			}
+		}
+		return
+	})
+	return strings.Join(parts, "/")
 }
 
 type EndpointParam struct {
@@ -127,7 +214,7 @@ type EndpointParam struct {
 	Required        bool
 	Zero            string
 	Flat            bool
-	Params          []*EndpointParam
+	Params          EndpointParams
 }
 
 type EndpointResult struct {
@@ -175,29 +262,33 @@ func DecodeErrorWrapper(errorWrapperPath, defaultErrorPath string, structs []*gg
 		Struct:  errorWrapperStruct,
 		Default: defaultErrorStruct,
 	}
-	if errorWrapperStruct != nil {
-		for _, field := range errorWrapperStruct.Type.Fields {
-			if t, ok := field.Var.Tags.Get("http-error-interface"); ok {
-				name := strcase.ToLowerCamel(field.Var.Name)
-				if jsonTag, err := field.SysTags.Get("json"); err == nil {
-					name = jsonTag.Name
-				}
-				var methodName string
-				matches := fnRegex.FindAllStringSubmatch(t.Value, -1)
-				if len(matches) > 0 && len(matches[0]) == 2 {
-					methodName = matches[0][1]
-				} else {
-					errs = multierror.Append(errs, errors.Error("invalid interface method", t.Position))
-					continue
-				}
-				errorWrapper.Fields = append(errorWrapper.Fields, ErrorWrapperField{
-					FldName:    field.Var.Name,
-					FldType:    field.Var.Type,
-					Name:       name,
-					Interface:  t.Value,
-					MethodName: methodName,
-				})
+	for _, field := range defaultErrorStruct.Type.Fields {
+		if b, ok := field.Var.Type.(*types.Basic); ok && field.Var.Name == "StatusCode" && b.IsInt() {
+			errorWrapper.HasStatusCode = true
+			break
+		}
+	}
+	for _, field := range errorWrapperStruct.Type.Fields {
+		if t, ok := field.Var.Tags.Get("http-error-interface"); ok {
+			name := strcase.ToLowerCamel(field.Var.Name)
+			if jsonTag, err := field.SysTags.Get("json"); err == nil {
+				name = jsonTag.Name
 			}
+			var methodName string
+			matches := fnRegex.FindAllStringSubmatch(t.Value, -1)
+			if len(matches) > 0 && len(matches[0]) == 2 {
+				methodName = matches[0][1]
+			} else {
+				errs = multierror.Append(errs, errors.Error("invalid interface method", t.Position))
+				continue
+			}
+			errorWrapper.Fields = append(errorWrapper.Fields, ErrorWrapperField{
+				FldName:    field.Var.Name,
+				FldType:    field.Var.Type,
+				Name:       name,
+				Interface:  t.Value,
+				MethodName: methodName,
+			})
 		}
 	}
 	return
@@ -208,17 +299,13 @@ func Decode(iface *gg.Interface) (opts Iface, errs error) {
 	opts.Title = iface.Named.Title
 	opts.Description = iface.Named.Description
 	opts.PkgPath = iface.Named.Pkg.Path
-	opts.Type = "rest"
-	opts.Lib = "echo"
+
 	if t, ok := iface.Named.Tags.Get("http-type"); ok {
 		switch t.Value {
 		default:
-			errs = multierror.Append(errs, errors.Error("invalid http type, valid values rest, jsonrpc", t.Position))
-		case "rest", "jsonrpc":
+			errs = multierror.Append(errs, errors.Error("invalid http type, valid values echo, jsonrpc, chi, mux", t.Position))
+		case "echo", "chi", "mux":
 			opts.Type = t.Value
-		}
-		if len(t.Options) > 0 {
-			opts.Lib = t.Options[0]
 		}
 	}
 	if _, ok := iface.Named.Tags.Get("http-server"); ok {
@@ -266,6 +353,10 @@ func Decode(iface *gg.Interface) (opts Iface, errs error) {
 		}
 		opts.Endpoints = append(opts.Endpoints, epOpts)
 	}
+	fmt.Println(opts.Type, "type")
+	if opts.Type == "" {
+		errs = multierror.Append(errs, errors.Error("the transport type is not set, use the http-type tag to set it, valid values: echo, jsonrpc, chi, mux", iface.Named.Position))
+	}
 	return
 }
 
@@ -280,42 +371,43 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 	if t, ok := method.Tags.Get("http-time-format"); ok {
 		opts.TimeFormat = t.Value
 	}
-	if ifaceOpts.Type == "rest" {
-		if t, ok := method.Tags.Get("http-method"); ok {
-			switch t.Value {
-			default:
-				errs = multierror.Append(errs, errors.Error("invalid http method, valid values GET, HEAD, POST, PUT, DELETE, CONNECT, OPTIONS, TRACE, PATCH", t.Position))
-			case "GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH":
-				opts.HTTPMethod = t.Value
-			}
-		} else {
-			errs = multierror.Append(errs, errors.Error("the http-method parameter is required", method.Position))
+
+	if t, ok := method.Tags.Get("http-method"); ok {
+		switch t.Value {
+		default:
+			errs = multierror.Append(errs, errors.Error("invalid http method, valid values GET, HEAD, POST, PUT, DELETE, CONNECT, OPTIONS, TRACE, PATCH", t.Position))
+		case "GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH":
+			opts.HTTPMethod = t.Value
 		}
-	} else {
+	}
+
+	if ifaceOpts.Type == "jsonrpc" {
 		opts.HTTPMethod = "POST"
+	}
+	if opts.HTTPMethod == "" {
+		errs = multierror.Append(errs, errors.Error("the http-method parameter is required", method.Position))
 	}
 	if t, ok := method.Tags.Get("http-path"); ok {
 		if _, err := url.Parse(t.Value); err != nil {
 			errs = multierror.Append(errs, errors.Error("invalid http-path format", t.Position))
 		}
 		opts.Path = t.Value
-
 	}
 
-	if ifaceOpts.Type == "rest" {
-		parts := strings.Split(opts.Path, "/")
-		opts.ParamsIdxName = make(map[string]int, len(parts))
-		for _, part := range parts {
-			if strings.HasPrefix(part, ":") {
-				paramName := part[1:]
-				opts.ParamsNameIdx = append(opts.ParamsNameIdx, paramName)
-				opts.ParamsIdxName[paramName] = len(opts.ParamsNameIdx) - 1
-			}
+	parts := strings.Split(opts.Path, "/")
+	opts.ParamsIdxName = make(map[string]int, len(parts))
+	for _, part := range parts {
+		if strings.HasPrefix(part, ":") {
+			paramName := part[1:]
+			opts.ParamsNameIdx = append(opts.ParamsNameIdx, paramName)
+			opts.ParamsIdxName[paramName] = len(opts.ParamsNameIdx) - 1
 		}
 	}
+
 	if opts.Path == "" && ifaceOpts.Type == "jsonrpc" {
 		opts.Path = strcase.ToLowerCamel(ifaceOpts.Name) + "." + strcase.ToLowerCamel(method.Name)
 	}
+
 	if t, ok := method.Tags.Get("http-openapi-tags"); ok {
 		opts.OpenapiTags = []string{t.Value}
 		opts.OpenapiTags = append(opts.OpenapiTags, t.Options...)
@@ -463,8 +555,8 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 		opts.Results = append(opts.Results, &varOpts)
 	}
 
-	var fillTypeParams func(params []*EndpointParam)
-	fillTypeParams = func(params []*EndpointParam) {
+	var fillTypeParams func(params EndpointParams)
+	fillTypeParams = func(params EndpointParams) {
 		for _, param := range params {
 			if len(param.Params) > 0 {
 				fillTypeParams(param.Params)
@@ -498,7 +590,7 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 		}
 	}
 	if len(opts.BodyParams) > 0 && (opts.HTTPMethod != "POST" && opts.HTTPMethod != "PUT" && opts.HTTPMethod != "DELETE" && opts.HTTPMethod != "PATCH") {
-		errs = multierror.Append(errs, errors.Error("only HTTP POST, PUT, PATCH and DELETE methods can have a request body", method.Position))
+		errs = multierror.Append(errs, errors.Error("only HTTP POST, PUT, PATCH and DELETE methods can have a request body. Current value: "+opts.HTTPMethod, method.Position))
 	}
 	if len(opts.PathParams) != len(opts.ParamsNameIdx) {
 		errs = multierror.Append(errs, errors.Error("the method has no parameters found for the http-path tag, the required parameters: "+strings.Join(opts.ParamsNameIdx, ", "), method.Position))
@@ -518,6 +610,10 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 	}
 	if len(opts.BodyParams) != 1 && opts.NoWrapRequest {
 		errs = multierror.Append(errs, errors.Error("the \"@http-nowrap-request\" tag can be used for only one request body parameter", method.Position))
+	}
+
+	if opts.Error == nil {
+		errs = multierror.Append(errs, errors.Error("the return of an error by the method is required", method.Position))
 	}
 	return
 }

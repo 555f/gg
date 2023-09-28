@@ -9,9 +9,7 @@ import (
 
 	"github.com/555f/gg/internal/openapi"
 	"github.com/555f/gg/internal/plugin/http/apidoc"
-	"github.com/555f/gg/internal/plugin/http/generic"
 	"github.com/555f/gg/internal/plugin/http/httperror"
-	"github.com/555f/gg/internal/plugin/http/jsonrpc"
 	"github.com/555f/gg/internal/plugin/http/openapidoc"
 	"github.com/555f/gg/internal/plugin/http/options"
 	"github.com/555f/gg/internal/plugin/http/rest"
@@ -126,67 +124,84 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 		}
 	}
 
-	fileSet := map[string]*file.GoFile{}
+	if errs != nil {
+		return
+	}
+
+	serverFile := file.NewGoFile(p.ctx.Module, serverOutput)
+	serverFile.SetVersion(p.ctx.Version)
+
+	clientFile := file.NewGoFile(p.ctx.Module, clientOutput)
+	clientFile.SetVersion(p.ctx.Version)
+
+	serverBuilder := rest.NewServerBuilder(serverFile)
+	clientBuilder := rest.NewBaseClientBuilder(clientFile)
+
+	serverBuilder.RegisterHandlerStrategy("echo", func() rest.HandlerStrategy {
+		return rest.NewHandlerStrategyEcho()
+	})
+	serverBuilder.RegisterHandlerStrategy("chi", func() rest.HandlerStrategy {
+		return rest.NewHandlerStrategyChi()
+	})
+
 	if len(serverServices) > 0 {
-		pkgPathVisited := map[string]struct{}{}
-		for _, s := range serverServices {
-			if s.HTTPReq != "" {
-				hrf := file.NewTxtFile(filepath.Join(httpReqOutput, strcase.ToSnake(s.Name)+".http"))
-				generic.GenHTTPReq(s)(hrf)
-				files = append(files, hrf)
-			}
-
-			f, ok := fileSet[serverOutput]
-			if !ok {
-				f = file.NewGoFile(p.ctx.Module, serverOutput)
-
-				rest.GenTypes()(f)
-				rest.GenErrorEncoder(errorWrapper)(f)
-				rest.GenHTTPHandler()(f)
-
-				fileSet[serverOutput] = f
-				files = append(files, f)
-			}
-
-			pkgPath := path.Dir(serverOutput) + s.Name
-
-			if _, ok := pkgPathVisited[pkgPath]; !ok {
-				switch s.Type {
-				case "rest":
-					rest.GenOptions(s)(f)
-				}
-				pkgPathVisited[pkgPath] = struct{}{}
-			}
-
-			rest.GenStruct(s)(f)
-			rest.GenMetric(s)(f)
-		}
+		serverBuilder.
+			SetErrorWrapper(errorWrapper).
+			BuildTypes()
 	}
 
 	if len(clientServices) > 0 {
-		pkgPathVisited := map[string]struct{}{}
-		for _, s := range clientServices {
-			f, ok := fileSet[clientOutput]
-			if !ok {
-				f = file.NewGoFile(p.ctx.Module, clientOutput)
-				fileSet[clientOutput] = f
-				files = append(files, f)
-			}
-			pkgPath := path.Dir(clientOutput)
-			if _, ok := pkgPathVisited[pkgPath]; !ok {
-				switch s.Type {
-				case "rest":
-					rest.GenClientTypes()(f)
-				}
-				pkgPathVisited[pkgPath] = struct{}{}
-			}
-			switch s.Type {
-			case "rest":
-				rest.GenClient(s, errorWrapper)(f)
-			case "jsonrpc":
-				jsonrpc.GenClient(s)(f)
-			}
+		clientBuilder.
+			SetErrorWrapper(errorWrapper).
+			BuildTypes()
+	}
+
+	for _, iface := range serverServices {
+		if iface.HTTPReq != "" {
+			hrf := file.NewTxtFile(filepath.Join(httpReqOutput, strcase.ToSnake(iface.Name)+".http"))
+			hrf.WriteBytes(
+				rest.NewHTTPExampleBuilder(iface).Build(),
+			)
+			files = append(files, hrf)
 		}
+
+		controllerBuilder := serverBuilder.Controller(iface)
+
+		for _, ep := range iface.Endpoints {
+			controllerBuilder.
+				Endpoint(ep).
+				BuildReqStruct().
+				BuildReqDec().
+				BuildRespStruct().
+				BuildRespEnc().
+				Build()
+		}
+
+		controllerBuilder.BuildHandlers()
+	}
+
+	for _, iface := range clientServices {
+		clientBuilder.BuildStruct(iface)
+		for _, ep := range iface.Endpoints {
+			clientBuilder.Endpoint(iface, ep).
+				BuildReqStruct().
+				BuildSetters().
+				BuildMethod().
+				BuildReqMethod().
+				BuildExecuteMethod()
+		}
+		clientBuilder.BuildConstruct(iface)
+	}
+
+	serverFile.Add(serverBuilder.Build())
+	clientFile.Add(clientBuilder.Build())
+
+	if len(serverServices) > 0 {
+		files = append(files, serverFile)
+	}
+
+	if len(clientServices) > 0 {
+		files = append(files, clientFile)
 	}
 	return
 }

@@ -10,6 +10,7 @@ import (
 
 func main() {
 	s := jsonrpc.NewServer()
+
 	server.SetupRoutesProfileController(new(controller.ProfileController), s)
 	_ = http.ListenAndServe(":8080", s)
 }

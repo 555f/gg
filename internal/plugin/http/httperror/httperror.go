@@ -37,10 +37,6 @@ func Load(structs []*gg.Struct, errorWrapper *options.ErrorWrapper) (result []Er
 					continue
 				}
 				if strings.Replace(method.Text, "func ", "", -1) == field.Interface {
-					//var fldType any
-					//if len(method.Returns) == 1 {
-					//	fldType = method.Returns[0]
-					//}
 					fields = append(fields, ErrorField{
 						FldName: field.FldName,
 						FldType: field.FldType,

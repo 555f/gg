@@ -5,6 +5,7 @@ import (
 	"github.com/555f/gg/pkg/strcase"
 	"github.com/555f/gg/pkg/types"
 
+	"github.com/dave/jennifer/jen"
 	. "github.com/dave/jennifer/jen"
 )
 
@@ -33,6 +34,19 @@ func FormatValue(id Code, t any, qualFunc types.QualFunc, timeFormat string) (s 
 		}
 	case *types.Named:
 		switch t.Pkg.Path {
+		case "gopkg.in/guregu/null.v4":
+			switch t.Name {
+			case "String":
+				s.Add(id).Dot("String")
+			case "Time":
+				s.Add(id).Dot("Time").Dot("Format").Call(Lit(timeFormat))
+			case "Int":
+				s.Qual("strconv", "FormatInt").Call(jen.Add(id).Dot("Int64"), jen.Lit(10))
+			case "Float":
+				s.Qual("strconv", "FormatFloat").Call(jen.Add(id).Dot("Float64"), jen.LitRune('g'), jen.Lit(-1), jen.Lit(64))
+			case "Bool":
+				s.Qual("strconv", "FormatBool").Call(jen.Add(id).Dot("Bool"))
+			}
 		case "time":
 			if t.Name == "Time" {
 				s.Add(id).Dot("Format").Call(Lit(timeFormat))
@@ -52,6 +66,21 @@ func ParseValue(id, assignID Code, op string, t any, qualFunc types.QualFunc) (s
 			s.List(assignID, Err()).Op(op).Do(parseFunc(id, t, qualFunc))
 		}
 	case *types.Named:
+		if basic, ok := t.Type.(*types.Basic); ok {
+			if basic.IsString() {
+				s.Add(assignID).Op(op).Qual(t.Pkg.Path, t.Name).Call(id)
+			} else {
+				s.CustomFunc(Options{Multi: true}, func(g *Group) {
+					g.List(Id("v"), jen.Err()).Op(":=").Do(parseFunc(id, basic, qualFunc))
+					g.Do(CheckErr(
+						jen.Return(jen.Nil(), jen.Err()),
+					))
+					g.Add(assignID).Op(op).Qual(t.Pkg.Path, t.Name).Call(Id("v"))
+				})
+			}
+			return
+		}
+
 		switch t.Pkg.Path {
 		case "net/url":
 			switch t.Name {
