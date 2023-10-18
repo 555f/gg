@@ -1,3 +1,4 @@
 {
-    "cSpell.language": "en,ru"
+  "editor.defaultFormatter": "golang.go",
+  "cSpell.language": "en,ru"
 }
