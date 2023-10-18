@@ -24,7 +24,7 @@ func makeLog(name string, t interface{}) *jen.Statement {
 	st := jen.Lit(name).Op(",")
 	switch t := t.(type) {
 	default:
-		st.Id(name)
+		return nil
 	case *types.Named:
 		if hasMethodString(t) {
 			st.Dot("String").Call()

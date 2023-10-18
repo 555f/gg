@@ -87,7 +87,7 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 				}
 				callParams []Code
 				results    []Code
-				logResults = []Code{Id("logger")}
+				// logResults = []Code{Id("logger")}
 				errorVar   *types.Var
 				contextVar *types.Var
 				paramNames = map[string]int{}
@@ -124,35 +124,38 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 					errs = multierror.Append(errs, errors.Error("the parameter name cannot be empty or the logging-param-name parameter must be set", param.Position))
 					continue
 				}
-				logParams = append(logParams, Lit(name), makeParamLog(param))
-				paramNames[name]++
+
+				if logParam := makeParamLog(param); logParam != nil {
+					logParams = append(logParams, Lit(name), logParam)
+					paramNames[name]++
+				}
 			}
 
-			for _, result := range method.Sig.Results {
-				results = append(results, Id(result.Name))
-				if errorVar == nil && result.IsError {
-					errorVar = result
-					continue
-				}
-				opts, err := makeResultOptions(result.Tags)
-				if err != nil {
-					errs = multierror.Append(errs, err)
-					continue
-				}
-				if opts.Skip {
-					continue
-				}
-				name := result.Name
-				if name == "" {
-					name = opts.Name
-				}
-				if name == "" {
-					errs = multierror.Append(errs, errors.Error("the result name cannot be empty or the logging-result-name parameter must be set", result.Position))
-					continue
-				}
-				paramNames[name]++
-				logResults = append(logResults, Lit(name), makeParamLog(result))
-			}
+			// for _, result := range method.Sig.Results {
+			// 	results = append(results, Id(result.Name))
+			// 	if errorVar == nil && result.IsError {
+			// 		errorVar = result
+			// 		continue
+			// 	}
+			// 	opts, err := makeResultOptions(result.Tags)
+			// 	if err != nil {
+			// 		errs = multierror.Append(errs, err)
+			// 		continue
+			// 	}
+			// 	if opts.Skip {
+			// 		continue
+			// 	}
+			// 	name := result.Name
+			// 	if name == "" {
+			// 		name = opts.Name
+			// 	}
+			// 	if name == "" {
+			// 		errs = multierror.Append(errs, errors.Error("the result name cannot be empty or the logging-result-name parameter must be set", result.Position))
+			// 		continue
+			// 	}
+			// 	paramNames[name]++
+			// 	logResults = append(logResults, Lit(name), makeParamLog(result))
+			// }
 
 			if len(opts.LogContexts) > 0 && contextVar == nil {
 				errs = multierror.Append(errs, errors.Error("to log a value from the context, you must declare it as a method parameter", method.Position))
@@ -208,8 +211,8 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 										Id("logger").Op("=").Qual(loggerPkg, "WithPrefix").Call(Id("logger"), Lit(errorVar.Name), Id(errorVar.Name)),
 									),
 								).Else().Block(
+									// Id("logger").Op("=").Qual(loggerPkg, "WithPrefix").Call(logResults...),
 									Id("logger").Op("=").Qual(levelPkg, "Debug").Call(Id("logger")),
-									Id("logger").Op("=").Qual(loggerPkg, "WithPrefix").Call(logResults...),
 								)
 							} else {
 								g.Id("logger").Op("=").Qual(levelPkg, "Debug").Call(Id("logger"))
