@@ -83,7 +83,7 @@ func DecodeField(parent *ConfigField, f *types.StructFieldType) (cf ConfigField,
 		cf.UseZero = true
 	}
 
-	cf.Name = strings.ToUpper(strcase.ToScreamingSnake(f.Var.Name))
+	cf.Name = strings.ToUpper(strcase.ToScreamingSnake(cf.Name))
 	cf.Zero = f.Var.Zero
 
 	for _, structField := range gen.ExtractFields(f.Var.Type) {
