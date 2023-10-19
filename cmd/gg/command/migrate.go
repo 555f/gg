@@ -366,8 +366,8 @@ func qual(t any, isPointer bool) *Statement {
 		var params []jen.Code
 		for i := 0; i < t.Len(); i++ {
 			v := t.At(i)
-			var st *jen.Statement
-			st = jen.Id(v.Name())
+
+			st := jen.Id(v.Name())
 			typ := v.Type()
 			if s, ok := typ.(*types.Slice); ok {
 				//if v.IsVariadic {

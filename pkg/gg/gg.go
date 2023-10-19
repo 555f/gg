@@ -92,7 +92,9 @@ func Run(version, wd string, packages []*stdpackages.Package, plugins map[string
 				Options:     Options{m: options},
 			}
 			plugin := f(ctx)
-			pluginGraph.add(plugin)
+			if err := pluginGraph.add(plugin); err != nil {
+				errs = multierror.Append(errs, err)
+			}
 		}
 	}
 	sortedPlugins := pluginGraph.Sorted()

@@ -18,11 +18,11 @@ var _ = lexers.Register(chroma.MustNewLazyLexer(
 func curlRules() chroma.Rules {
 	return chroma.Rules{
 		"root": {
-			{`\s+`, chroma.Text, nil},
-			{`(curl)((?:\s*\\?\s*))`, chroma.Keyword, nil},
-			{`(\-[A-Z])((?:\s*\\?\s*))`, chroma.NameProperty, nil},
-			{chroma.Words(``, ``, `POST`, `PUT`, `GET`, `DELETE`, `PATCH`, `OPTIONS`), chroma.KeywordType, nil},
-			{`(https|http)?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)`, chroma.String, nil},
+			{Pattern: `\s+`, Type: chroma.Text, Mutator: nil},
+			{Pattern: `(curl)((?:\s*\\?\s*))`, Type: chroma.Keyword, Mutator: nil},
+			{Pattern: `(\-[A-Z])((?:\s*\\?\s*))`, Type: chroma.NameProperty, Mutator: nil},
+			{Pattern: chroma.Words(``, ``, `POST`, `PUT`, `GET`, `DELETE`, `PATCH`, `OPTIONS`), Type: chroma.KeywordType, Mutator: nil},
+			{Pattern: `(https|http)?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)`, Type: chroma.String, Mutator: nil},
 		},
 	}
 }

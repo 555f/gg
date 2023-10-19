@@ -25,9 +25,13 @@ func makeLog(name string, t interface{}) *jen.Statement {
 	switch t := t.(type) {
 	default:
 		return nil
+	case *types.Basic:
+		st.Id(name)
 	case *types.Named:
 		if hasMethodString(t) {
 			st.Dot("String").Call()
+		} else {
+			return nil
 		}
 	case *types.Slice, *types.Array, *types.Map:
 		st.Len(jen.Id(name))

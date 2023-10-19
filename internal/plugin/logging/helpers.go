@@ -20,19 +20,21 @@ func hasMethodString(v *types.Named) bool {
 	return false
 }
 
-func makeParamLog(p *types.Var) *jen.Statement {
-	st := jen.Empty()
-	switch t := p.Type.(type) {
+func makeLog(name string, t interface{}) *jen.Statement {
+	st := jen.Lit(name).Op(",")
+	switch t := t.(type) {
 	default:
-		st.Id(p.Name)
+		return nil
+	case *types.Basic:
+		st.Id(name)
 	case *types.Named:
 		if hasMethodString(t) {
-			st.Id(p.Name).Dot("String").Call()
+			st.Dot("String").Call()
 		} else {
-			st.Lit("")
+			return nil
 		}
 	case *types.Slice, *types.Array, *types.Map:
-		st.Len(jen.Id(p.Name))
+		st.Len(jen.Id(name))
 	}
 	return st
 }

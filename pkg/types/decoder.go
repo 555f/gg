@@ -468,7 +468,7 @@ func (d *Decoder) commentFind(name string, pos token.Pos) (result Comments) {
 				cg := d.pkg.Fset.Position(commentGroup.End())
 				if cg.Line == position.Line-1 && cg.Filename == position.Filename {
 					for _, comment := range commentGroup.List {
-						text := strings.TrimLeft(strings.TrimLeft(comment.Text, "//"), " ")
+						text := strings.TrimLeft(strings.TrimLeft(comment.Text, "/"), " ")
 						isTitle := strings.HasPrefix(text, name)
 						isTag := strings.HasPrefix(text, "@")
 						if isTitle {

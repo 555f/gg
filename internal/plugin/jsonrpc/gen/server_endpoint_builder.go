@@ -198,6 +198,6 @@ func (b *serverEndpointBuilder) reqDecFuncName() string {
 	return reqDecFuncName(b.iface, b.ep)
 }
 
-func (b *serverEndpointBuilder) respEncFuncName() string {
-	return respEncFuncName(b.iface, b.ep)
-}
+// func (b *serverEndpointBuilder) respEncFuncName() string {
+// 	return respEncFuncName(b.iface, b.ep)
+// }

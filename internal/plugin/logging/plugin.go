@@ -125,7 +125,7 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 					continue
 				}
 
-				if logParam := makeParamLog(param); logParam != nil {
+				if logParam := makeLog(name, param.Type); logParam != nil {
 					logParams = append(logParams, Lit(name), logParam)
 					paramNames[name]++
 				}

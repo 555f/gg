@@ -45,10 +45,10 @@ type paramOptions struct {
 	Context logContext
 }
 
-type resultOptions struct {
-	Name string
-	Skip bool
-}
+// type resultOptions struct {
+// 	Name string
+// 	Skip bool
+// }
 
 func makeParamOptions(pkg *types.PackageType, tags types.Tags) (opts paramOptions, err error) {
 	if _, ok := tags.Get("logging-skip"); ok {
@@ -64,16 +64,16 @@ func makeParamOptions(pkg *types.PackageType, tags types.Tags) (opts paramOption
 	return
 }
 
-func makeResultOptions(tags types.Tags) (opts resultOptions, err error) {
-	if _, ok := tags.Get("logging-skip"); ok {
-		opts.Skip = true
-	}
-	if t, ok := tags.Get("logging-name"); ok {
-		if t.Value == "" {
-			err = errors.Error(t.Key+": the value cannot be empty", t.Position)
-			return
-		}
-		opts.Name = t.Value
-	}
-	return
-}
+// func makeResultOptions(tags types.Tags) (opts resultOptions, err error) {
+// 	if _, ok := tags.Get("logging-skip"); ok {
+// 		opts.Skip = true
+// 	}
+// 	if t, ok := tags.Get("logging-name"); ok {
+// 		if t.Value == "" {
+// 			err = errors.Error(t.Key+": the value cannot be empty", t.Position)
+// 			return
+// 		}
+// 		opts.Name = t.Value
+// 	}
+// 	return
+// }

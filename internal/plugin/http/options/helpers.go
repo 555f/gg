@@ -21,17 +21,17 @@ func formatName(s, fmt string) string {
 	return s
 }
 
-func nameStructResp(ifaceName string, methodName string) string {
-	return strcase.ToLowerCamel(ifaceName + methodName + "Response")
-}
+// func nameStructResp(ifaceName string, methodName string) string {
+// 	return strcase.ToLowerCamel(ifaceName + methodName + "Response")
+// }
 
-func nameStructReq(ifaceName string, methodName string) string {
-	return strcase.ToLowerCamel(ifaceName + methodName + "Request")
-}
+// func nameStructReq(ifaceName string, methodName string) string {
+// 	return strcase.ToLowerCamel(ifaceName + methodName + "Request")
+// }
 
-func nameReqDecode(ifaceName string, methodName string) string {
-	return strcase.ToLowerCamel(ifaceName + methodName + "ReqDecode")
-}
+// func nameReqDecode(ifaceName string, methodName string) string {
+// 	return strcase.ToLowerCamel(ifaceName + methodName + "ReqDecode")
+// }
 
 func makeEndpointParam(
 	parent *EndpointParam,
