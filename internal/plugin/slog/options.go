@@ -21,7 +21,8 @@ func makeMethodOptions(module *types.Module, method *types.Func) (opts methodOpt
 	if _, ok := method.Tags.Get("slog-skip"); ok {
 		opts.Skip = true
 	}
-	if t, ok := method.Tags.Get("slog-context"); ok {
+	tags := method.Tags.GetSlice("slog-context")
+	for _, t := range tags {
 		if len(t.Options) == 0 {
 			err = errors.Error("the path to the context key is required", t.Position)
 			return
