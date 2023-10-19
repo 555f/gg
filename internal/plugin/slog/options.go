@@ -18,10 +18,10 @@ type methodOptions struct {
 }
 
 func makeMethodOptions(module *types.Module, method *types.Func) (opts methodOptions, err error) {
-	if _, ok := method.Tags.Get("logging-skip"); ok {
+	if _, ok := method.Tags.Get("slog-skip"); ok {
 		opts.Skip = true
 	}
-	if t, ok := method.Tags.Get("logging-context"); ok {
+	if t, ok := method.Tags.Get("slog-context"); ok {
 		if len(t.Options) == 0 {
 			err = errors.Error("the path to the context key is required", t.Position)
 			return
@@ -51,10 +51,10 @@ type paramOptions struct {
 // }
 
 func makeParamOptions(pkg *types.PackageType, tags types.Tags) (opts paramOptions, err error) {
-	if _, ok := tags.Get("logging-skip"); ok {
+	if _, ok := tags.Get("slog-skip"); ok {
 		opts.Skip = true
 	}
-	if t, ok := tags.Get("logging-name"); ok {
+	if t, ok := tags.Get("slog-name"); ok {
 		if t.Value == "" {
 			err = errors.Error(t.Key+": the value cannot be empty", t.Position)
 			return

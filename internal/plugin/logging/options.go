@@ -29,10 +29,10 @@ type paramOptions struct {
 // }
 
 func makeMethodOptions(module *types.Module, method *types.Func) (opts methodOptions, err error) {
-	if _, ok := method.Tags.Get("logging-skip"); ok {
+	if _, ok := method.Tags.Get("klog-skip"); ok {
 		opts.Skip = true
 	}
-	if t, ok := method.Tags.Get("logging-context"); ok {
+	if t, ok := method.Tags.Get("klog-context"); ok {
 		if len(t.Options) == 0 {
 			err = errors.Error("the path to the context key is required", t.Position)
 			return
@@ -51,10 +51,10 @@ func makeMethodOptions(module *types.Module, method *types.Func) (opts methodOpt
 }
 
 func makeParamOptions(pkg *types.PackageType, tags types.Tags) (opts paramOptions, err error) {
-	if _, ok := tags.Get("logging-skip"); ok {
+	if _, ok := tags.Get("klog-skip"); ok {
 		opts.Skip = true
 	}
-	if t, ok := tags.Get("logging-name"); ok {
+	if t, ok := tags.Get("klog-name"); ok {
 		if t.Value == "" {
 			err = errors.Error(t.Key+": the value cannot be empty", t.Position)
 			return
@@ -65,10 +65,10 @@ func makeParamOptions(pkg *types.PackageType, tags types.Tags) (opts paramOption
 }
 
 // func makeResultOptions(tags types.Tags) (opts resultOptions, err error) {
-// 	if _, ok := tags.Get("logging-skip"); ok {
+// 	if _, ok := tags.Get("klog-skip"); ok {
 // 		opts.Skip = true
 // 	}
-// 	if t, ok := tags.Get("logging-name"); ok {
+// 	if t, ok := tags.Get("klog-name"); ok {
 // 		if t.Value == "" {
 // 			err = errors.Error(t.Key+": the value cannot be empty", t.Position)
 // 			return
