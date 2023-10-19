@@ -24,7 +24,7 @@ func (m *Module) ParseImportPath(s string) (pkgPath, name string, err error) {
 	name = path.Ext(u.Path)
 	pkgPath = strings.Replace(u.Path, name, "", -1)
 	if name == "" {
-		return "", "", fmt.Errorf("invalid import path: %s, example ~/pkg/foo/ContextKey", s)
+		return "", "", fmt.Errorf("invalid import path: %s, example ~/pkg/foo.ContextKey", s)
 	}
 	name = name[1:]
 	if strings.HasPrefix(u.Host, "~") {

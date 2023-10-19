@@ -33,7 +33,7 @@ func TestModule_ParseImportPath(t *testing.T) {
 				Main:     true,
 			},
 			args: args{
-				s: "~internal/auth/JWTContextKey",
+				s: "~/internal/auth/JWTContextKey",
 			},
 			wantPkgPath: "",
 			wantName:    "",
