@@ -23,6 +23,9 @@ func (m *Module) ParseImportPath(s string) (pkgPath, name string, err error) {
 	}
 	name = path.Ext(u.Path)
 	pkgPath = strings.Replace(u.Path, name, "", -1)
+	if name == "" {
+		return "", "", fmt.Errorf("invalid import path: %w", err)
+	}
 	name = name[1:]
 	if strings.HasPrefix(u.Host, "~") {
 		pkgPath = m.Path + pkgPath
