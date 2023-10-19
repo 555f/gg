@@ -29,7 +29,7 @@ func makeLog(name string, t interface{}) *jen.Statement {
 		st.Id(name)
 	case *types.Named:
 		if hasMethodString(t) {
-			st.Dot("String").Call()
+			st.Id(name).Dot("String").Call()
 		} else {
 			return nil
 		}
