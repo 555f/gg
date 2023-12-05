@@ -42,7 +42,7 @@ var runCmd = &cobra.Command{
 
 		escaped := make([]string, len(packageNames))
 		for i := range packageNames {
-			escaped[i] = "pattern=" + filepath.FromSlash(packageNames[i])
+			escaped[i] = "pattern=" + packageNames[i]
 		}
 
 		cmd.Printf(yellow("Version: %s\n"), cmd.Root().Version)
