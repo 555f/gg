@@ -33,6 +33,8 @@ var runCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		packageNames := viper.GetStringSlice("packages")
 		configFile := viper.ConfigFileUsed()
+		configFile = filepath.FromSlash(configFile)
+
 		wd := filepath.Dir(configFile)
 		wdAbs, _ := filepath.Abs(wd)
 
@@ -40,7 +42,7 @@ var runCmd = &cobra.Command{
 
 		escaped := make([]string, len(packageNames))
 		for i := range packageNames {
-			escaped[i] = "pattern=" + packageNames[i]
+			escaped[i] = "pattern=" + filepath.FromSlash(packageNames[i])
 		}
 
 		cmd.Printf(yellow("Version: %s\n"), cmd.Root().Version)
