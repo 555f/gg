@@ -5,6 +5,8 @@ import (
 	"go/ast"
 	"go/token"
 	stdtypes "go/types"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -16,7 +18,11 @@ import (
 	stdpackages "golang.org/x/tools/go/packages"
 )
 
-func Run(version, wd string, packages []*stdpackages.Package, plugins map[string]any) (allFiles []file.File, errs error) {
+type Result struct {
+	Filepath string
+}
+
+func Run(version, wd string, packages []*stdpackages.Package, plugins map[string]any) (result []*Result, errs error) {
 	module, err := Module(packages)
 	if err != nil {
 		errs = multierror.Append(errs, errors.Error("the golang module was not found, see for more details https://go.dev/blog/using-go-modules", token.Position{}))
@@ -38,6 +44,7 @@ func Run(version, wd string, packages []*stdpackages.Package, plugins map[string
 		return strings.Compare(structs[i].Named.Name, structs[j].Named.Name) > 0
 	})
 
+	// othersInterfaces := []*Interface{}
 	interfaceSet := map[string][]*Interface{}
 	structSet := map[string][]*Struct{}
 	pluginUsesSet := map[string][]token.Position{}
@@ -66,6 +73,7 @@ func Run(version, wd string, packages []*stdpackages.Package, plugins map[string
 			continue
 		}
 		if len(iface.Named.Tags) == 0 {
+			// othersInterfaces = append(othersInterfaces, iface)
 			continue
 		}
 		for _, t := range iface.Named.Tags.GetSlice("gg") {
@@ -88,8 +96,9 @@ func Run(version, wd string, packages []*stdpackages.Package, plugins map[string
 				PkgPath:     pkgPath,
 				Module:      module,
 				Interfaces:  interfaceSet[name],
-				Structs:     structSet[name],
-				Options:     Options{m: options},
+				// OthersInterfaces: othersInterfaces,
+				Structs: structSet[name],
+				Options: Options{m: options},
 			}
 			plugin := f(ctx)
 			if err := pluginGraph.add(plugin); err != nil {
@@ -122,7 +131,36 @@ func Run(version, wd string, packages []*stdpackages.Package, plugins map[string
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		}
-		allFiles = append(allFiles, files...)
+		saveFile := func(f file.File) error {
+			data, err := f.Bytes()
+			if err != nil {
+				return err
+			}
+			dirPath := filepath.Dir(f.Filepath())
+			if err := os.MkdirAll(dirPath, 0700); err != nil {
+				return err
+			}
+			if err := os.WriteFile(f.Filepath(), data, 0700); err != nil {
+				return err
+			}
+			return nil
+		}
+		for _, f := range files {
+			if err := saveFile(f); err != nil {
+				errs = multierror.Append(errs, err)
+			}
+			result = append(result, &Result{
+				Filepath: f.Filepath(),
+			})
+		}
+		if p, ok := plugin.(PluginAfterGen); ok {
+			if err := p.OnAfterGen(); err != nil {
+				errs = multierror.Append(errs, err)
+			}
+		}
+	}
+	if errs != nil {
+		return
 	}
 	return
 }

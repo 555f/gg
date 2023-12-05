@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+option go_package = "github.com/555f/gg/examples/grpc-service/internal/server";
+
+package server;
+
+message CreateRequest {}
+message CreateResponse {}
+message RemoveRequest {}
+message RemoveResponse {}
+service ProfileController {
+rpc Create(CreateRequest) returns (CreateResponse) {}
+rpc Remove(RemoveRequest) returns (RemoveResponse) {}
+}

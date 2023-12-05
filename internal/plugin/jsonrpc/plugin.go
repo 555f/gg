@@ -24,28 +24,31 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 	serverOutput := filepath.Join(
 		p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("server-output", "internal/server/server.go"),
 	)
-	// clientOutput := filepath.Join(
-	// p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("client-output", "internal/server/client.go"),
-	// )
+	clientOutput := filepath.Join(
+		p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("client-output", "internal/server/client.go"),
+	)
 	// openapiOutput := filepath.Join(
-	// p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("openapi-output", "docs/openapi.yaml"),
+	// 	p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("openapi-output", "docs/openapi.yaml"),
+	// )
+	// apiDocOutput := filepath.Join(
+	// 	p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("apidoc-output", "docs/apidoc.html"),
 	// )
 	var (
-		serverServices []options.Iface
-		// clientServices  []options.Iface
-		// openapiServices []options.Iface
+		serverServices  []options.Iface
+		clientServices  []options.Iface
+		openapiServices []options.Iface
 	)
 	for _, iface := range p.ctx.Interfaces {
 		s, err := options.Decode(iface)
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		}
-		// if s.Openapi.Enable {
-		// openapiServices = append(openapiServices, s)
-		// }
-		// if s.Client.Enable {
-		// clientServices = append(clientServices, s)
-		// }
+		if s.Openapi.Enable {
+			openapiServices = append(openapiServices, s)
+		}
+		if s.Client.Enable {
+			clientServices = append(clientServices, s)
+		}
 		if s.Server.Enable {
 			serverServices = append(serverServices, s)
 		}
@@ -54,35 +57,51 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 	serverFile := file.NewGoFile(p.ctx.Module, serverOutput)
 	serverFile.SetVersion(p.ctx.Version)
 
+	clientFile := file.NewGoFile(p.ctx.Module, clientOutput)
+	clientFile.SetVersion(p.ctx.Version)
+
 	serverBuilder := gen.NewServerBuilder(serverFile)
-
-	serverBuilder.RegisterHandlerStrategy("default", func() gen.HandlerStrategy {
-		return gen.NewHandlerStrategyJSONRPC()
-	})
-
-	for _, iface := range serverServices {
-		controllerBuilder := serverBuilder.Controller(iface)
-
-		controllerBuilder.BuildHandlers()
-
-		for _, ep := range iface.Endpoints {
-			controllerBuilder.Endpoint(ep).BuildReqStruct().
-				BuildReqDec().
-				BuildRespStruct().
-				Build()
-		}
-	}
-
-	serverFile.Add(serverBuilder.Build())
+	clientBuilder := gen.NewBaseClientBuilder(clientFile)
 
 	if len(serverServices) > 0 {
+		serverBuilder.RegisterHandlerStrategy("default", func() gen.HandlerStrategy {
+			return gen.NewHandlerStrategyJSONRPC()
+		})
+
+		for _, iface := range serverServices {
+			controllerBuilder := serverBuilder.Controller(iface)
+
+			controllerBuilder.BuildHandlers()
+
+			for _, ep := range iface.Endpoints {
+				controllerBuilder.Endpoint(ep).BuildReqStruct().
+					BuildReqDec().
+					BuildRespStruct().
+					Build()
+			}
+		}
+
 		files = append(files, serverFile)
+		serverFile.Add(serverBuilder.Build())
 	}
 
-	// if len(clientServices) > 0 {
-	// files = append(files, clientFile)
-	// }
-
+	if len(clientServices) > 0 {
+		for _, iface := range clientServices {
+			clientBuilder.BuildStruct(iface)
+			for _, ep := range iface.Endpoints {
+				clientBuilder.Endpoint(iface, ep).
+					BuildReqStruct().
+					BuildSetters().
+					BuildMethod().
+					BuildReqMethod().
+					BuildResultMethod().
+					BuildExecuteMethod()
+			}
+			clientBuilder.BuildConstruct(iface)
+		}
+		clientFile.Add(clientBuilder.Build())
+		files = append(files, clientFile)
+	}
 	return
 }
 

@@ -1,0 +1,6 @@
+packages:
+  - ./internal/usecase/controller/...
+  - ./pkg/dto/...
+plugins:
+  http:
+    client-output: ./pkg/client/client.go

@@ -39,14 +39,12 @@ type ServerEndpointBuilder interface {
 	BuildReqStruct() ServerEndpointBuilder
 	BuildRespStruct() ServerEndpointBuilder
 	BuildReqDec() ServerEndpointBuilder
-	// BuildRespEnc() ServerEndpointBuilder
 	Build()
 }
 
 type ServerBuilder interface {
 	Build() jen.Code
 	BuildTypes() ServerBuilder
-	// Controller(iface options.Iface) ServerControllerBuilder
 }
 
 type ClientBuilder interface {
@@ -61,6 +59,7 @@ type ClientEndpointBuilder interface {
 	BuildReqStruct() ClientEndpointBuilder
 	BuildSetters() ClientEndpointBuilder
 	BuildReqMethod() ClientEndpointBuilder
+	BuildResultMethod() ClientEndpointBuilder
 	BuildMethod() ClientEndpointBuilder
 	BuildExecuteMethod() ClientEndpointBuilder
 }
@@ -71,24 +70,10 @@ type ExampleBuilder interface {
 
 type HandlerStrategy interface {
 	ID() string
-	// ReqType() (typ jen.Code)
 	ReqArgName() string
-	// RespType() (typ jen.Code)
 	RespArgName() string
 	LibType() (typ jen.Code)
 	LibArgName() string
-	// QueryParams() (typ jen.Code)
-	// QueryParam(queryName string) (name string, typ jen.Code)
-	// PathParam(pathName string) (name string, typ jen.Code)
-	// HeaderParam(headerName string) (name string, typ jen.Code)
-	// BodyPathParam() (typ jen.Code)
-	// FormParam(formName string) (name string, typ jen.Code)
-	// MultipartFormParam(formName string) (name string, typ jen.Code)
-	// FormParams() (typ jen.Code)
-	// MultipartFormParams(multipartMaxMemory int64) (typ jen.Code)
 	MiddlewareType() jen.Code
 	HandlerFunc(method string, endpoint, middlewares jen.Code, bodyFunc ...jen.Code) (typ jen.Code)
-	// SetHeader(k, v jen.Code) (typ jen.Code)
-	// UsePathParams() bool
-	// WriteError(statusCode, data jen.Code) (typ jen.Code)
 }

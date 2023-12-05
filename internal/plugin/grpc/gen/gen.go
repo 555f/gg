@@ -1,7 +1,8 @@
-package rest
+package gen
 
 import (
-	"github.com/555f/gg/internal/plugin/http/options"
+	"github.com/555f/gg/internal/plugin/grpc/options"
+
 	"github.com/dave/jennifer/jen"
 )
 
@@ -16,9 +17,7 @@ const (
 	prometheusPkg = "github.com/prometheus/client_golang/prometheus"
 	promautoPkg   = "github.com/prometheus/client_golang/prometheus/promauto"
 	promhttpPkg   = "github.com/prometheus/client_golang/prometheus/promhttp"
-	chiPkg        = "github.com/go-chi/chi/v5"
 	jsonrpcPkg    = "github.com/555f/jsonrpc"
-	echoPkg       = "github.com/labstack/echo/v4"
 )
 
 type HandlerStrategyBuilderFactory func() HandlerStrategy
@@ -40,19 +39,15 @@ type ServerEndpointBuilder interface {
 	BuildReqStruct() ServerEndpointBuilder
 	BuildRespStruct() ServerEndpointBuilder
 	BuildReqDec() ServerEndpointBuilder
-	BuildRespEnc() ServerEndpointBuilder
 	Build()
 }
 
 type ServerBuilder interface {
-	SetErrorWrapper(errorWrapper *options.ErrorWrapper) ServerBuilder
 	Build() jen.Code
 	BuildTypes() ServerBuilder
-	Controller(iface options.Iface) ServerControllerBuilder
 }
 
 type ClientBuilder interface {
-	SetErrorWrapper(errorWrapper *options.ErrorWrapper) ClientBuilder
 	BuildTypes() ClientBuilder
 	BuildConstruct(iface options.Iface) ClientBuilder
 	BuildStruct(iface options.Iface) ClientBuilder
@@ -64,30 +59,21 @@ type ClientEndpointBuilder interface {
 	BuildReqStruct() ClientEndpointBuilder
 	BuildSetters() ClientEndpointBuilder
 	BuildReqMethod() ClientEndpointBuilder
+	BuildResultMethod() ClientEndpointBuilder
 	BuildMethod() ClientEndpointBuilder
 	BuildExecuteMethod() ClientEndpointBuilder
 }
 
+type ExampleBuilder interface {
+	Build() []byte
+}
+
 type HandlerStrategy interface {
 	ID() string
-	ReqType() (typ jen.Code)
 	ReqArgName() string
-	RespType() (typ jen.Code)
 	RespArgName() string
 	LibType() (typ jen.Code)
 	LibArgName() string
-	QueryParams() (typ jen.Code)
-	QueryParam(queryName string) (name string, typ jen.Code)
-	PathParam(pathName string) (name string, typ jen.Code)
-	HeaderParam(headerName string) (name string, typ jen.Code)
-	BodyPathParam() (typ jen.Code)
-	FormParam(formName string) (name string, typ jen.Code)
-	MultipartFormParam(formName string) (name string, typ jen.Code)
-	FormParams() (typ jen.Code)
-	MultipartFormParams(multipartMaxMemory int64) (typ jen.Code)
 	MiddlewareType() jen.Code
-	HandlerFunc(method, pattern string, result, middlewares jen.Code, bodyFunc ...jen.Code) (typ jen.Code)
-	SetHeader(k, v jen.Code) (typ jen.Code)
-	UsePathParams() bool
-	WriteError(statusCode, data jen.Code) (typ jen.Code)
+	HandlerFunc(method string, endpoint, middlewares jen.Code, bodyFunc ...jen.Code) (typ jen.Code)
 }

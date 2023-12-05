@@ -3,7 +3,7 @@ package gen
 import (
 	"fmt"
 
-	"github.com/555f/gg/internal/plugin/jsonrpc/options"
+	"github.com/555f/gg/internal/plugin/grpc/options"
 	"github.com/555f/gg/pkg/strcase"
 	"github.com/555f/gg/pkg/types"
 	"github.com/dave/jennifer/jen"

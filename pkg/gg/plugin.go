@@ -15,6 +15,10 @@ type Plugin interface {
 	Dependencies() []string
 }
 
+type PluginAfterGen interface {
+	OnAfterGen() error
+}
+
 type Struct struct {
 	Named *types.Named
 	Type  *types.Struct
@@ -32,7 +36,7 @@ type Tags struct {
 	items *types.Tags
 }
 
-func (pt *Tags) Get(name string) (*types.Tag, bool) {
+func (pt *Tags) Tag(name string) (*types.Tag, bool) {
 	prefix := pt.name
 	if prefix != "" {
 		prefix = prefix + "-"
@@ -67,14 +71,15 @@ func (o Options) GetInt(name string) int {
 }
 
 type Context struct {
-	pluginGraph *Graph
-	Version     string
-	Workdir     string
-	PkgPath     string
-	Module      *types.Module
-	Interfaces  []*Interface
-	Structs     []*Struct
-	Options     Options
+	pluginGraph      *Graph
+	Version          string
+	Workdir          string
+	PkgPath          string
+	Module           *types.Module
+	Interfaces       []*Interface
+	OthersInterfaces []*Interface
+	Structs          []*Struct
+	Options          Options
 }
 
 func (c *Context) Plugin(name string) Plugin {

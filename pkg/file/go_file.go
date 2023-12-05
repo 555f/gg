@@ -2,6 +2,7 @@ package file
 
 import (
 	"bytes"
+	"fmt"
 	"path"
 	"path/filepath"
 	"strings"
@@ -32,6 +33,7 @@ func (f *GoFile) IsCurrPkg(pkgPath string) bool {
 func (f *GoFile) Qual(pkgPath, name string) func(s *jen.Statement) {
 	return func(s *jen.Statement) {
 		if f.IsCurrPkg(pkgPath) {
+			fmt.Println(name)
 			s.Id(name)
 		} else {
 			s.Qual(pkgPath, name)

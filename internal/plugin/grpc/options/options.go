@@ -142,20 +142,20 @@ func Decode(iface *gg.Interface) (opts Iface, errs error) {
 	opts.PkgPath = iface.Named.Pkg.Path
 	opts.Type = "default"
 
-	if _, ok := iface.Named.Tags.Get("jsonrpc-server"); ok {
+	if _, ok := iface.Named.Tags.Get("grpc-server"); ok {
 		opts.Server.Enable = true
 	}
-	if _, ok := iface.Named.Tags.Get("jsonrpc-client"); ok {
+	if _, ok := iface.Named.Tags.Get("grpc-client"); ok {
 		opts.Client.Enable = true
 	}
-	if _, ok := iface.Named.Tags.Get("jsonrpc-openapi"); ok {
+	if _, ok := iface.Named.Tags.Get("grpc-openapi"); ok {
 		opts.Openapi.Enable = true
 	}
-	if t, ok := iface.Named.Tags.Get("jsonrpc-openapi-tags"); ok {
+	if t, ok := iface.Named.Tags.Get("grpc-openapi-tags"); ok {
 		opts.Openapi.Tags = []string{t.Value}
 		opts.Openapi.Tags = append(opts.Openapi.Tags, t.Options...)
 	}
-	if t, ok := iface.Named.Tags.Get("jsonrpc-req"); ok {
+	if t, ok := iface.Named.Tags.Get("grpc-req"); ok {
 		opts.HTTPReq = t.Value
 	}
 	for _, method := range iface.Named.Interface().Methods {
@@ -174,12 +174,12 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 	opts.Title = method.Title
 	opts.Description = method.Description
 	opts.Sig = method.Sig
-	opts.RPCMethodName = strcase.ToLowerCamel(method.Name)
-	if t, ok := method.Tags.Get("jsonrpc-openapi-tags"); ok {
+	opts.RPCMethodName = strcase.ToCamel(method.Name)
+	if t, ok := method.Tags.Get("grpc-openapi-tags"); ok {
 		opts.OpenapiTags = []string{t.Value}
 		opts.OpenapiTags = append(opts.OpenapiTags, t.Options...)
 	}
-	if t, ok := method.Tags.Get("jsonrpc-name"); ok {
+	if t, ok := method.Tags.Get("grpc-name"); ok {
 		opts.RPCMethodName = t.Value
 	}
 	for _, param := range method.Sig.Params {
@@ -191,7 +191,7 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 			continue
 		}
 		if param.Name == "" {
-			errs = multierror.Append(errs, errors.Error("the parameter name cannot be empty or the jsonrpc-name parameter must be set", param.Position))
+			errs = multierror.Append(errs, errors.Error("the parameter name cannot be empty or the grpc-name parameter must be set", param.Position))
 		}
 		p, err := makeEndpointParam(nil, param)
 		if err != nil {
@@ -211,7 +211,7 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 			continue
 		}
 		if result.Name == "" {
-			errs = multierror.Append(errs, errors.Error("the parameter name cannot be empty or the jsonrpc-name parameter must be set", result.Position))
+			errs = multierror.Append(errs, errors.Error("the parameter name cannot be empty or the grpc-name parameter must be set", result.Position))
 		}
 		varOpts, err := resultDecode(result)
 		if err != nil {
@@ -227,7 +227,7 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 
 func paramDecode(param *types.Var) (opts EndpointParam, err error) {
 	opts.Format = "lowerCamel"
-	if t, ok := param.Tags.Get("jsonrpc-name"); ok {
+	if t, ok := param.Tags.Get("grpc-name"); ok {
 		opts.Name = t.Value
 		for _, option := range t.Options {
 			if option == "omitempty" {
@@ -238,7 +238,7 @@ func paramDecode(param *types.Var) (opts EndpointParam, err error) {
 			}
 		}
 	}
-	if _, ok := param.Tags.Get("jsonrpc-required"); ok {
+	if _, ok := param.Tags.Get("grpc-required"); ok {
 		opts.Required = true
 	}
 	return
@@ -250,7 +250,7 @@ func resultDecode(result *types.Var) (opts EndpointResult, err error) {
 	opts.FldName = result.Name
 	opts.FldNameExport = strcase.ToCamel(result.Name)
 	opts.FldNameUnExport = strcase.ToLowerCamel(result.Name)
-	if t, ok := result.Tags.Get("jsonrpc-name"); ok {
+	if t, ok := result.Tags.Get("grpc-name"); ok {
 		opts.Name = t.Value
 		for _, option := range t.Options {
 			if option == "omitempty" {

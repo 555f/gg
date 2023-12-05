@@ -2,6 +2,7 @@ package http
 
 import (
 	_ "embed"
+	"fmt"
 	"go/token"
 	"os"
 	"path"
@@ -124,10 +125,6 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 		}
 	}
 
-	if errs != nil {
-		return
-	}
-
 	serverFile := file.NewGoFile(p.ctx.Module, serverOutput)
 	serverFile.SetVersion(p.ctx.Version)
 
@@ -148,61 +145,55 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 		serverBuilder.
 			SetErrorWrapper(errorWrapper).
 			BuildTypes()
+
+		for _, iface := range serverServices {
+			if iface.HTTPReq != "" {
+				hrf := file.NewTxtFile(filepath.Join(httpReqOutput, strcase.ToSnake(iface.Name)+".http"))
+				hrf.WriteBytes(
+					rest.NewHTTPExampleBuilder(iface).Build(),
+				)
+				files = append(files, hrf)
+			}
+
+			controllerBuilder := serverBuilder.Controller(iface)
+
+			for _, ep := range iface.Endpoints {
+				controllerBuilder.
+					Endpoint(ep).
+					BuildReqStruct().
+					BuildReqDec().
+					BuildRespStruct().
+					BuildRespEnc().
+					Build()
+			}
+			controllerBuilder.BuildHandlers()
+		}
+		serverFile.Add(serverBuilder.Build())
+		files = append(files, serverFile)
 	}
 
 	if len(clientServices) > 0 {
 		clientBuilder.
 			SetErrorWrapper(errorWrapper).
 			BuildTypes()
-	}
 
-	for _, iface := range serverServices {
-		if iface.HTTPReq != "" {
-			hrf := file.NewTxtFile(filepath.Join(httpReqOutput, strcase.ToSnake(iface.Name)+".http"))
-			hrf.WriteBytes(
-				rest.NewHTTPExampleBuilder(iface).Build(),
-			)
-			files = append(files, hrf)
+		for _, iface := range clientServices {
+			clientBuilder.BuildStruct(iface)
+			for _, ep := range iface.Endpoints {
+				clientBuilder.Endpoint(iface, ep).
+					BuildReqStruct().
+					BuildSetters().
+					BuildMethod().
+					BuildReqMethod().
+					BuildExecuteMethod()
+			}
+			clientBuilder.BuildConstruct(iface)
 		}
-
-		controllerBuilder := serverBuilder.Controller(iface)
-
-		for _, ep := range iface.Endpoints {
-			controllerBuilder.
-				Endpoint(ep).
-				BuildReqStruct().
-				BuildReqDec().
-				BuildRespStruct().
-				BuildRespEnc().
-				Build()
-		}
-
-		controllerBuilder.BuildHandlers()
-	}
-
-	for _, iface := range clientServices {
-		clientBuilder.BuildStruct(iface)
-		for _, ep := range iface.Endpoints {
-			clientBuilder.Endpoint(iface, ep).
-				BuildReqStruct().
-				BuildSetters().
-				BuildMethod().
-				BuildReqMethod().
-				BuildExecuteMethod()
-		}
-		clientBuilder.BuildConstruct(iface)
-	}
-
-	serverFile.Add(serverBuilder.Build())
-	clientFile.Add(clientBuilder.Build())
-
-	if len(serverServices) > 0 {
-		files = append(files, serverFile)
-	}
-
-	if len(clientServices) > 0 {
+		clientFile.Add(clientBuilder.Build())
 		files = append(files, clientFile)
 	}
+
+	fmt.Println(files)
 	return
 }
 

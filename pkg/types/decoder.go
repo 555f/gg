@@ -11,12 +11,11 @@ import (
 
 	"github.com/fatih/structtag"
 
-	"golang.org/x/tools/go/packages"
 	stdpackages "golang.org/x/tools/go/packages"
 )
 
 type Decoder struct {
-	pkg      *packages.Package
+	pkg      *stdpackages.Package
 	packages []*stdpackages.Package
 	visited  map[string]any
 }
@@ -25,7 +24,7 @@ func (d *Decoder) Decode(t any) (any, error) {
 	return d.normalizeRecursive(t, false)
 }
 
-func (d *Decoder) normalizeModule(module *packages.Module) (*Module, error) {
+func (d *Decoder) normalizeModule(module *stdpackages.Module) (*Module, error) {
 	if module != nil {
 		return &Module{
 			ID:       filepath.Base(module.Path),
@@ -322,7 +321,7 @@ func (d *Decoder) normalizeFunc(t *stdtypes.Func) (*Func, error) {
 
 func (d *Decoder) normalizeRecursive(t any, isPointer bool) (any, error) {
 	switch t := t.(type) {
-	case *packages.Module:
+	case *stdpackages.Module:
 		return d.normalizeModule(t)
 	case *stdtypes.PkgName:
 		return d.normalizePkg(t.Pkg())
@@ -359,7 +358,7 @@ func (d *Decoder) normalizeRecursive(t any, isPointer bool) (any, error) {
 }
 
 func (d *Decoder) findFuncReturn(targetFn *Func) (values []any, err error) {
-	err = traverseDecls(d.packages, func(pkg *packages.Package, file *ast.File, decl ast.Decl) error {
+	err = traverseDecls(d.packages, func(pkg *stdpackages.Package, file *ast.File, decl ast.Decl) error {
 		if t, ok := decl.(*ast.FuncDecl); ok {
 			obj := pkg.TypesInfo.ObjectOf(t.Name)
 			if obj == nil {
@@ -397,7 +396,7 @@ func (d *Decoder) findFuncReturn(targetFn *Func) (values []any, err error) {
 	return
 }
 
-func (d *Decoder) loadResultsRecursive(pkg *packages.Package, stmts []ast.Stmt) (results []any, err error) {
+func (d *Decoder) loadResultsRecursive(pkg *stdpackages.Package, stmts []ast.Stmt) (results []any, err error) {
 	for _, stmt := range stmts {
 		switch tp := stmt.(type) {
 		case *ast.IfStmt:
@@ -488,6 +487,6 @@ func (d *Decoder) commentFind(name string, pos token.Pos) (result Comments) {
 	return
 }
 
-func NewDecoder(pkg *packages.Package, packages []*stdpackages.Package) *Decoder {
+func NewDecoder(pkg *stdpackages.Package, packages []*stdpackages.Package) *Decoder {
 	return &Decoder{pkg: pkg, packages: packages, visited: make(map[string]any, 1024)}
 }

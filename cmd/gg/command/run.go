@@ -87,7 +87,7 @@ var runCmd = &cobra.Command{
 
 		var isExitApp bool
 
-		files, err := gg.Run(cmd.Root().Version, wdAbs, pkgs, plugins)
+		result, err := gg.Run(cmd.Root().Version, wdAbs, pkgs, plugins)
 		if err != nil {
 			if merr, ok := err.(*multierror.Error); ok {
 				merr.ErrorFormat = func(es []error) string {
@@ -117,33 +117,40 @@ var runCmd = &cobra.Command{
 			}
 			cmd.Println(err)
 		}
-
 		if isExitApp {
 			os.Exit(1)
 		}
-
-		if len(files) > 0 {
+		if len(result) > 0 {
 			cmd.Printf(green("\n\nfiles was generated:\n"))
-			for _, f := range files {
-				data, err := f.Bytes()
-				if err != nil {
-					cmd.Printf("%s %s %s: %s", red("𐄂"), red("error during file generation"), yellow(f.Filepath()), red(err))
-					continue
-				}
-				dirPath := filepath.Dir(f.Filepath())
-				if err := os.MkdirAll(dirPath, 0700); err != nil {
-					cmd.Printf("%s %s %s: %s", red("𐄂"), red("error when creating a directory"), yellow(dirPath), red(err))
-					continue
-				}
-				if err := os.WriteFile(f.Filepath(), data, 0700); err != nil {
-					cmd.Printf("%s %s %s: %s", red("𐄂"), red("error when creating a file"), yellow(f.Filepath()), red(err))
-					continue
-				}
-				cmd.Println(green("✓"), f.Filepath())
+			for _, r := range result {
+				cmd.Println(green("✓"), r.Filepath)
 			}
 		} else {
 			cmd.Printf("\nnothing generation\n")
 		}
+
+		// if len(files) > 0 {
+		// 	cmd.Printf(green("\n\nfiles was generated:\n"))
+		// 	for _, f := range files {
+		// 		data, err := f.Bytes()
+		// 		if err != nil {
+		// 			cmd.Printf("%s %s %s: %s", red("𐄂"), red("error during file generation"), yellow(f.Filepath()), red(err))
+		// 			continue
+		// 		}
+		// 		dirPath := filepath.Dir(f.Filepath())
+		// 		if err := os.MkdirAll(dirPath, 0700); err != nil {
+		// 			cmd.Printf("%s %s %s: %s", red("𐄂"), red("error when creating a directory"), yellow(dirPath), red(err))
+		// 			continue
+		// 		}
+		// 		if err := os.WriteFile(f.Filepath(), data, 0700); err != nil {
+		// 			cmd.Printf("%s %s %s: %s", red("𐄂"), red("error when creating a file"), yellow(f.Filepath()), red(err))
+		// 			continue
+		// 		}
+		// 		cmd.Println(green("✓"), f.Filepath())
+		// 	}
+		// } else {
+		// 	cmd.Printf("\nnothing generation\n")
+		// }
 	},
 }
 

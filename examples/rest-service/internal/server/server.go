@@ -279,6 +279,7 @@ func ProfileControllerRemoveMiddleware(middleware ...v4.MiddlewareFunc) ProfileC
 		o.middlewareRemove = append(o.middlewareRemove, middleware...)
 	}
 }
+
 func SetupRoutesProfileController(svc controller.ProfileController, e *v4.Echo, opts ...ProfileControllerOption) {
 	o := &ProfileControllerOptions{errorEncoder: echoDefaultErrorEncoder}
 	for _, opt := range opts {

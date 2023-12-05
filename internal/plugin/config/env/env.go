@@ -5,6 +5,7 @@ import (
 	"github.com/555f/gg/pkg/file"
 	"github.com/555f/gg/pkg/gen"
 	"github.com/555f/gg/pkg/types"
+	"github.com/dave/jennifer/jen"
 	. "github.com/dave/jennifer/jen"
 )
 
@@ -39,10 +40,11 @@ func GenConfig(c options.Config) func(f *file.GoFile) {
 						if isString {
 							g.Add(code).Dot(field.FieldName).Op("=").Id("s")
 						} else {
-							g.Add(gen.ParseValue(Id("s"), Id("v"), ":=", field.Type, f.Import))
-							g.Do(gen.CheckErr(
-								Id("errs").Op("=").Qual(multierrorPkg, "Append").Call(Id("errs"), Qual("fmt", "Errorf").Call(Lit("env "+envName+" failed parse: %w"), Err())),
-							))
+							g.Add(gen.ParseValue(Id("s"), Id("v"), ":=", field.Type, f.Import, func() jen.Code {
+								return jen.Do(gen.CheckErr(
+									Id("errs").Op("=").Qual(multierrorPkg, "Append").Call(Id("errs"), Qual("fmt", "Errorf").Call(Lit("env "+envName+" failed parse: %w"), Err())),
+								))
+							}))
 							g.Add(code).Dot(field.FieldName).Op("=").Id("v")
 						}
 						if !field.UseZero && field.Required {

@@ -189,12 +189,11 @@ func (b *serverEndpointBuilder) BuildReqDec() ServerEndpointBuilder {
 
 										g.Add(typ)
 
-										g.Add(gen.ParseValue(jen.Id(formParamName), jen.Id("param").Dot(p.FldName), "=", p.Type, b.qualifier.Qual))
-										if b, ok := p.Type.(*types.Basic); (ok && !b.IsString()) || !ok {
-											g.Do(gen.CheckErr(
+										g.Add(gen.ParseValue(jen.Id(formParamName), jen.Id("param").Dot(p.FldName), "=", p.Type, b.qualifier.Qual, func() jen.Code {
+											return jen.Do(gen.CheckErr(
 												jen.Return(jen.Nil(), jen.Err()),
 											))
-										}
+										}))
 									}
 								})
 							case "multipart":
@@ -205,12 +204,11 @@ func (b *serverEndpointBuilder) BuildReqDec() ServerEndpointBuilder {
 
 										g.Add(typ)
 
-										g.Add(gen.ParseValue(jen.Id(formParamName), jen.Id("param").Dot(p.FldName), "=", p.Type, b.qualifier.Qual))
-										if b, ok := p.Type.(*types.Basic); (ok && !b.IsString()) || !ok {
-											g.Do(gen.CheckErr(
+										g.Add(gen.ParseValue(jen.Id(formParamName), jen.Id("param").Dot(p.FldName), "=", p.Type, b.qualifier.Qual, func() jen.Code {
+											return jen.Do(gen.CheckErr(
 												jen.Return(jen.Nil(), jen.Err()),
 											))
-										}
+										}))
 									}
 								})
 							}
@@ -226,7 +224,11 @@ func (b *serverEndpointBuilder) BuildReqDec() ServerEndpointBuilder {
 					g.Add(typ)
 
 					g.If(jen.Id(pathParamName).Op("!=").Lit("")).Block(
-						jen.Add(gen.ParseValue(jen.Id(pathParamName), jen.Id("param").Dot(p.FldName), "=", p.Type, b.qualifier.Qual)),
+						jen.Add(gen.ParseValue(jen.Id(pathParamName), jen.Id("param").Dot(p.FldName), "=", p.Type, b.qualifier.Qual, func() jen.Code {
+							return jen.Do(gen.CheckErr(
+								jen.Return(jen.Nil(), jen.Err()),
+							))
+						})),
 						jen.Do(gen.CheckErr(jen.Return())),
 					)
 				}
@@ -245,8 +247,9 @@ func (b *serverEndpointBuilder) BuildReqDec() ServerEndpointBuilder {
 					}
 
 					g.If(jen.Id(queryParamName).Op("!=").Lit("")).Block(
-						jen.Add(gen.ParseValue(jen.Id(queryParamName), paramID, "=", param.Type, b.qualifier.Qual)),
-						jen.Do(gen.CheckErr(jen.Return())),
+						jen.Add(gen.ParseValue(jen.Id(queryParamName), paramID, "=", param.Type, b.qualifier.Qual, func() jen.Code {
+							return jen.Do(gen.CheckErr(jen.Return()))
+						})),
 					)
 				}
 			}
@@ -258,8 +261,9 @@ func (b *serverEndpointBuilder) BuildReqDec() ServerEndpointBuilder {
 					g.Add(typ)
 
 					g.If(jen.Id(queryParamName).Op("!=").Lit("")).Block(
-						jen.Add(gen.ParseValue(jen.Id(queryParamName), jen.Id("param").Dot(param.FldName), "=", param.Type, b.qualifier.Qual)),
-						jen.Do(gen.CheckErr(jen.Return())),
+						jen.Add(gen.ParseValue(jen.Id(queryParamName), jen.Id("param").Dot(param.FldName), "=", param.Type, b.qualifier.Qual, func() jen.Code {
+							return jen.Do(gen.CheckErr(jen.Return()))
+						})),
 					)
 				}
 			}

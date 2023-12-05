@@ -300,16 +300,19 @@ func Decode(iface *gg.Interface) (opts Iface, errs error) {
 	opts.Description = iface.Named.Description
 	opts.PkgPath = iface.Named.Pkg.Path
 
-	if t, ok := iface.Named.Tags.Get("http-type"); ok {
-		switch t.Value {
-		default:
-			errs = multierror.Append(errs, errors.Error("invalid http type, valid values echo, jsonrpc, chi, mux", t.Position))
-		case "echo", "chi", "mux":
-			opts.Type = t.Value
-		}
-	}
 	if _, ok := iface.Named.Tags.Get("http-server"); ok {
 		opts.Server.Enable = true
+		if t, ok := iface.Named.Tags.Get("http-type"); ok {
+			switch t.Value {
+			default:
+				errs = multierror.Append(errs, errors.Error("invalid http type, valid values echo, jsonrpc, chi, mux", t.Position))
+			case "echo", "chi", "mux":
+				opts.Type = t.Value
+			}
+		}
+		if opts.Type == "" {
+			errs = multierror.Append(errs, errors.Error("the transport type is not set, use the http-type tag to set it, valid values: echo, jsonrpc, chi, mux", iface.Named.Position))
+		}
 	}
 	if _, ok := iface.Named.Tags.Get("http-client"); ok {
 		opts.Client.Enable = true
@@ -352,10 +355,6 @@ func Decode(iface *gg.Interface) (opts Iface, errs error) {
 			errs = multierror.Append(errs, err)
 		}
 		opts.Endpoints = append(opts.Endpoints, epOpts)
-	}
-	fmt.Println(opts.Type, "type")
-	if opts.Type == "" {
-		errs = multierror.Append(errs, errors.Error("the transport type is not set, use the http-type tag to set it, valid values: echo, jsonrpc, chi, mux", iface.Named.Position))
 	}
 	return
 }
