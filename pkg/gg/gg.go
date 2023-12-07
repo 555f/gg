@@ -36,7 +36,6 @@ func Run(version, wd string, packages []*stdpackages.Package, plugins map[string
 	if err != nil {
 		errs = multierror.Append(errs, err)
 	}
-
 	sort.Slice(interfaces, func(i, j int) bool {
 		return strings.Compare(interfaces[i].Named.Name, interfaces[j].Named.Name) > 0
 	})
