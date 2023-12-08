@@ -305,13 +305,13 @@ func Decode(iface *gg.Interface) (opts Iface, errs error) {
 		if t, ok := iface.Named.Tags.Get("http-type"); ok {
 			switch t.Value {
 			default:
-				errs = multierror.Append(errs, errors.Error("invalid http type, valid values echo, jsonrpc, chi, mux", t.Position))
+				errs = multierror.Append(errs, errors.Error("invalid http type, valid values echo, chi, mux", t.Position))
 			case "echo", "chi", "mux":
 				opts.Type = t.Value
 			}
 		}
 		if opts.Type == "" {
-			errs = multierror.Append(errs, errors.Error("the transport type is not set, use the http-type tag to set it, valid values: echo, jsonrpc, chi, mux", iface.Named.Position))
+			errs = multierror.Append(errs, errors.Error("the transport type is not set, use the http-type tag to set it, valid values: echo, chi, mux", iface.Named.Position))
 		}
 	}
 	if _, ok := iface.Named.Tags.Get("http-client"); ok {
@@ -379,10 +379,6 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 			opts.HTTPMethod = t.Value
 		}
 	}
-
-	if ifaceOpts.Type == "jsonrpc" {
-		opts.HTTPMethod = "POST"
-	}
 	if opts.HTTPMethod == "" {
 		errs = multierror.Append(errs, errors.Error("the http-method parameter is required", method.Position))
 	}
@@ -402,11 +398,6 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 			opts.ParamsIdxName[paramName] = len(opts.ParamsNameIdx) - 1
 		}
 	}
-
-	if opts.Path == "" && ifaceOpts.Type == "jsonrpc" {
-		opts.Path = strcase.ToLowerCamel(ifaceOpts.Name) + "." + strcase.ToLowerCamel(method.Name)
-	}
-
 	if t, ok := method.Tags.Get("http-openapi-tags"); ok {
 		opts.OpenapiTags = []string{t.Value}
 		opts.OpenapiTags = append(opts.OpenapiTags, t.Options...)
