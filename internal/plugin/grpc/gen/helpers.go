@@ -1,8 +1,6 @@
 package gen
 
 import (
-	"fmt"
-
 	"github.com/555f/gg/internal/plugin/grpc/options"
 	"github.com/555f/gg/pkg/strcase"
 	"github.com/555f/gg/pkg/types"
@@ -28,7 +26,6 @@ func makeRequestStructParam(parentParam, param *options.EndpointParam, importFn 
 	if parentParam != nil {
 		fldName = parentParam.FldNameUnExport + param.FldName
 	}
-	fmt.Println(param.Name, param.Required)
 	paramID := jen.Id(fldName)
 	if !param.Required {
 		paramID.Op("*")

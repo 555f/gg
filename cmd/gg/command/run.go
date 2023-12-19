@@ -32,6 +32,7 @@ var runCmd = &cobra.Command{
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
 		packageNames := viper.GetStringSlice("packages")
+		isDebug := viper.GetBool("debug")
 		configFile := viper.ConfigFileUsed()
 		configFile = filepath.FromSlash(configFile)
 
@@ -48,7 +49,7 @@ var runCmd = &cobra.Command{
 		cmd.Printf(yellow("Version: %s\n"), cmd.Root().Version)
 		cmd.Printf(yellow("Workdir: %s\n"), wdAbs)
 		cmd.Printf(yellow("Config file: %s\n"), configFile)
-		cmd.Printf(yellow("Packages: %s"), strings.Join(escaped, ","))
+		cmd.Printf(yellow("Packages: %s\n"), strings.Join(escaped, ","))
 
 		cfg := &stdpackages.Config{
 			ParseFile: func(fSet *token.FileSet, filename string, src []byte) (*ast.File, error) {
@@ -64,7 +65,7 @@ var runCmd = &cobra.Command{
 				stdpackages.NeedModule |
 				stdpackages.NeedFiles |
 				stdpackages.NeedCompiledGoFiles,
-			Dir:        wd,
+			Dir:        wdAbs,
 			Env:        os.Environ(),
 			BuildFlags: []string{"-tags=gg"},
 		}
@@ -72,6 +73,10 @@ var runCmd = &cobra.Command{
 		pkgs, err := stdpackages.Load(cfg, escaped...)
 		if err != nil {
 			return
+		}
+
+		if isDebug {
+			cmd.Printf(yellow("Found packages: %d\n"), len(pkgs))
 		}
 
 		var foundPkgErr bool
@@ -161,4 +166,7 @@ func init() {
 
 	runCmd.Flags().StringSliceP("packages", "p", nil, "Scan packages")
 	_ = viper.BindPFlag("packages", runCmd.Flags().Lookup("packages"))
+
+	runCmd.Flags().BoolP("debug", "d", false, "Debug mode")
+	_ = viper.BindPFlag("debug", runCmd.Flags().Lookup("debug"))
 }

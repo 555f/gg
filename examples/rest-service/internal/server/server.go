@@ -279,7 +279,6 @@ func ProfileControllerRemoveMiddleware(middleware ...v4.MiddlewareFunc) ProfileC
 		o.middlewareRemove = append(o.middlewareRemove, middleware...)
 	}
 }
-
 func SetupRoutesProfileController(svc controller.ProfileController, e *v4.Echo, opts ...ProfileControllerOption) {
 	o := &ProfileControllerOptions{errorEncoder: echoDefaultErrorEncoder}
 	for _, opt := range opts {
@@ -292,23 +291,6 @@ func SetupRoutesProfileController(svc controller.ProfileController, e *v4.Echo, 
 		if err != nil {
 			return
 		}
-		resp, err := profileControllerCreateEndpoint(svc)(reqCtx, req)
-		if err != nil {
-			o.errorEncoder(ctx, err)
-			return
-		}
-		result, err := profileControllerCreateRespEnc(resp)
-		if err != nil {
-			o.errorEncoder(ctx, err)
-			return
-		}
-		err = ctx.JSON(200, result)
-		if err != nil {
-			ctx.Response().Header().Add("content-type", "text/plain")
-			ctx.Response().WriteHeader(500)
-			ctx.Response().Write([]byte(err.Error()))
-			return
-		}
 		return nil
 	}, append(o.middleware, o.middlewareCreate...)...)
 	e.Add("GET", "/profiles/:id/file", func(ctx v4.Context) (_ error) {
@@ -318,23 +300,6 @@ func SetupRoutesProfileController(svc controller.ProfileController, e *v4.Echo, 
 		if err != nil {
 			return
 		}
-		resp, err := profileControllerDownloadFileEndpoint(svc)(reqCtx, req)
-		if err != nil {
-			o.errorEncoder(ctx, err)
-			return
-		}
-		result, err := profileControllerDownloadFileRespEnc(resp)
-		if err != nil {
-			o.errorEncoder(ctx, err)
-			return
-		}
-		err = ctx.JSON(200, result)
-		if err != nil {
-			ctx.Response().Header().Add("content-type", "text/plain")
-			ctx.Response().WriteHeader(500)
-			ctx.Response().Write([]byte(err.Error()))
-			return
-		}
 		return nil
 	}, append(o.middleware, o.middlewareDownloadFile...)...)
 	e.Add("DELETE", "/profiles/{id}", func(ctx v4.Context) (_ error) {
@@ -342,11 +307,6 @@ func SetupRoutesProfileController(svc controller.ProfileController, e *v4.Echo, 
 		reqCtx := context.TODO()
 		req, err := profileControllerRemoveReqDec(ctx)
 		if err != nil {
-			return
-		}
-		_, err = profileControllerRemoveEndpoint(svc)(reqCtx, req)
-		if err != nil {
-			o.errorEncoder(ctx, err)
 			return
 		}
 		return nil
