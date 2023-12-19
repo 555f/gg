@@ -7,11 +7,11 @@ import (
 )
 
 // @gg:"goapp"
-// @goapp-template:"./header.html"
-type Settings struct {
+// @goapp-template:"./views/command_palette.html"
+type CommandPalette struct {
 	app.Compo
 }
 
-func (c *Settings) OnMount(ctx app.Context) {
+func (c *CommandPalette) OnMount(ctx app.Context) {
 	fmt.Println("component mounted")
 }

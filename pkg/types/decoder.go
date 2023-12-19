@@ -71,9 +71,11 @@ func (d *Decoder) normalizeTuple(t *stdtypes.Tuple) (any, error) {
 func (d *Decoder) normalizeStruct(t *stdtypes.Struct, isPointer bool) (*Struct, error) {
 	result := &Struct{
 		IsPointer: isPointer,
+		Graph:     make(map[string]*StructFieldType, 32),
 	}
 	for i := 0; i < t.NumFields(); i++ {
 		field := t.Field(i)
+
 		v, err := d.normalizeVar(field)
 		if err != nil {
 			return nil, err
@@ -84,6 +86,7 @@ func (d *Decoder) normalizeStruct(t *stdtypes.Struct, isPointer bool) (*Struct, 
 		if tags, err := structtag.Parse(t.Tag(i)); err == nil {
 			f.SysTags = tags
 		}
+		result.Graph[v.Name] = f
 		result.Fields = append(result.Fields, f)
 	}
 	return result, nil

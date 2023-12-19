@@ -2,7 +2,6 @@ package http
 
 import (
 	_ "embed"
-	"fmt"
 	"go/token"
 	"os"
 	"path"
@@ -192,8 +191,6 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 		clientFile.Add(clientBuilder.Build())
 		files = append(files, clientFile)
 	}
-
-	fmt.Println(files)
 	return
 }
 
