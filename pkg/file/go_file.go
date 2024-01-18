@@ -2,6 +2,7 @@ package file
 
 import (
 	"bytes"
+	"fmt"
 	"path"
 	"path/filepath"
 	"strings"
@@ -63,6 +64,8 @@ func (f *GoFile) Bytes() ([]byte, error) {
 
 func NewGoFile(module *types.Module, path string) *GoFile {
 	packagePath := strings.Replace(filepath.Dir(path), module.Dir, "", -1)
+
+	fmt.Println(filepath.Dir(path), " - ", module.Dir)
 
 	return &GoFile{File: jen.NewFilePath(packagePath), packagePath: packagePath, path: path, module: module}
 }
