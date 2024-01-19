@@ -8,7 +8,7 @@ import (
 // Методы для работы с профилем пользователя
 // @gg:"http"
 // @gg:"middleware"
-// @gg:"logging"
+// @gg:"klog"
 // @http-type:"echo"
 // @http-openapi
 // @http-api-doc

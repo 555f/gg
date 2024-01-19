@@ -200,10 +200,20 @@ func (ep Endpoint) SprintfPath() string {
 	return strings.Join(parts, "/")
 }
 
+type HTTPType string
+
+const (
+	PathHTTPType   HTTPType = "path"
+	CookieHTTPType HTTPType = "cookie"
+	QueryHTTPType  HTTPType = "query"
+	HeaderHTTPType HTTPType = "header"
+	BodyHTTPType   HTTPType = "body"
+)
+
 type EndpointParam struct {
 	Parent          *EndpointParam
 	Type            any
-	HTTPType        string
+	HTTPType        HTTPType
 	Title           string
 	Name            string
 	FldName         string
@@ -623,7 +633,7 @@ func paramDecode(param *types.Var) (opts EndpointParam, err error) {
 		}
 	}
 	if t, ok := param.Tags.Get("http-type"); ok {
-		opts.HTTPType = t.Value
+		opts.HTTPType = HTTPType(t.Value)
 	}
 	if _, ok := param.Tags.Get("http-required"); ok {
 		opts.Required = true

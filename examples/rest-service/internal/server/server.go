@@ -7,7 +7,6 @@ package server
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"encoding/xml"
 	controller "github.com/555f/gg/examples/rest-service/internal/usecase/controller"
@@ -70,181 +69,6 @@ func (*contentTypeInvalidError) StatusCode() int {
 	return 415
 }
 
-type profileControllerCreateReq struct {
-	XMLName   xml.Name `xml:"profile"`
-	FirstName string   `json:"firstName"`
-	LastName  string   `json:"lastName"`
-	Address   string   `json:"address"`
-	Zip       int      `json:"zip"`
-}
-
-func profileControllerCreateReqDec(ctx v4.Context) (result any, err error) {
-	var param profileControllerCreateReq
-	contentTypeHeaderParam := ctx.Request().Header.Get("content-type")
-	parts := strings.Split(contentTypeHeaderParam, ";")
-	if len(parts) == 0 {
-		return nil, err
-	}
-	contentTypeHeaderParam = parts[0]
-	var bodyData = make([]byte, 0, 10485760)
-	buf := bytes.NewBuffer(bodyData)
-	written, err := io.Copy(buf, ctx.Request().Body)
-	if err != nil {
-		return
-	}
-	switch contentTypeHeaderParam {
-	default:
-		return nil, &contentTypeInvalidError{}
-	case "application/json":
-		err = json.Unmarshal(bodyData[:written], &param)
-		if err != nil {
-			return nil, err
-		}
-	case "application/xml":
-		err = xml.Unmarshal(bodyData[:written], &param)
-		if err != nil {
-			return nil, err
-		}
-	case "application/x-www-form-urlencoded":
-
-		f, err := ctx.FormParams()
-		if err != nil {
-			return nil, err
-		}
-		firstNameFormParam := f.Get("firstName")
-		param.FirstName = firstNameFormParam
-		lastNameFormParam := f.Get("lastName")
-		param.LastName = lastNameFormParam
-		addressFormParam := f.Get("address")
-		param.Address = addressFormParam
-		zipFormParam := f.Get("zip")
-		param.Zip, err = gostrings.ParseInt[int](zipFormParam, 10, 64)
-		if err != nil {
-			return nil, err
-		}
-	case "multipart/form-data":
-
-		f, err := ctx.FormParams()
-		if err != nil {
-			return nil, err
-		}
-		firstNameMpFormParam := f.Get("firstName")
-		param.FirstName = firstNameMpFormParam
-		lastNameMpFormParam := f.Get("lastName")
-		param.LastName = lastNameMpFormParam
-		addressMpFormParam := f.Get("address")
-		param.Address = addressMpFormParam
-		zipMpFormParam := f.Get("zip")
-		param.Zip, err = gostrings.ParseInt[int](zipMpFormParam, 10, 64)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return &param, nil
-}
-
-type profileControllerCreateResp struct {
-	Profile *dto.Profile `json:"profile"`
-}
-
-func profileControllerCreateRespEnc(result any) (any, error) {
-	var wrapResult struct {
-		Profile *dto.Profile `json:"profile"`
-	}
-	wrapResult.Profile = result.(*profileControllerCreateResp).Profile
-	result = wrapResult
-	return result, nil
-}
-func profileControllerCreateEndpoint(svc controller.ProfileController) func(ctx context.Context, request any) (any, error) {
-	return func(ctx context.Context, request any) (any, error) {
-		r := request.(*profileControllerCreateReq)
-		profile, err := svc.Create(r.FirstName, r.LastName, r.Address, r.Zip)
-		if err != nil {
-			return nil, err
-		}
-		return &profileControllerCreateResp{Profile: profile}, nil
-	}
-}
-
-type profileControllerDownloadFileReq struct {
-	Id string `json:"-"`
-}
-
-func profileControllerDownloadFileReqDec(ctx v4.Context) (result any, err error) {
-	var param profileControllerDownloadFileReq
-	idPathParam := ctx.Param("id")
-	if idPathParam != "" {
-		param.Id = idPathParam
-		if err != nil {
-			return
-		}
-	}
-	return &param, nil
-}
-
-type profileControllerDownloadFileResp struct {
-	Data string `json:"data"`
-}
-
-func profileControllerDownloadFileRespEnc(result any) (any, error) {
-	var wrapResult struct {
-		Data string `json:"data"`
-	}
-	wrapResult.Data = result.(*profileControllerDownloadFileResp).Data
-	result = wrapResult
-	return result, nil
-}
-func profileControllerDownloadFileEndpoint(svc controller.ProfileController) func(ctx context.Context, request any) (any, error) {
-	return func(ctx context.Context, request any) (any, error) {
-		r := request.(*profileControllerDownloadFileReq)
-		data, err := svc.DownloadFile(r.Id)
-		if err != nil {
-			return nil, err
-		}
-		return &profileControllerDownloadFileResp{Data: data}, nil
-	}
-}
-
-type profileControllerRemoveReq struct {
-	Id string `json:"id"`
-}
-
-func profileControllerRemoveReqDec(ctx v4.Context) (result any, err error) {
-	var param profileControllerRemoveReq
-	contentTypeHeaderParam := ctx.Request().Header.Get("content-type")
-	parts := strings.Split(contentTypeHeaderParam, ";")
-	if len(parts) == 0 {
-		return nil, err
-	}
-	contentTypeHeaderParam = parts[0]
-	var bodyData = make([]byte, 0, 10485760)
-	buf := bytes.NewBuffer(bodyData)
-	written, err := io.Copy(buf, ctx.Request().Body)
-	if err != nil {
-		return
-	}
-	switch contentTypeHeaderParam {
-	default:
-		return nil, &contentTypeInvalidError{}
-	case "application/json":
-		err = json.Unmarshal(bodyData[:written], &param)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return &param, nil
-}
-func profileControllerRemoveEndpoint(svc controller.ProfileController) func(ctx context.Context, request any) (any, error) {
-	return func(ctx context.Context, request any) (any, error) {
-		r := request.(*profileControllerRemoveReq)
-		err := svc.Remove(r.Id)
-		if err != nil {
-			return nil, err
-		}
-		return nil, nil
-	}
-}
-
 type ProfileControllerOption func(*ProfileControllerOptions)
 type ProfileControllerOptions struct {
 	errorEncoder           func(ctx v4.Context, err error)
@@ -285,30 +109,128 @@ func SetupRoutesProfileController(svc controller.ProfileController, e *v4.Echo, 
 		opt(o)
 	}
 	e.Add("POST", "/profiles", func(ctx v4.Context) (_ error) {
-
-		reqCtx := context.TODO()
-		req, err := profileControllerCreateReqDec(ctx)
+		var err error
+		var req struct {
+			XMLName   xml.Name `xml:"profile"`
+			FirstName string   `json:"firstName"`
+			LastName  string   `json:"lastName"`
+			Address   string   `json:"address"`
+			Zip       int      `json:"zip"`
+		}
+		contentTypeHeaderParam := ctx.Request().Header.Get("content-type")
+		parts := strings.Split(contentTypeHeaderParam, ";")
+		if len(parts) > 0 {
+			contentTypeHeaderParam = parts[0]
+		}
+		var bodyData = make([]byte, 0, 10485760)
+		buf := bytes.NewBuffer(bodyData)
+		written, err := io.Copy(buf, ctx.Request().Body)
 		if err != nil {
+			o.errorEncoder(ctx, err)
 			return
 		}
-		return nil
-	}, append(o.middleware, o.middlewareCreate...)...)
+		switch contentTypeHeaderParam {
+		default:
+			o.errorEncoder(ctx, &contentTypeInvalidError{})
+			return
+		case "application/json":
+			err = json.Unmarshal(bodyData[:written], &req)
+			if err != nil {
+				o.errorEncoder(ctx, err)
+				return
+			}
+		case "application/xml":
+			err = xml.Unmarshal(bodyData[:written], &req)
+			if err != nil {
+				o.errorEncoder(ctx, err)
+				return
+			}
+		case "application/x-www-form-urlencoded":
+			f, err := ctx.FormParams()
+			if err != nil {
+				o.errorEncoder(ctx, err)
+				return
+			}
+			req.FirstName = f.Get("firstName")
+			req.LastName = f.Get("lastName")
+			req.Address = f.Get("address")
+			req.Zip, err = gostrings.ParseInt[int](f.Get("zip"), 10, 64)
+			if err != nil {
+				o.errorEncoder(ctx, err)
+				return
+			}
+		case "multipart/form-data":
+			f, err := ctx.FormParams()
+			req.FirstName = f.Get("firstName")
+			req.LastName = f.Get("lastName")
+			req.Address = f.Get("address")
+			req.Zip, err = gostrings.ParseInt[int](f.Get("zip"), 10, 64)
+			if err != nil {
+				o.errorEncoder(ctx, err)
+				return
+			}
+		}
+		profile, err := svc.Create(req.FirstName, req.LastName, req.Address, req.Zip)
+		if err != nil {
+			o.errorEncoder(ctx, err)
+			return
+		}
+		var resp struct {
+			Profile *dto.Profile `json:"profile"`
+		}
+		resp.Profile = profile
+		return
+	})
 	e.Add("GET", "/profiles/:id/file", func(ctx v4.Context) (_ error) {
-
-		reqCtx := context.TODO()
-		req, err := profileControllerDownloadFileReqDec(ctx)
+		var err error
+		idPathParam := ctx.Param("id")
+		var paramId string
+		if idPathParam != "" {
+			paramId = idPathParam
+		}
+		data, err := svc.DownloadFile(paramId)
 		if err != nil {
+			o.errorEncoder(ctx, err)
 			return
 		}
-		return nil
-	}, append(o.middleware, o.middlewareDownloadFile...)...)
+		var resp struct {
+			Data string `json:"data"`
+		}
+		resp.Data = data
+		return
+	})
 	e.Add("DELETE", "/profiles/{id}", func(ctx v4.Context) (_ error) {
-
-		reqCtx := context.TODO()
-		req, err := profileControllerRemoveReqDec(ctx)
+		var req struct {
+			Id string `json:"id"`
+		}
+		contentTypeHeaderParam := ctx.Request().Header.Get("content-type")
+		parts := strings.Split(contentTypeHeaderParam, ";")
+		if len(parts) > 0 {
+			contentTypeHeaderParam = parts[0]
+		}
+		var bodyData = make([]byte, 0, 10485760)
+		buf := bytes.NewBuffer(bodyData)
+		written, err := io.Copy(buf, ctx.Request().Body)
 		if err != nil {
+			o.errorEncoder(ctx, err)
 			return
 		}
-		return nil
-	}, append(o.middleware, o.middlewareRemove...)...)
+		switch contentTypeHeaderParam {
+		default:
+			o.errorEncoder(ctx, &contentTypeInvalidError{})
+			return
+		case "application/json":
+			err = json.Unmarshal(bodyData[:written], &req)
+			if err != nil {
+				o.errorEncoder(ctx, err)
+				return
+			}
+		}
+		err = svc.Remove(req.Id)
+		if err != nil {
+			o.errorEncoder(ctx, err)
+			return
+		}
+		return
+	})
 }

@@ -42,34 +42,24 @@ func (s *HandlerStrategyEcho) BodyPathParam() (typ jen.Code) {
 }
 
 func (*HandlerStrategyEcho) FormParam(formName string) (name string, typ jen.Code) {
-	name = normalizeVarName(formName) + "FormParam"
-	typ = jen.Id(name).Op(":=").Id("f").Dot("Get").Call(jen.Lit(formName))
-	return
-}
-
-func (s *HandlerStrategyEcho) FormParams() (typ jen.Code) {
-	typ = jen.Custom(jen.Options{Multi: true},
-		jen.List(jen.Id("f"), jen.Err()).Op(":=").Id(s.ReqArgName()).Dot("FormParams").Call(),
-		jen.Do(gen.CheckErr(
-			jen.Return(jen.Nil(), jen.Err()),
-		)),
-	)
+	typ = jen.Id("f").Dot("Get").Call(jen.Lit(formName))
 	return
 }
 
 func (s *HandlerStrategyEcho) MultipartFormParam(formName string) (name string, typ jen.Code) {
-	name = normalizeVarName(formName) + "MpFormParam"
-	typ = jen.Id(name).Op(":=").Id("f").Dot("Get").Call(jen.Lit(formName))
+	typ = jen.Id("f").Dot("Get").Call(jen.Lit(formName))
 	return
 }
 
-func (s *HandlerStrategyEcho) MultipartFormParams(multipartMaxMemory int64) (typ jen.Code) {
-	typ = jen.Custom(jen.Options{Multi: true},
-		jen.List(jen.Id("f"), jen.Err()).Op(":=").Id(s.ReqArgName()).Dot("FormParams").Call(),
-		jen.Do(gen.CheckErr(
-			jen.Return(jen.Nil(), jen.Err()),
-		)),
-	)
+func (s *HandlerStrategyEcho) FormParams() (typ jen.Code, hasErr bool) {
+	hasErr = true
+	typ = jen.List(jen.Id("f"), jen.Err()).Op(":=").Id(s.ReqArgName()).Dot("FormParams").Call()
+	return
+}
+
+func (s *HandlerStrategyEcho) MultipartFormParams(multipartMaxMemory int64) (typ jen.Code, hasErr bool) {
+	hasErr = false
+	typ = jen.List(jen.Id("f"), jen.Err()).Op(":=").Id(s.ReqArgName()).Dot("FormParams").Call()
 	return
 }
 
@@ -89,26 +79,44 @@ func (*HandlerStrategyEcho) LibType() jen.Code {
 	return jen.Op("*").Qual(echoPkg, "Echo")
 }
 
-func (s *HandlerStrategyEcho) HandlerFunc(method string, pattern string, result, middlewares jen.Code, bodyFunc ...jen.Code) jen.Code {
+func (s *HandlerStrategyEcho) HandlerFuncParams() (in, out []jen.Code) {
+	return []jen.Code{
+			jen.Id(s.ReqArgName()).Qual(echoPkg, "Context"),
+		}, []jen.Code{
+			jen.Id("_").Error(),
+		}
+}
 
-	return jen.Id(s.LibArgName()).Dot("Add").Params(
+func (s *HandlerStrategyEcho) HandlerFunc(method string, pattern string, handlerFunc func(g *jen.Group)) jen.Code {
+	return jen.Id(s.LibArgName()).Dot("Add").Call(
 		jen.Lit(method),
 		jen.Lit(pattern),
 		jen.Func().Params(jen.Id(s.ReqArgName()).Qual(echoPkg, "Context")).Params(jen.Id("_").Error()).BlockFunc(func(g *jen.Group) {
-			g.Add(bodyFunc...)
-			if result != nil {
-				g.Id("err").Op("=").Id(s.RespArgName()).Dot("JSON").Call(jen.Lit(200), result)
-				g.Do(gen.CheckErr(
-					s.SetHeader(jen.Lit("content-type"), jen.Lit("text/plain")),
-					jen.Id(s.RespArgName()).Dot("Response").Call().Dot("WriteHeader").Call(jen.Lit(500)),
-					jen.Id(s.RespArgName()).Dot("Response").Call().Dot("Write").Call(jen.Index().Byte().Call(jen.Id("err").Dot("Error").Call())),
-					jen.Return(),
-				))
-			}
-			g.Return(jen.Nil())
+			handlerFunc(g)
+			g.Return()
 		}),
-		jen.Add(middlewares).Op("..."),
 	)
+
+	// return jen.Id(s.LibArgName()).Dot("Add").Params(
+	//
+	//	jen.Lit(method),
+	//	jen.Lit(pattern),
+	//	jen.Func().Params(jen.Id(s.ReqArgName()).Qual(echoPkg, "Context")).Params(jen.Id("_").Error()).BlockFunc(func(g *jen.Group) {
+	//		g.Add(bodyFunc...)
+	//		if result != nil {
+	//			g.Id("err").Op("=").Id(s.RespArgName()).Dot("JSON").Call(jen.Lit(200), result)
+	//			g.Do(gen.CheckErr(
+	//				s.SetHeader(jen.Lit("content-type"), jen.Lit("text/plain")),
+	//				jen.Id(s.RespArgName()).Dot("Response").Call().Dot("WriteHeader").Call(jen.Lit(500)),
+	//				jen.Id(s.RespArgName()).Dot("Response").Call().Dot("Write").Call(jen.Index().Byte().Call(jen.Id("err").Dot("Error").Call())),
+	//				jen.Return(),
+	//			))
+	//		}
+	//		g.Return(jen.Nil())
+	//	}),
+	//	jen.Add(middlewares).Op("..."),
+	//
+	// )
 }
 
 func (s *HandlerStrategyEcho) SetHeader(k jen.Code, v jen.Code) (typ jen.Code) {
@@ -125,6 +133,10 @@ func (s *HandlerStrategyEcho) WriteError(statusCode, data jen.Code) (typ jen.Cod
 		)),
 	)
 	return
+}
+
+func (s *HandlerStrategyEcho) WriteBody(body jen.Code) {
+
 }
 
 func (*HandlerStrategyEcho) RespArgName() string {

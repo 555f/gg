@@ -83,11 +83,12 @@ type HandlerStrategy interface {
 	BodyPathParam() (typ jen.Code)
 	FormParam(formName string) (name string, typ jen.Code)
 	MultipartFormParam(formName string) (name string, typ jen.Code)
-	FormParams() (typ jen.Code)
-	MultipartFormParams(multipartMaxMemory int64) (typ jen.Code)
+	FormParams() (typ jen.Code, hasErr bool)
+	MultipartFormParams(multipartMaxMemory int64) (typ jen.Code, hasErr bool)
 	MiddlewareType() jen.Code
-	HandlerFunc(method, pattern string, result, middlewares jen.Code, bodyFunc ...jen.Code) (typ jen.Code)
+	HandlerFunc(method, pattern string, handlerFunc func(g *jen.Group)) (typ jen.Code)
 	SetHeader(k, v jen.Code) (typ jen.Code)
 	UsePathParams() bool
 	WriteError(statusCode, data jen.Code) (typ jen.Code)
+	WriteBody(body jen.Code)
 }
