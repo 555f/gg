@@ -8,13 +8,14 @@ package config
 import (
 	"errors"
 	"fmt"
+	config "github.com/555f/gg/examples/rest-service/internal/config"
 	gostrings "github.com/555f/go-strings"
 	gomultierror "github.com/hashicorp/go-multierror"
 	"os"
 )
 
-func New() (c *Config, errs error) {
-	c = &Config{}
+func New() (c *config.Config, errs error) {
+	c = &config.Config{}
 	if s, ok := os.LookupEnv("ADDR"); ok {
 		c.Addr = s
 		if c.Addr == "" {
