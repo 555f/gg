@@ -59,6 +59,11 @@ func (b *BaseServerBuilder) Build() jen.Code {
 
 				g.Add(handleStrategy.WriteError(jen.Id("statusCode"), jen.Id("err")))
 			}),
+
+			jen.Func().Id("encodeBody").Params(
+				jen.Id("rw").Do(b.qualifier.Qual(httpPkg, "ResponseWriter")),
+				jen.Id("data").Any(),
+			).Block(),
 		)
 	}
 

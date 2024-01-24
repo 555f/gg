@@ -27,6 +27,24 @@ func (b *serverControllerBuilder) BuildHandlers() ServerControllerBuilder {
 	respName := "resp"
 
 	b.codes = append(b.codes,
+		jen.Func().Id("decodeBody").Params(
+			jen.Id("r").Op("*").Do(b.qualifier.Qual(httpPkg, "Request")),
+			jen.Id("data").Any(),
+		).Block(
+			jen.Var().Id("bodyData").Op("=").Make(jen.Index().Byte(), jen.Lit(0), jen.Lit(10485760)), // 10MB
+			jen.Id("buf").Op(":=").Qual("bytes", "NewBuffer").Call(jen.Id("bodyData")),
+			jen.List(jen.Id("written"), jen.Id("err")).Op(":=").Qual("io", "Copy").Call(jen.Id("buf"), b.handlerStrategy.BodyPathParam()),
+
+			jen.Switch(jen.Id("r").Dot("Header").Dot("Get").Call(jen.Lit("Content-Type"))).Block(
+				jen.Case(jen.Lit("application/xml")).BlockFunc(func(g *jen.Group) {
+					g.Err().Op("=").Qual("encoding/xml", "Unmarshal").Call(jen.Id("bodyData").Index(jen.Op(":").Id("written")), jen.Id("data"))
+					// g.Do(gen.CheckErr(
+					// jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
+					// jen.Return(),
+					// ))
+				}),
+			),
+		),
 		jen.Type().Id(optionName).Func().Params(jen.Op("*").Id(optionsName)),
 		jen.Type().Id(optionsName).StructFunc(func(g *jen.Group) {
 			g.Id("errorEncoder").Add(errorEncoderType)
@@ -300,6 +318,37 @@ func (b *serverControllerBuilder) BuildHandlers() ServerControllerBuilder {
 						// 	// g.Id("result").Op("=").Id("result").Assert(jen.Op("*").Id(respName)).Dot(ep.BodyResults[0].FldNameExport)
 						// }
 
+						nameAcceptType, typ := b.handlerStrategy.HeaderParam("accept")
+
+						g.Add(typ)
+
+						g.Switch(jen.Id(nameAcceptType)).BlockFunc(func(g *jen.Group) {
+							for _, contentType := range ep.ContentTypes {
+								// bodyParams := jen.Id(reqName)
+								// if len(ep.BodyParams) == 1 && ep.NoWrapRequest {
+								// 	bodyParams = bodyParams.Dot(ep.BodyParams[0].FldName)
+								// }
+
+								switch contentType {
+								case "xml":
+									g.Case(jen.Lit("application/xml")).BlockFunc(func(g *jen.Group) {
+										g.Err().Op("=").Qual("encoding/xml", "Marshal").Call(jen.Id("result"))
+										g.Do(gen.CheckErr(
+											jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
+											jen.Return(),
+										))
+									})
+								case "json":
+									g.Case(jen.Lit("application/json")).BlockFunc(func(g *jen.Group) {
+										g.Err().Op("=").Qual("encoding/json", "Marshal").Call(jen.Id("result"))
+										g.Do(gen.CheckErr(
+											jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
+											jen.Return(),
+										))
+									})
+								}
+							}
+						})
 					}
 				}
 

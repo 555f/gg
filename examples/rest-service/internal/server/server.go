@@ -59,6 +59,7 @@ func echoDefaultErrorEncoder(ctx v4.Context, err error) {
 		ctx.Response().Write([]byte(err.Error()))
 	}
 }
+func encodeBody(rw http.ResponseWriter, data any) {}
 
 type contentTypeInvalidError struct{}
 
@@ -67,6 +68,15 @@ func (*contentTypeInvalidError) Error() string {
 }
 func (*contentTypeInvalidError) StatusCode() int {
 	return 415
+}
+func decodeBody(r *http.Request, data any) {
+	var bodyData = make([]byte, 0, 10485760)
+	buf := bytes.NewBuffer(bodyData)
+	written, err := io.Copy(buf, ctx.Request().Body)
+	switch r.Header.Get("Content-Type") {
+	case "application/xml":
+		err = xml.Unmarshal(bodyData[:written], data)
+	}
 }
 
 type ProfileControllerOption func(*ProfileControllerOptions)
@@ -179,6 +189,21 @@ func SetupRoutesProfileController(svc controller.ProfileController, e *v4.Echo, 
 			Profile *dto.Profile `json:"profile"`
 		}
 		resp.Profile = profile
+		acceptHeaderParam := ctx.Request().Header.Get("accept")
+		switch acceptHeaderParam {
+		case "application/json":
+			err = json.Marshal(result)
+			if err != nil {
+				o.errorEncoder(ctx, err)
+				return
+			}
+		case "application/xml":
+			err = xml.Marshal(result)
+			if err != nil {
+				o.errorEncoder(ctx, err)
+				return
+			}
+		}
 		return
 	})
 	e.Add("GET", "/profiles/:id/file", func(ctx v4.Context) (_ error) {
@@ -197,6 +222,15 @@ func SetupRoutesProfileController(svc controller.ProfileController, e *v4.Echo, 
 			Data string `json:"data"`
 		}
 		resp.Data = data
+		acceptHeaderParam := ctx.Request().Header.Get("accept")
+		switch acceptHeaderParam {
+		case "application/json":
+			err = json.Marshal(result)
+			if err != nil {
+				o.errorEncoder(ctx, err)
+				return
+			}
+		}
 		return
 	})
 	e.Add("DELETE", "/profiles/{id}", func(ctx v4.Context) (_ error) {
