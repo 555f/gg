@@ -55,6 +55,7 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 	)
 	errorWrapperPath := p.ctx.Options.GetString("error-wrapper")
 	defaultErrorPath := p.ctx.Options.GetString("error-default")
+	isCheckStrict := p.ctx.Options.GetBoolWithDefault("strict", true)
 
 	var (
 		serverServices  []options.Iface
@@ -75,7 +76,7 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 		}
 	}
 	for _, iface := range p.ctx.Interfaces {
-		s, err := options.Decode(iface)
+		s, err := options.Decode(iface, isCheckStrict)
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		}

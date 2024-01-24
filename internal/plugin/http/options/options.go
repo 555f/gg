@@ -294,7 +294,7 @@ func DecodeErrorWrapper(errorWrapperPath, defaultErrorPath string, structs []*gg
 	return
 }
 
-func Decode(iface *gg.Interface) (opts Iface, errs error) {
+func Decode(iface *gg.Interface, isCheckStrict bool) (opts Iface, errs error) {
 	opts.Name = iface.Named.Name
 	opts.Title = iface.Named.Title
 	opts.Description = iface.Named.Description
@@ -350,7 +350,7 @@ func Decode(iface *gg.Interface) (opts Iface, errs error) {
 		opts.HTTPReq = t.Value
 	}
 	for _, method := range iface.Named.Interface().Methods {
-		epOpts, err := endpointDecode(opts, method)
+		epOpts, err := endpointDecode(opts, method, isCheckStrict)
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		}
@@ -359,7 +359,7 @@ func Decode(iface *gg.Interface) (opts Iface, errs error) {
 	return
 }
 
-func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs error) {
+func endpointDecode(ifaceOpts Iface, method *types.Func, isCheckStrict bool) (opts Endpoint, errs error) {
 	opts.Name = strcase.ToLowerCamel(ifaceOpts.Name) + method.Name + "Endpoint"
 	opts.MethodName = method.Name
 	opts.Title = method.Title
@@ -579,8 +579,10 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 			opts.BodyResults = append(opts.BodyResults, result)
 		}
 	}
-	if len(opts.BodyParams) > 0 && (opts.HTTPMethod != "POST" && opts.HTTPMethod != "PUT" && opts.HTTPMethod != "DELETE" && opts.HTTPMethod != "PATCH") {
-		errs = multierror.Append(errs, errors.Error("only HTTP POST, PUT, PATCH and DELETE methods can have a request body. Current value: "+opts.HTTPMethod, method.Position))
+	if isCheckStrict {
+		if len(opts.BodyParams) > 0 && (opts.HTTPMethod != "POST" && opts.HTTPMethod != "PUT" && opts.HTTPMethod != "DELETE" && opts.HTTPMethod != "PATCH") {
+			errs = multierror.Append(errs, errors.Error("only HTTP POST, PUT, PATCH and DELETE methods can have a request body. Current value: "+opts.HTTPMethod, method.Position))
+		}
 	}
 	if len(opts.PathParams) != len(opts.ParamsNameIdx) {
 		errs = multierror.Append(errs, errors.Error("the method has no parameters found for the http-path tag, the required parameters: "+strings.Join(opts.ParamsNameIdx, ", "), method.Position))
@@ -601,7 +603,6 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 	if len(opts.BodyParams) != 1 && opts.NoWrapRequest {
 		errs = multierror.Append(errs, errors.Error("the \"@http-nowrap-request\" tag can be used for only one request body parameter", method.Position))
 	}
-
 	if opts.Error == nil {
 		errs = multierror.Append(errs, errors.Error("the return of an error by the method is required", method.Position))
 	}

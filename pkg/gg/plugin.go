@@ -65,6 +65,13 @@ func (o Options) GetBool(name string) bool {
 	return v
 }
 
+func (o Options) GetBoolWithDefault(name string, defaultValue bool) bool {
+	if v, ok := o.m[name].(bool); ok {
+		return v
+	}
+	return defaultValue
+}
+
 func (o Options) GetInt(name string) int {
 	v, _ := o.m[name].(int)
 	return v
