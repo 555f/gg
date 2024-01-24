@@ -3,7 +3,6 @@ package errors
 // ErrorWrapper
 // @gg:"http"
 type ErrorWrapper struct {
-	// Data
 	// @http-error-interface:"Data() interface{}"
 	Data interface{} `json:"data,omitempty"`
 	// @http-error-interface:"Error() string"
