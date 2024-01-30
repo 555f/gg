@@ -32,22 +32,12 @@ type HandlerFuncBuilder interface {
 }
 
 type ServerControllerBuilder interface {
-	Endpoint(ep options.Endpoint) ServerEndpointBuilder
-	BuildHandlers() ServerControllerBuilder
-}
-
-type ServerEndpointBuilder interface {
-	BuildReqStruct() ServerEndpointBuilder
-	BuildRespStruct() ServerEndpointBuilder
-	BuildReqDec() ServerEndpointBuilder
-	BuildRespEnc() ServerEndpointBuilder
-	Build()
+	Build() ServerControllerBuilder
 }
 
 type ServerBuilder interface {
 	SetErrorWrapper(errorWrapper *options.ErrorWrapper) ServerBuilder
 	Build() jen.Code
-	BuildTypes() ServerBuilder
 	Controller(iface options.Iface) ServerControllerBuilder
 }
 
@@ -70,13 +60,11 @@ type ClientEndpointBuilder interface {
 
 type HandlerStrategy interface {
 	ID() string
-	ReqType() (typ jen.Code)
 	ReqArgName() string
 	RespType() (typ jen.Code)
 	RespArgName() string
 	LibType() (typ jen.Code)
 	LibArgName() string
-	QueryParams() (typ jen.Code)
 	QueryParam(queryName string) (name string, typ jen.Code)
 	PathParam(pathName string) (name string, typ jen.Code)
 	HeaderParam(headerName string) (name string, typ jen.Code)
@@ -90,5 +78,5 @@ type HandlerStrategy interface {
 	SetHeader(k, v jen.Code) (typ jen.Code)
 	UsePathParams() bool
 	WriteError(statusCode, data jen.Code) (typ jen.Code)
-	WriteBody(body jen.Code)
+	WriteBody(data, contentType jen.Code, statusCode int) (typ jen.Code)
 }

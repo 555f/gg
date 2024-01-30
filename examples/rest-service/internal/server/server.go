@@ -61,24 +61,6 @@ func echoDefaultErrorEncoder(ctx v4.Context, err error) {
 }
 func encodeBody(rw http.ResponseWriter, data any) {}
 
-type contentTypeInvalidError struct{}
-
-func (*contentTypeInvalidError) Error() string {
-	return "Unsupported Media Type"
-}
-func (*contentTypeInvalidError) StatusCode() int {
-	return 415
-}
-func decodeBody(r *http.Request, data any) {
-	var bodyData = make([]byte, 0, 10485760)
-	buf := bytes.NewBuffer(bodyData)
-	written, err := io.Copy(buf, ctx.Request().Body)
-	switch r.Header.Get("Content-Type") {
-	case "application/xml":
-		err = xml.Unmarshal(bodyData[:written], data)
-	}
-}
-
 type ProfileControllerOption func(*ProfileControllerOptions)
 type ProfileControllerOptions struct {
 	errorEncoder           func(ctx v4.Context, err error)
@@ -127,11 +109,6 @@ func SetupRoutesProfileController(svc controller.ProfileController, e *v4.Echo, 
 			Address   string   `json:"address"`
 			Zip       int      `json:"zip"`
 		}
-		contentTypeHeaderParam := ctx.Request().Header.Get("content-type")
-		parts := strings.Split(contentTypeHeaderParam, ";")
-		if len(parts) > 0 {
-			contentTypeHeaderParam = parts[0]
-		}
 		var bodyData = make([]byte, 0, 10485760)
 		buf := bytes.NewBuffer(bodyData)
 		written, err := io.Copy(buf, ctx.Request().Body)
@@ -139,11 +116,13 @@ func SetupRoutesProfileController(svc controller.ProfileController, e *v4.Echo, 
 			o.errorEncoder(ctx, err)
 			return
 		}
+		contentTypeHeaderParam := ctx.Request().Header.Get("content-type")
+		parts := strings.Split(contentTypeHeaderParam, ";")
+		if len(parts) > 0 {
+			contentTypeHeaderParam = parts[0]
+		}
 		switch contentTypeHeaderParam {
 		default:
-			o.errorEncoder(ctx, &contentTypeInvalidError{})
-			return
-		case "application/json":
 			err = json.Unmarshal(bodyData[:written], &req)
 			if err != nil {
 				o.errorEncoder(ctx, err)
@@ -189,21 +168,27 @@ func SetupRoutesProfileController(svc controller.ProfileController, e *v4.Echo, 
 			Profile *dto.Profile `json:"profile"`
 		}
 		resp.Profile = profile
+		var respData []byte
 		acceptHeaderParam := ctx.Request().Header.Get("accept")
 		switch acceptHeaderParam {
-		case "application/json":
-			err = json.Marshal(result)
+		default:
+			acceptHeaderParam = "application/json"
+			respData, err = json.Marshal(resp)
 			if err != nil {
 				o.errorEncoder(ctx, err)
 				return
 			}
 		case "application/xml":
-			err = xml.Marshal(result)
+			respData, err = xml.Marshal(resp)
 			if err != nil {
 				o.errorEncoder(ctx, err)
 				return
 			}
 		}
+
+		ctx.Response().Header().Add("content-type", acceptHeaderParam)
+		ctx.Response().WriteHeader(200)
+		ctx.Response().Write(respData)
 		return
 	})
 	e.Add("GET", "/profiles/:id/file", func(ctx v4.Context) (_ error) {
@@ -222,45 +207,26 @@ func SetupRoutesProfileController(svc controller.ProfileController, e *v4.Echo, 
 			Data string `json:"data"`
 		}
 		resp.Data = data
-		acceptHeaderParam := ctx.Request().Header.Get("accept")
-		switch acceptHeaderParam {
-		case "application/json":
-			err = json.Marshal(result)
-			if err != nil {
-				o.errorEncoder(ctx, err)
-				return
-			}
-		}
-		return
-	})
-	e.Add("DELETE", "/profiles/{id}", func(ctx v4.Context) (_ error) {
-		var req struct {
-			Id string `json:"id"`
-		}
-		contentTypeHeaderParam := ctx.Request().Header.Get("content-type")
-		parts := strings.Split(contentTypeHeaderParam, ";")
-		if len(parts) > 0 {
-			contentTypeHeaderParam = parts[0]
-		}
-		var bodyData = make([]byte, 0, 10485760)
-		buf := bytes.NewBuffer(bodyData)
-		written, err := io.Copy(buf, ctx.Request().Body)
+		var respData []byte
+		respData, err = json.Marshal(resp)
 		if err != nil {
 			o.errorEncoder(ctx, err)
 			return
 		}
-		switch contentTypeHeaderParam {
-		default:
-			o.errorEncoder(ctx, &contentTypeInvalidError{})
-			return
-		case "application/json":
-			err = json.Unmarshal(bodyData[:written], &req)
-			if err != nil {
-				o.errorEncoder(ctx, err)
-				return
-			}
+
+		ctx.Response().Header().Add("content-type", "application/json")
+		ctx.Response().WriteHeader(200)
+		ctx.Response().Write(respData)
+		return
+	})
+	e.Add("DELETE", "/profiles/:id", func(ctx v4.Context) (_ error) {
+		var err error
+		idPathParam := ctx.Param("id")
+		var paramId string
+		if idPathParam != "" {
+			paramId = idPathParam
 		}
-		err = svc.Remove(req.Id)
+		err = svc.Remove(paramId)
 		if err != nil {
 			o.errorEncoder(ctx, err)
 			return

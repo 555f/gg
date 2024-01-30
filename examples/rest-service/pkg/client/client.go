@@ -343,25 +343,13 @@ func (r *ProfileControllerRemoveRequest) Execute(opts ...ClientOption) (err erro
 	for _, o := range opts {
 		o(r.opts)
 	}
-	var body struct {
-		Id string `json:"id"`
-	}
 	ctx, cancel := context.WithCancel(r.opts.ctx)
-	path := "/profiles/{id}"
+	path := fmt.Sprintf("/profiles/%s", r.params.id)
 	req, err := http.NewRequest("DELETE", r.c.target+path, nil)
 	if err != nil {
 		cancel()
 		return
 	}
-
-	body.Id = r.params.id
-	var reqData bytes.Buffer
-	err = json.NewEncoder(&reqData).Encode(body)
-	if err != nil {
-		cancel()
-		return
-	}
-	req.Body = io.NopCloser(&reqData)
 
 	req.Header.Add("Content-Type", "application/json")
 	before := append(r.c.opts.before, r.opts.before...)

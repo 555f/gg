@@ -75,6 +75,33 @@ paths:
                 properties:
                   profile:
                     $ref: '#/components/schemas/Profile'
+                xml: {}
+            application/xml:
+              schema:
+                type: object
+                properties:
+                  profile:
+                    $ref: '#/components/schemas/Profile'
+                xml: {}
+  /profiles/:id:
+    delete:
+      tags:
+      - profile
+      summary: Удалить профиль
+      parameters:
+      - in: path
+        name: id
+        description: |2+
+
+        required: true
+        schema:
+          description: |2+
+
+          type: string
+          example: abc
+      responses:
+        200:
+          description: OK
   /profiles/:id/file:
     get:
       tags:
@@ -91,34 +118,6 @@ paths:
 
           type: string
           example: abc
-      responses:
-        200:
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: string
-                    example: abc
-  /profiles/{id}:
-    delete:
-      tags:
-      - profile
-      summary: Удалить профиль
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                id:
-                  description: |2+
-
-                  type: string
-                  example: abc
-        required: true
       responses:
         200:
           description: OK

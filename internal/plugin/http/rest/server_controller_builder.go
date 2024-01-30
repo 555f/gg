@@ -13,7 +13,7 @@ type serverControllerBuilder struct {
 	iface           options.Iface
 }
 
-func (b *serverControllerBuilder) BuildHandlers() ServerControllerBuilder {
+func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 	middlewareType := b.handlerStrategy.MiddlewareType()
 
 	errorEncoderType := jen.Func().Params(
@@ -27,24 +27,6 @@ func (b *serverControllerBuilder) BuildHandlers() ServerControllerBuilder {
 	respName := "resp"
 
 	b.codes = append(b.codes,
-		jen.Func().Id("decodeBody").Params(
-			jen.Id("r").Op("*").Do(b.qualifier.Qual(httpPkg, "Request")),
-			jen.Id("data").Any(),
-		).Block(
-			jen.Var().Id("bodyData").Op("=").Make(jen.Index().Byte(), jen.Lit(0), jen.Lit(10485760)), // 10MB
-			jen.Id("buf").Op(":=").Qual("bytes", "NewBuffer").Call(jen.Id("bodyData")),
-			jen.List(jen.Id("written"), jen.Id("err")).Op(":=").Qual("io", "Copy").Call(jen.Id("buf"), b.handlerStrategy.BodyPathParam()),
-
-			jen.Switch(jen.Id("r").Dot("Header").Dot("Get").Call(jen.Lit("Content-Type"))).Block(
-				jen.Case(jen.Lit("application/xml")).BlockFunc(func(g *jen.Group) {
-					g.Err().Op("=").Qual("encoding/xml", "Unmarshal").Call(jen.Id("bodyData").Index(jen.Op(":").Id("written")), jen.Id("data"))
-					// g.Do(gen.CheckErr(
-					// jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
-					// jen.Return(),
-					// ))
-				}),
-			),
-		),
 		jen.Type().Id(optionName).Func().Params(jen.Op("*").Id(optionsName)),
 		jen.Type().Id(optionsName).StructFunc(func(g *jen.Group) {
 			g.Id("errorEncoder").Add(errorEncoderType)
@@ -96,11 +78,15 @@ func (b *serverControllerBuilder) BuildHandlers() ServerControllerBuilder {
 			)
 			for _, ep := range b.iface.Endpoints {
 				handlerFunc := func(g *jen.Group) {
-					if len(ep.Results) > 0 {
-						g.Var().Id("err").Error()
-					}
+					g.Var().Id("err").Error()
+
 					if len(ep.Params) > 0 {
 						if len(ep.BodyParams) > 0 {
+							bodyParams := jen.Id(reqName)
+							if len(ep.BodyParams) == 1 && ep.NoWrapRequest {
+								bodyParams = bodyParams.Dot(ep.BodyParams[0].FldName)
+							}
+
 							var stRequests []jen.Code
 							if ep.ReqRootXMLName != "" {
 								stRequests = append(stRequests, jen.Id("XMLName").Qual("encoding/xml", "Name").Tag(map[string]string{"xml": ep.ReqRootXMLName}))
@@ -119,15 +105,6 @@ func (b *serverControllerBuilder) BuildHandlers() ServerControllerBuilder {
 
 							switch ep.HTTPMethod {
 							case "POST", "PUT", "PATCH", "DELETE":
-								nameContentType, typ := b.handlerStrategy.HeaderParam("content-type")
-
-								g.Add(typ)
-
-								g.Id("parts").Op(":=").Qual("strings", "Split").Call(jen.Id(nameContentType), jen.Lit(";"))
-								g.If(jen.Len(jen.Id("parts")).Op(">").Lit(0)).Block(
-									jen.Id(nameContentType).Op("=").Id("parts").Index(jen.Lit(0)),
-								)
-
 								g.Var().Id("bodyData").Op("=").Make(jen.Index().Byte(), jen.Lit(0), jen.Lit(10485760)) // 10MB
 								g.Id("buf").Op(":=").Qual("bytes", "NewBuffer").Call(jen.Id("bodyData"))
 								g.List(jen.Id("written"), jen.Id("err")).Op(":=").Qual("io", "Copy").Call(jen.Id("buf"), b.handlerStrategy.BodyPathParam())
@@ -135,87 +112,95 @@ func (b *serverControllerBuilder) BuildHandlers() ServerControllerBuilder {
 									jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
 									jen.Return(),
 								))
-								g.Switch(jen.Id(nameContentType)).BlockFunc(func(g *jen.Group) {
-									g.Default().Block(
-										jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Op("&").Id("contentTypeInvalidError").Values()),
-										jen.Return(),
+								if len(ep.ContentTypes) > 0 {
+									nameContentType, typ := b.handlerStrategy.HeaderParam("content-type")
+									g.Add(typ)
+
+									g.Id("parts").Op(":=").Qual("strings", "Split").Call(jen.Id(nameContentType), jen.Lit(";"))
+									g.If(jen.Len(jen.Id("parts")).Op(">").Lit(0)).Block(
+										jen.Id(nameContentType).Op("=").Id("parts").Index(jen.Lit(0)),
 									)
-									for _, contentType := range ep.ContentTypes {
-										bodyParams := jen.Id(reqName)
-										if len(ep.BodyParams) == 1 && ep.NoWrapRequest {
-											bodyParams = bodyParams.Dot(ep.BodyParams[0].FldName)
-										}
 
-										switch contentType {
-										case "xml":
-											g.Case(jen.Lit("application/xml")).BlockFunc(func(g *jen.Group) {
-												g.Err().Op("=").Qual("encoding/xml", "Unmarshal").Call(jen.Id("bodyData").Index(jen.Op(":").Id("written")), jen.Op("&").Add(bodyParams))
-												g.Do(gen.CheckErr(
-													jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
-													jen.Return(),
-												))
-											})
-										case "json":
-											g.Case(jen.Lit("application/json")).BlockFunc(func(g *jen.Group) {
-												g.Err().Op("=").Qual("encoding/json", "Unmarshal").Call(jen.Id("bodyData").Index(jen.Op(":").Id("written")), jen.Op("&").Add(bodyParams))
-												g.Do(gen.CheckErr(
-													jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
-													jen.Return(),
-												))
-											})
-										case "urlencoded":
-											g.Case(jen.Lit("application/x-www-form-urlencoded")).BlockFunc(func(g *jen.Group) {
-												typ, hasErr := b.handlerStrategy.FormParams()
+									g.Switch(jen.Id(nameContentType)).BlockFunc(func(g *jen.Group) {
+										g.Default().BlockFunc(func(g *jen.Group) {
+											g.Err().Op("=").Qual("encoding/json", "Unmarshal").Call(jen.Id("bodyData").Index(jen.Op(":").Id("written")), jen.Op("&").Add(bodyParams))
+											g.Do(gen.CheckErr(
+												jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
+												jen.Return(),
+											))
+										})
 
-												g.Add(typ)
-
-												if hasErr {
+										for _, contentType := range ep.ContentTypes {
+											switch contentType {
+											case "xml":
+												g.Case(jen.Lit("application/xml")).BlockFunc(func(g *jen.Group) {
+													g.Err().Op("=").Qual("encoding/xml", "Unmarshal").Call(jen.Id("bodyData").Index(jen.Op(":").Id("written")), jen.Op("&").Add(bodyParams))
 													g.Do(gen.CheckErr(
 														jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
 														jen.Return(),
 													))
-												}
+												})
+											case "urlencoded":
+												g.Case(jen.Lit("application/x-www-form-urlencoded")).BlockFunc(func(g *jen.Group) {
+													typ, hasErr := b.handlerStrategy.FormParams()
 
-												for _, p := range ep.BodyParams {
-													_, typ := b.handlerStrategy.FormParam(p.Name)
+													g.Add(typ)
 
-													g.Add(gen.ParseValue(typ, jen.Add(bodyParams).Dot(p.FldName), "=", p.Type, b.qualifier.Qual, func() jen.Code {
-														return jen.Do(gen.CheckErr(
+													if hasErr {
+														g.Do(gen.CheckErr(
 															jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
 															jen.Return(),
 														))
-													}))
-												}
-											})
-										case "multipart":
-											g.Case(jen.Lit("multipart/form-data")).BlockFunc(func(g *jen.Group) {
-												typ, hasErr := b.handlerStrategy.MultipartFormParams(ep.MultipartMaxMemory)
-												g.Add(typ)
-												if hasErr {
-													g.Do(gen.CheckErr(
-														jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
-														jen.Return(),
-													))
-												}
-												for _, p := range ep.BodyParams {
-													_, typ := b.handlerStrategy.MultipartFormParam(p.Name)
+													}
 
-													g.Add(gen.ParseValue(typ, jen.Add(bodyParams).Dot(p.FldName), "=", p.Type, b.qualifier.Qual, func() jen.Code {
-														return jen.Do(gen.CheckErr(
+													for _, p := range ep.BodyParams {
+														_, typ := b.handlerStrategy.FormParam(p.Name)
+
+														g.Add(gen.ParseValue(typ, jen.Add(bodyParams).Dot(p.FldName), "=", p.Type, b.qualifier.Qual, func() jen.Code {
+															return jen.Do(gen.CheckErr(
+																jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
+																jen.Return(),
+															))
+														}))
+													}
+												})
+											case "multipart":
+												g.Case(jen.Lit("multipart/form-data")).BlockFunc(func(g *jen.Group) {
+													typ, hasErr := b.handlerStrategy.MultipartFormParams(ep.MultipartMaxMemory)
+													g.Add(typ)
+													if hasErr {
+														g.Do(gen.CheckErr(
 															jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
 															jen.Return(),
 														))
-													}))
-												}
-											})
+													}
+													for _, p := range ep.BodyParams {
+														_, typ := b.handlerStrategy.MultipartFormParam(p.Name)
+
+														g.Add(gen.ParseValue(typ, jen.Add(bodyParams).Dot(p.FldName), "=", p.Type, b.qualifier.Qual, func() jen.Code {
+															return jen.Do(gen.CheckErr(
+																jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
+																jen.Return(),
+															))
+														}))
+													}
+												})
+											}
 										}
-									}
-								})
+
+									})
+								} else {
+									g.Err().Op("=").Qual("encoding/json", "Unmarshal").Call(jen.Id("bodyData").Index(jen.Op(":").Id("written")), jen.Op("&").Add(bodyParams))
+									g.Do(gen.CheckErr(
+										jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
+										jen.Return(),
+									))
+								}
 							}
 						}
 
 						buildParams := func(g *jen.Group, params options.EndpointParams, f func(pathName string) (name string, typ jen.Code)) {
-							for _, p := range ep.PathParams {
+							for _, p := range params {
 								paramName, typ := f(p.Name)
 								paramVarName := "param" + p.FldName
 
@@ -300,8 +285,6 @@ func (b *serverControllerBuilder) BuildHandlers() ServerControllerBuilder {
 
 						g.Add(assignFields...)
 
-						b.handlerStrategy.WriteBody(jen.Id(respName))
-
 						// if !ep.NoWrapResponse {
 						// 	g.Var().Id("wrapResult").StructFunc(gen.WrapResponse(ep.WrapResponse, ep.BodyResults, b.qualifier.Qual))
 						// 	for _, r := range ep.BodyResults {
@@ -318,114 +301,49 @@ func (b *serverControllerBuilder) BuildHandlers() ServerControllerBuilder {
 						// 	// g.Id("result").Op("=").Id("result").Assert(jen.Op("*").Id(respName)).Dot(ep.BodyResults[0].FldNameExport)
 						// }
 
-						nameAcceptType, typ := b.handlerStrategy.HeaderParam("accept")
+						g.Var().Id("respData").Index().Byte()
 
-						g.Add(typ)
+						if len(ep.AcceptTypes) > 0 {
+							nameAcceptType, typ := b.handlerStrategy.HeaderParam("accept")
+							g.Add(typ)
 
-						g.Switch(jen.Id(nameAcceptType)).BlockFunc(func(g *jen.Group) {
-							for _, contentType := range ep.ContentTypes {
-								// bodyParams := jen.Id(reqName)
-								// if len(ep.BodyParams) == 1 && ep.NoWrapRequest {
-								// 	bodyParams = bodyParams.Dot(ep.BodyParams[0].FldName)
-								// }
-
-								switch contentType {
-								case "xml":
-									g.Case(jen.Lit("application/xml")).BlockFunc(func(g *jen.Group) {
-										g.Err().Op("=").Qual("encoding/xml", "Marshal").Call(jen.Id("result"))
-										g.Do(gen.CheckErr(
-											jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
-											jen.Return(),
-										))
-									})
-								case "json":
-									g.Case(jen.Lit("application/json")).BlockFunc(func(g *jen.Group) {
-										g.Err().Op("=").Qual("encoding/json", "Marshal").Call(jen.Id("result"))
-										g.Do(gen.CheckErr(
-											jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
-											jen.Return(),
-										))
-									})
+							g.Switch(jen.Id(nameAcceptType)).BlockFunc(func(g *jen.Group) {
+								g.Default().Block(
+									jen.Id(nameAcceptType).Op("=").Lit("application/json"),
+									jen.List(jen.Id("respData"), jen.Err()).Op("=").Qual("encoding/json", "Marshal").Call(jen.Id("resp")),
+									jen.Do(gen.CheckErr(
+										jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
+										jen.Return(),
+									)),
+								)
+								for _, acceptType := range ep.AcceptTypes {
+									switch acceptType {
+									case "xml":
+										g.Case(jen.Lit("application/xml")).Block(
+											jen.List(jen.Id("respData"), jen.Err()).Op("=").Qual("encoding/xml", "Marshal").Call(jen.Id("resp")),
+											jen.Do(gen.CheckErr(
+												jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
+												jen.Return(),
+											)),
+										)
+									}
 								}
-							}
-						})
+							})
+							g.Add(b.handlerStrategy.WriteBody(jen.Id("respData"), jen.Id(nameAcceptType), 200))
+						} else {
+							g.List(jen.Id("respData"), jen.Err()).Op("=").Qual("encoding/json", "Marshal").Call(jen.Id("resp"))
+							g.Do(gen.CheckErr(
+								jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
+								jen.Return(),
+							))
+							g.Add(b.handlerStrategy.WriteBody(jen.Id("respData"), jen.Lit("application/json"), 200))
+						}
+
 					}
 				}
 
 				g.Add(b.handlerStrategy.HandlerFunc(ep.HTTPMethod, ep.Path, handlerFunc))
-
-				// g.Add(b.handlerStrategy.HandlerFunc(
-				// 	ep.HTTPMethod,
-				// 	ep.Path,
-				// 	resultID,
-				// 	jen.Append(jen.Id("o").Dot("middleware"), jen.Id("o").Dot("middleware"+ep.MethodName).Op("...")),
-				// 	handlerFuncBody,
-				// ))
-
-				// epName := endpointFuncName(b.iface, ep)
-				// reqDecName := reqDecFuncName(b.iface, ep)
-				// respEncName := respEncFuncName(b.iface, ep)
-
-				// hasResults := len(ep.Results) > 0
-				// hasParams := len(ep.Params) > 0
-				// epResultOp := ":="
-				// epResultName := "resp"
-
-				// if hasParams && !hasResults {
-				// epResultOp = "="
-				// }
-				// if !hasResults {
-				// epResultName = "_"
-				// }
-
-				// var resultID jen.Code
-
-				// errorEncoder := jen.Id("o").Dot("errorEncoder").Call(
-				// jen.Id(b.handlerStrategy.RespArgName()),
-				// jen.Err(),
-				// )
-
-				// handlerFuncBody := jen.CustomFunc(jen.Options{Multi: true}, func(g *jen.Group) {
-				// 	g.Id("reqCtx").Op(":=").Qual(contextPkg, "TODO").Call()
-
-				// 	if hasParams {
-				// 		g.List(jen.Id("req"), jen.Err()).Op(":=").Id(reqDecName).Call(jen.Id(b.handlerStrategy.ReqArgName()))
-				// 		g.Do(gen.CheckErr(jen.Return()))
-				// 	}
-				// 	// g.List(jen.Id(epResultName), jen.Err()).Op(epResultOp).Id(epName).Call(jen.Id("svc")).CallFunc(func(g *jen.Group) {
-				// 	// 	g.Id("reqCtx")
-				// 	// 	if hasParams {
-				// 	// 		g.Id("req")
-				// 	// 	} else {
-				// 	// 		g.Nil()
-				// 	// 	}
-				// 	// })
-				// 	// g.Do(gen.CheckErr(
-				// 	// errorEncoder,
-				// 	// jen.Return(),
-				// 	// ))
-				// 	// if hasResults {
-				// 	// resultID = jen.Id("result")
-				// 	// g.List(resultID, jen.Err()).Op(":=").Id(respEncName).Call(jen.Id("resp"))
-				// 	// g.Do(gen.CheckErr(
-				// 	// errorEncoder,
-				// 	// jen.Return(),
-				// 	// ))
-				// 	// }
-				// })
-
-				// g.Add(b.handlerStrategy.HandlerFunc(
-				// 	ep.HTTPMethod,
-				// 	ep.Path,
-				// 	resultID,
-				// 	jen.Append(jen.Id("o").Dot("middleware"), jen.Id("o").Dot("middleware"+ep.MethodName).Op("...")),
-				// 	handlerFuncBody,
-				// ))
 			}
 		}))
 	return b
-}
-
-func (b *serverControllerBuilder) Endpoint(ep options.Endpoint) ServerEndpointBuilder {
-	return &serverEndpointBuilder{serverControllerBuilder: b, handlerStrategy: b.handlerStrategy, iface: b.iface, ep: ep, qualifier: b.qualifier}
 }

@@ -14,11 +14,6 @@ func (s *HandlerStrategyEcho) ID() string {
 	return "echo"
 }
 
-func (s *HandlerStrategyEcho) QueryParams() (typ jen.Code) {
-	typ = jen.Id("q").Op(":=").Id(s.ReqArgName()).Dot("QueryParams").Call()
-	return
-}
-
 func (s *HandlerStrategyEcho) QueryParam(queryName string) (name string, typ jen.Code) {
 	name = normalizeVarName(queryName) + "QueryParam"
 	typ = jen.Id(name).Op(":=").Id("q").Dot("Get").Call(jen.Lit(queryName))
@@ -61,10 +56,6 @@ func (s *HandlerStrategyEcho) MultipartFormParams(multipartMaxMemory int64) (typ
 	hasErr = false
 	typ = jen.List(jen.Id("f"), jen.Err()).Op(":=").Id(s.ReqArgName()).Dot("FormParams").Call()
 	return
-}
-
-func (*HandlerStrategyEcho) ReqType() jen.Code {
-	return jen.Qual(echoPkg, "Context")
 }
 
 func (*HandlerStrategyEcho) RespType() jen.Code {
@@ -135,8 +126,13 @@ func (s *HandlerStrategyEcho) WriteError(statusCode, data jen.Code) (typ jen.Cod
 	return
 }
 
-func (s *HandlerStrategyEcho) WriteBody(body jen.Code) {
-
+func (s *HandlerStrategyEcho) WriteBody(data, contentType jen.Code, statusCode int) (typ jen.Code) {
+	typ = jen.Custom(jen.Options{Multi: true},
+		s.SetHeader(jen.Lit("content-type"), contentType),
+		jen.Id(s.RespArgName()).Dot("Response").Call().Dot("WriteHeader").Call(jen.Lit(statusCode)),
+		jen.Id(s.RespArgName()).Dot("Response").Call().Dot("Write").Call(data),
+	)
+	return
 }
 
 func (*HandlerStrategyEcho) RespArgName() string {

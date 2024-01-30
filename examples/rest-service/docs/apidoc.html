@@ -3025,7 +3025,7 @@ video {
 
                     <tag name="DELETE"></tag>
                     <span class="h-0.5 w-0.5 rounded-full bg-zinc-300 dark:bg-zinc-600"></span>
-                    <span class="font-mono text-xs text-zinc-400">/profiles/{id}</span>
+                    <span class="font-mono text-xs text-zinc-400">/profiles/:id</span>
                 </div>
                 <h2 id="ProfileController-Remove" class="mt-2 scroll-mt-32">
                     <a class="group text-inherit no-underline hover:text-inherit" href="#ProfileController-Remove">
@@ -3046,7 +3046,7 @@ video {
                                         </dd>
                                         <dt class="sr-only">Тип</dt>
                                         <dd class="font-mono text-xs text-zinc-400 dark:text-zinc-500">string
-                                            <span class="relative top-0 font-mono text-[0.625rem] font-semibold leading-6 rounded-lg px-1.5 py-1 ring-1 ring-inset ring-orange-300 dark:ring-orange-400/30 bg-orange-400/10 text-orange-500 dark:text-orange-400">body</span>
+                                            <span class="relative top-0 font-mono text-[0.625rem] font-semibold leading-6 rounded-lg px-1.5 py-1 ring-1 ring-inset ring-orange-300 dark:ring-orange-400/30 bg-orange-400/10 text-orange-500 dark:text-orange-400">path</span>
                                         </dd>
                                         <dt class="sr-only">Описание</dt>
                                         <dd class="w-full flex-none [&amp;>:first-child]:mt-0 [&amp;>:last-child]:mb-0">
@@ -3090,12 +3090,10 @@ video {
                                                 <tag-small name="DELETE" />
                                             </div>
                                             <span class="h-0.5 w-0.5 rounded-full bg-zinc-500"></span>
-                                            <span class="font-mono text-xs text-zinc-400">/profiles/{id}</span>
+                                            <span class="font-mono text-xs text-zinc-400">/profiles/:id</span>
                                         </div>
                                         <div class="relative">
-                                            <pre tabindex="0" class="chroma"><code><span class="line"><span class="cl"><span class="k">curl </span><span class="py">-X </span><span class="kt">DELETE</span> <span class="py">-d </span><span class="err">&#39;{</span>
-</span></span><span class="line"><span class="cl">  <span class="err">&#34;id&#34;:</span> <span class="err">&#34;abc&#34;</span>
-</span></span><span class="line"><span class="cl"><span class="err">}&#39;</span> <span class="s">http://127.0.0.1/profiles/</span><span class="err">{id}</span></span></span></code></pre>
+                                            <pre tabindex="0" class="chroma"><code><span class="line"><span class="cl"><span class="k">curl </span><span class="py">-X </span><span class="kt">DELETE</span> <span class="s">http://127.0.0.1/profiles/:id</span></span></span></code></pre>
                                             <button type="button"
                                                     class="group/button absolute top-3.5 right-4 overflow-hidden rounded-full py-1 pl-2 pr-3 text-2xs font-medium opacity-0 backdrop-blur transition focus:opacity-100 group-hover:opacity-100 bg-white/5 hover:bg-white/7.5 dark:bg-white/2.5 dark:hover:bg-white/5">
                                                 <span aria-hidden="false"

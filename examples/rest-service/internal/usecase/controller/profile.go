@@ -19,8 +19,11 @@ type ProfileController interface {
 	// Create Создать профиль
 	// @http-path:"/profiles"
 	// @http-method:"POST"
-	// @http-content-types:"json,xml,urlencoded,multipart,root-xml=profile"
-	// @http-accept-types:"json"
+	// @http-content-type:"xml,root=profile"
+	// @http-content-type:"urlencoded"
+	// @http-content-type:"multipart"
+	// @http-accept-type:"json"
+	// @http-accept-type:"xml"
 	Create(
 		// @http-required
 		firstName string,
@@ -34,7 +37,7 @@ type ProfileController interface {
 		err error,
 	)
 	// Remove Удалить профиль
-	// @http-path:"/profiles/{id}"
+	// @http-path:"/profiles/:id"
 	// @http-method:"DELETE"
 	Remove(
 		// @http-required

@@ -13,11 +13,6 @@ func (s *HandlerStrategyChi) ID() string {
 	return "chi"
 }
 
-func (s *HandlerStrategyChi) QueryParams() (typ jen.Code) {
-	typ = jen.Id("q").Op(":=").Id(s.ReqArgName()).Dot("URL").Dot("Query").Call()
-	return
-}
-
 func (s *HandlerStrategyChi) QueryParam(queryName string) (name string, typ jen.Code) {
 	name = normalizeVarName(queryName) + "QueryParam"
 	typ = jen.Id(name).Op(":=").Id("q").Dot("Get").Call(jen.Lit(queryName))
@@ -73,10 +68,6 @@ func (s *HandlerStrategyChi) MultipartFormParams(multipartMaxMemory int64) (typ 
 	typ = jen.Id(s.ReqArgName()).Dot("ParseMultipartForm").Call(jen.Lit(multipartMaxMemory))
 
 	return
-}
-
-func (*HandlerStrategyChi) ReqType() jen.Code {
-	return jen.Op("*").Qual(httpPkg, "Request")
 }
 
 func (*HandlerStrategyChi) RespType() jen.Code {
@@ -146,8 +137,8 @@ func (s *HandlerStrategyChi) WriteError(statusCode, data jen.Code) (typ jen.Code
 	return
 }
 
-func (s *HandlerStrategyChi) WriteBody(body jen.Code) {
-
+func (s *HandlerStrategyChi) WriteBody(data, contentType jen.Code, statusCode int) (typ jen.Code) {
+	return
 }
 
 func (*HandlerStrategyChi) UsePathParams() bool {

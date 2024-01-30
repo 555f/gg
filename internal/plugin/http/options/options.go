@@ -427,46 +427,51 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 		}
 		opts.OpenapiHeaders = append(opts.OpenapiHeaders, oh)
 	}
-	if t, ok := method.Tags.Get("http-content-types"); ok {
-		opts.ContentTypes = []string{t.Value}
-		opts.ContentTypes = append(opts.ContentTypes, t.Options...)
 
-		for _, contentType := range opts.ContentTypes {
+	for _, t := range method.Tags.GetSlice("http-content-type") {
+		contentType := t.Value
+
+		switch contentType {
+		default:
+			errs = multierror.Append(errs, errors.Error("invalid http-content-types use 'json', 'xml', 'urlencoded' or 'multipart'", t.Position))
+		case "json", "xml", "urlencoded", "multipart":
 			switch contentType {
-			default:
-				errs = multierror.Append(errs, errors.Error("invalid http-content-types use 'json', 'xml', 'urlencoded' or 'multipart'", t.Position))
-			case "json", "xml", "urlencoded", "multipart":
-				switch contentType {
-				case "xml":
-					opts.ReqRootXMLName = t.Params["root-xml"]
-					if opts.ReqRootXMLName == "" {
-						errs = multierror.Append(errs, errors.Error("the root-xml parameter of the http-content-types tag is required when using the XML content type", t.Position))
-					}
-				case "multipart":
-					opts.MultipartMaxMemory = 67108864
-					if t.Params["multipart-max-memory"] != "" {
-						multipartMaxMemory, err := strconv.ParseInt(t.Params["multipart-max-memory"], 10, 64)
-						if err == nil {
-							opts.MultipartMaxMemory = multipartMaxMemory
-						} else {
-							errs = multierror.Append(errs, errors.Error("invalid multipart-max-memory must be integer", t.Position))
-						}
+			case "xml":
+				opts.ReqRootXMLName = t.Params["root"]
+				if opts.ReqRootXMLName == "" {
+					errs = multierror.Append(errs, errors.Error("the root-xml parameter of the http-content-types tag is required when using the XML content type", t.Position))
+				}
+			case "multipart":
+				opts.MultipartMaxMemory = 67108864
+				if t.Params["multipart-max-memory"] != "" {
+					multipartMaxMemory, err := strconv.ParseInt(t.Params["max-memory"], 10, 64)
+					if err == nil {
+						opts.MultipartMaxMemory = multipartMaxMemory
 					} else {
-						errs = multierror.Append(errs, errors.Warn(fmt.Sprintf("multipartMaxMemory uses the default value of %d bytes", opts.MultipartMaxMemory), t.Position))
+						errs = multierror.Append(errs, errors.Error("invalid multipart-max-memory must be integer", t.Position))
 					}
+				} else {
+					errs = multierror.Append(errs, errors.Warn(fmt.Sprintf("multipartMaxMemory uses the default value of %d bytes", opts.MultipartMaxMemory), t.Position))
 				}
 			}
 		}
+		opts.ContentTypes = append(opts.ContentTypes, contentType)
 	}
-	if t, ok := method.Tags.Get("http-accept-types"); ok {
-		switch t.Value {
+
+	for _, t := range method.Tags.GetSlice("http-accept-type") {
+		acceptType := t.Value
+		switch acceptType {
 		default:
 			errs = multierror.Append(errs, errors.Error("invalid http-accept-types, use 'json', 'xml', 'urlencoded' or 'multipart'", t.Position))
 		case "json", "xml", "urlencoded", "multipart":
-			opts.RespRootXMLName = t.Params["root-xml"]
-			opts.AcceptTypes = append([]string{t.Value}, t.Options...)
+			switch acceptType {
+			case "xml":
+				opts.RespRootXMLName = t.Params["root"]
+			}
 		}
+		opts.AcceptTypes = append(opts.AcceptTypes, acceptType)
 	}
+
 	queryValues := method.Tags.GetSlice("http-query-value")
 	for _, q := range queryValues {
 		var val string
@@ -493,12 +498,6 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 	errorTags := method.Tags.GetSlice("http-error")
 	for _, tag := range errorTags {
 		opts.Errors = append(opts.Errors, tag.Value)
-	}
-	if len(opts.ContentTypes) == 0 {
-		opts.ContentTypes = []string{"json"}
-	}
-	if len(opts.AcceptTypes) == 0 {
-		opts.AcceptTypes = []string{"json"}
 	}
 	for _, param := range method.Sig.Params {
 		if param.IsContext {
