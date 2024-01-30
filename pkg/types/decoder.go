@@ -212,7 +212,17 @@ func (d *Decoder) normalizeNamed(named *stdtypes.Named, isPointer bool) (nt *Nam
 		return nil, err
 	}
 
-	_, isStruct := nt.Type.(*Struct)
+	var isStruct bool
+	if st, ok := nt.Type.(*Struct); ok {
+		isStruct = true
+		for _, f := range st.Fields {
+			if f.Var.Embedded {
+				if named, ok := f.Var.Type.(*Named); ok {
+					nt.Methods = append(nt.Methods, named.Methods...)
+				}
+			}
+		}
+	}
 
 	for i := 0; i < named.NumMethods(); i++ {
 		method, err := d.normalizeFunc(named.Method(i))
