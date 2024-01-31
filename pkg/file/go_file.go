@@ -26,6 +26,7 @@ func (f *GoFile) SetVersion(version string) {
 }
 
 func (f *GoFile) IsCurrPkg(pkgPath string) bool {
+	// fmt.Println(path.Join(f.module.Path, f.packagePath))
 	return path.Join(f.module.Path, f.packagePath) == pkgPath
 }
 
@@ -62,7 +63,8 @@ func (f *GoFile) Bytes() ([]byte, error) {
 }
 
 func NewGoFile(module *types.Module, path string) *GoFile {
-	parts := strings.Split(filepath.Dir(path), string(filepath.Separator))
-	packagePath := parts[len(parts)-1]
-	return &GoFile{File: jen.NewFilePath(packagePath), packagePath: packagePath, path: path, module: module}
+	packagePath := strings.Replace(filepath.Dir(path), module.Dir, "", -1)
+	parts := strings.Split(packagePath, string(filepath.Separator))
+	pkgName := parts[len(parts)-1]
+	return &GoFile{File: jen.NewFilePath(pkgName), packagePath: packagePath, path: path, module: module}
 }

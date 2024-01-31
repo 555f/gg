@@ -82,7 +82,7 @@ func (s *HandlerStrategyChi) HandlerFuncParams() (in, out []jen.Code) {
 	return nil, nil
 }
 
-func (s *HandlerStrategyChi) HandlerFunc(method string, pattern string, handlerFunc func(g *jen.Group)) jen.Code {
+func (s *HandlerStrategyChi) HandlerFunc(method string, pattern string, middlewares jen.Code, handlerFunc func(g *jen.Group)) jen.Code {
 	return nil
 	// 	return jen.Id(s.LibArgName()).Dot("With").Call(jen.Add(middlewares).Op("...")).Dot("MethodFunc").Params(
 	// 		jen.Lit(method),
@@ -143,6 +143,10 @@ func (s *HandlerStrategyChi) WriteBody(data, contentType jen.Code, statusCode in
 
 func (*HandlerStrategyChi) UsePathParams() bool {
 	return true
+}
+
+func (s *HandlerStrategyChi) Context() jen.Code {
+	return jen.Id(s.ReqArgName()).Dot("Context").Call()
 }
 
 func (*HandlerStrategyChi) RespArgName() string {

@@ -16,7 +16,7 @@ func (s *HandlerStrategyEcho) ID() string {
 
 func (s *HandlerStrategyEcho) QueryParam(queryName string) (name string, typ jen.Code) {
 	name = normalizeVarName(queryName) + "QueryParam"
-	typ = jen.Id(name).Op(":=").Id("q").Dot("Get").Call(jen.Lit(queryName))
+	typ = jen.Id(name).Op(":=").Id(s.ReqArgName()).Dot("QueryParam").Call(jen.Lit(queryName))
 	return
 }
 
@@ -58,6 +58,10 @@ func (s *HandlerStrategyEcho) MultipartFormParams(multipartMaxMemory int64) (typ
 	return
 }
 
+func (s *HandlerStrategyEcho) Context() jen.Code {
+	return jen.Id(s.ReqArgName()).Dot("Request").Call().Dot("Context").Call()
+}
+
 func (*HandlerStrategyEcho) RespType() jen.Code {
 	return jen.Qual(echoPkg, "Context")
 }
@@ -78,7 +82,7 @@ func (s *HandlerStrategyEcho) HandlerFuncParams() (in, out []jen.Code) {
 		}
 }
 
-func (s *HandlerStrategyEcho) HandlerFunc(method string, pattern string, handlerFunc func(g *jen.Group)) jen.Code {
+func (s *HandlerStrategyEcho) HandlerFunc(method string, pattern string, middlewares jen.Code, handlerFunc func(g *jen.Group)) jen.Code {
 	return jen.Id(s.LibArgName()).Dot("Add").Call(
 		jen.Lit(method),
 		jen.Lit(pattern),
@@ -86,6 +90,9 @@ func (s *HandlerStrategyEcho) HandlerFunc(method string, pattern string, handler
 			handlerFunc(g)
 			g.Return()
 		}),
+		middlewares,
+		// jen.Index().Add(s.MiddlewareType()).Values(),
+		// append(o.middleware, o.middlewareReadinessProbe...)...
 	)
 
 	// return jen.Id(s.LibArgName()).Dot("Add").Params(

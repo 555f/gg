@@ -65,6 +65,7 @@ type HandlerStrategy interface {
 	RespArgName() string
 	LibType() (typ jen.Code)
 	LibArgName() string
+	Context() jen.Code
 	QueryParam(queryName string) (name string, typ jen.Code)
 	PathParam(pathName string) (name string, typ jen.Code)
 	HeaderParam(headerName string) (name string, typ jen.Code)
@@ -74,7 +75,7 @@ type HandlerStrategy interface {
 	FormParams() (typ jen.Code, hasErr bool)
 	MultipartFormParams(multipartMaxMemory int64) (typ jen.Code, hasErr bool)
 	MiddlewareType() jen.Code
-	HandlerFunc(method, pattern string, handlerFunc func(g *jen.Group)) (typ jen.Code)
+	HandlerFunc(method, pattern string, middlewares jen.Code, handlerFunc func(g *jen.Group)) (typ jen.Code)
 	SetHeader(k, v jen.Code) (typ jen.Code)
 	UsePathParams() bool
 	WriteError(statusCode, data jen.Code) (typ jen.Code)

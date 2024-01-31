@@ -3,6 +3,7 @@ package rest
 import (
 	"github.com/555f/gg/internal/plugin/http/options"
 	"github.com/555f/gg/pkg/gen"
+	"github.com/555f/gg/pkg/strcase"
 	"github.com/555f/gg/pkg/types"
 	"github.com/dave/jennifer/jen"
 )
@@ -247,7 +248,7 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 						}
 					}).Id("svc").Dot(ep.MethodName).CallFunc(func(g *jen.Group) {
 						if ep.Context != nil {
-							g.Id("ctx")
+							g.Add(b.handlerStrategy.Context())
 						}
 						for _, p := range ep.Params {
 							switch p.HTTPType {
@@ -266,40 +267,18 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 					}
 
 					if len(ep.BodyResults) > 0 {
-						var (
-							responseFields []jen.Code
-							assignFields   []jen.Code
-						)
-
-						for _, p := range ep.BodyResults {
-							fld := jen.Id(p.FldNameExport).Add(types.Convert(p.Type, b.qualifier.Qual))
-							if p.Name != "" && p.HTTPType == "body" {
-								fld.Tag(map[string]string{"json": p.Name})
-							} else {
-								fld.Tag(map[string]string{"json": "-"})
+						if !ep.NoWrapResponse {
+							g.Var().Id(respName).StructFunc(gen.WrapResponse(ep.WrapResponse, ep.BodyResults, b.qualifier.Qual))
+							for _, p := range ep.BodyResults {
+								g.Id(respName).Do(func(s *jen.Statement) {
+									for _, name := range ep.WrapResponse {
+										s.Dot(strcase.ToCamel(name))
+									}
+								}).Dot(p.FldNameExport).Op("=").Id(p.FldName)
 							}
-							responseFields = append(responseFields, fld)
-							assignFields = append(assignFields, jen.Id("resp").Dot(p.FldNameExport).Op("=").Id(p.FldName))
+						} else if len(ep.BodyResults) == 1 {
+							g.Id("resp").Op(":=").Id(ep.BodyResults[0].FldName)
 						}
-						g.Var().Id(respName).Struct(responseFields...)
-
-						g.Add(assignFields...)
-
-						// if !ep.NoWrapResponse {
-						// 	g.Var().Id("wrapResult").StructFunc(gen.WrapResponse(ep.WrapResponse, ep.BodyResults, b.qualifier.Qual))
-						// 	for _, r := range ep.BodyResults {
-						// 		g.Id("wrapResult").Do(func(s *jen.Statement) {
-						// 			for _, name := range ep.WrapResponse {
-						// 				s.Dot(strcase.ToCamel(name))
-						// 			}
-						// 		}).Dot(r.FldNameExport).Op("=").Id("resp").Dot(r.FldNameExport)
-						// 	}
-
-						// 	g.Id("result").Op("=").Id("wrapResult")
-
-						// } else if len(ep.BodyResults) == 1 {
-						// 	// g.Id("result").Op("=").Id("result").Assert(jen.Op("*").Id(respName)).Dot(ep.BodyResults[0].FldNameExport)
-						// }
 
 						g.Var().Id("respData").Index().Byte()
 
@@ -338,11 +317,12 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 							))
 							g.Add(b.handlerStrategy.WriteBody(jen.Id("respData"), jen.Lit("application/json"), 200))
 						}
-
 					}
 				}
 
-				g.Add(b.handlerStrategy.HandlerFunc(ep.HTTPMethod, ep.Path, handlerFunc))
+				middlewares := jen.Append(jen.Id("o").Dot("middleware"), jen.Id("o").Dot("middleware"+ep.MethodName).Op("...")).Op("...")
+
+				g.Add(b.handlerStrategy.HandlerFunc(ep.HTTPMethod, ep.Path, middlewares, handlerFunc))
 			}
 		}))
 	return b
