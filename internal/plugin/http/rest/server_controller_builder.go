@@ -110,7 +110,7 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 								g.Id("buf").Op(":=").Qual("bytes", "NewBuffer").Call(jen.Id("bodyData"))
 								g.List(jen.Id("written"), jen.Id("err")).Op(":=").Qual("io", "Copy").Call(jen.Id("buf"), b.handlerStrategy.BodyPathParam())
 								g.Do(gen.CheckErr(
-									jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
+									jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.RespArgName()), jen.Err()),
 									jen.Return(),
 								))
 								if len(ep.ContentTypes) > 0 {
@@ -126,7 +126,7 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 										g.Default().BlockFunc(func(g *jen.Group) {
 											g.Err().Op("=").Qual("encoding/json", "Unmarshal").Call(jen.Id("bodyData").Index(jen.Op(":").Id("written")), jen.Op("&").Add(bodyParams))
 											g.Do(gen.CheckErr(
-												jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
+												jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.RespArgName()), jen.Err()),
 												jen.Return(),
 											))
 										})
@@ -137,7 +137,7 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 												g.Case(jen.Lit("application/xml")).BlockFunc(func(g *jen.Group) {
 													g.Err().Op("=").Qual("encoding/xml", "Unmarshal").Call(jen.Id("bodyData").Index(jen.Op(":").Id("written")), jen.Op("&").Add(bodyParams))
 													g.Do(gen.CheckErr(
-														jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
+														jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.RespArgName()), jen.Err()),
 														jen.Return(),
 													))
 												})
@@ -149,7 +149,7 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 
 													if hasErr {
 														g.Do(gen.CheckErr(
-															jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
+															jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.RespArgName()), jen.Err()),
 															jen.Return(),
 														))
 													}
@@ -159,7 +159,7 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 
 														g.Add(gen.ParseValue(typ, jen.Add(bodyParams).Dot(p.FldName), "=", p.Type, b.qualifier.Qual, func() jen.Code {
 															return jen.Do(gen.CheckErr(
-																jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
+																jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.RespArgName()), jen.Err()),
 																jen.Return(),
 															))
 														}))
@@ -171,7 +171,7 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 													g.Add(typ)
 													if hasErr {
 														g.Do(gen.CheckErr(
-															jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
+															jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.RespArgName()), jen.Err()),
 															jen.Return(),
 														))
 													}
@@ -180,7 +180,7 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 
 														g.Add(gen.ParseValue(typ, jen.Add(bodyParams).Dot(p.FldName), "=", p.Type, b.qualifier.Qual, func() jen.Code {
 															return jen.Do(gen.CheckErr(
-																jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
+																jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.RespArgName()), jen.Err()),
 																jen.Return(),
 															))
 														}))
@@ -193,7 +193,7 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 								} else {
 									g.Err().Op("=").Qual("encoding/json", "Unmarshal").Call(jen.Id("bodyData").Index(jen.Op(":").Id("written")), jen.Op("&").Add(bodyParams))
 									g.Do(gen.CheckErr(
-										jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
+										jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.RespArgName()), jen.Err()),
 										jen.Return(),
 									))
 								}
@@ -212,7 +212,7 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 								g.If(jen.Id(paramName).Op("!=").Lit("")).Block(
 									jen.Add(gen.ParseValue(jen.Id(paramName), jen.Id(paramVarName), "=", p.Type, b.qualifier.Qual, func() jen.Code {
 										return jen.Do(gen.CheckErr(
-											jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
+											jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.RespArgName()), jen.Err()),
 											jen.Return(),
 										))
 									})),
@@ -261,7 +261,7 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 					})
 					if ep.Error != nil {
 						g.Do(gen.CheckErr(
-							jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
+							jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.RespArgName()), jen.Err()),
 							jen.Return(),
 						))
 					}
@@ -291,7 +291,7 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 									jen.Id(nameAcceptType).Op("=").Lit("application/json"),
 									jen.List(jen.Id("respData"), jen.Err()).Op("=").Qual("encoding/json", "Marshal").Call(jen.Id("resp")),
 									jen.Do(gen.CheckErr(
-										jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
+										jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.RespArgName()), jen.Err()),
 										jen.Return(),
 									)),
 								)
@@ -301,7 +301,7 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 										g.Case(jen.Lit("application/xml")).Block(
 											jen.List(jen.Id("respData"), jen.Err()).Op("=").Qual("encoding/xml", "Marshal").Call(jen.Id("resp")),
 											jen.Do(gen.CheckErr(
-												jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
+												jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.RespArgName()), jen.Err()),
 												jen.Return(),
 											)),
 										)
@@ -312,7 +312,7 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 						} else {
 							g.List(jen.Id("respData"), jen.Err()).Op("=").Qual("encoding/json", "Marshal").Call(jen.Id("resp"))
 							g.Do(gen.CheckErr(
-								jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.ReqArgName()), jen.Err()),
+								jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.RespArgName()), jen.Err()),
 								jen.Return(),
 							))
 							g.Add(b.handlerStrategy.WriteBody(jen.Id("respData"), jen.Lit("application/json"), 200))
