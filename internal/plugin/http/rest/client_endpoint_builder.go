@@ -1,8 +1,6 @@
 package rest
 
 import (
-	"fmt"
-
 	"github.com/555f/gg/internal/plugin/http/options"
 	"github.com/555f/gg/pkg/gen"
 	"github.com/555f/gg/pkg/strcase"
@@ -120,7 +118,6 @@ func (b *clientEndpointBuilder) BuildMethod() ClientEndpointBuilder {
 					}
 				}
 			}).CustomFunc(jen.Options{}, func(g *jen.Group) {
-
 				buildSetters := func(params options.EndpointParams) {
 					for _, param := range params {
 						if param.Required {
@@ -132,7 +129,6 @@ func (b *clientEndpointBuilder) BuildMethod() ClientEndpointBuilder {
 							methodSetName = param.Parent.FldName + param.FldName
 							fldName = jen.Id(param.Parent.FldNameUnExport).Dot(param.FldName)
 						}
-						fmt.Println(methodSetName)
 						g.Dot("Set" + methodSetName).Call(fldName)
 					}
 				}
