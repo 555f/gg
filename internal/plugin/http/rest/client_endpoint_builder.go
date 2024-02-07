@@ -118,18 +118,26 @@ func (b *clientEndpointBuilder) BuildMethod() ClientEndpointBuilder {
 					}
 				}
 			}).CustomFunc(jen.Options{}, func(g *jen.Group) {
-				for _, param := range append(b.ep.BodyParams, b.ep.QueryParams...) {
-					if param.Required {
-						continue
+				buildSetters := func(params options.EndpointParams) {
+					for _, param := range params {
+						if param.Required {
+							continue
+						}
+						methodSetName := param.FldName
+						fldName := jen.Id(param.FldNameUnExport)
+						if param.Parent != nil {
+							methodSetName = param.Parent.FldName + param.FldName
+							fldName = jen.Id(param.Parent.FldNameUnExport).Dot(param.FldName)
+						}
+						g.Dot("Set" + methodSetName).Call(fldName)
 					}
-					methodSetName := param.FldName
-					fldName := jen.Id(param.FldNameUnExport)
-					if param.Parent != nil {
-						methodSetName = param.Parent.FldName + param.FldName
-						fldName = jen.Id(param.Parent.FldNameUnExport).Dot(param.FldName)
-					}
-					g.Dot("Set" + methodSetName).Call(fldName)
 				}
+
+				buildSetters(b.ep.BodyParams)
+				buildSetters(b.ep.QueryParams)
+				buildSetters(b.ep.HeaderParams)
+				buildSetters(b.ep.CookieParams)
+
 			}).Dot("Execute").Call()
 			g.Return()
 		}))
