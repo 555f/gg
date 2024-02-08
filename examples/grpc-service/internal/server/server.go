@@ -7,55 +7,19 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	controller "github.com/555f/gg/examples/grpc-service/internal/usecase/controller"
-	jsonrpc "github.com/555f/jsonrpc"
-	"net/http"
 )
 
-// test
-
-type ProfileControllerOption func(*ProfileControllerOptions)
-type ProfileControllerOptions struct {
-	middleware       []jsonrpc.Option
-	middlewareCreate []jsonrpc.Option
-	middlewareRemove []jsonrpc.Option
+type routeProfileController struct {
+	svc controller.ProfileController
 }
 
-func ProfileControllerMiddleware(middleware ...jsonrpc.Option) ProfileControllerOption {
-	return func(o *ProfileControllerOptions) {
-		o.middleware = append(o.middleware, middleware...)
-	}
+func (r *routeProfileController) Create(ctx context.Context, req *CreateRequest) (*CreateResponse, error) {
+	r.svc.Create(req.Token, req.FirstName, req.LastName, req.Address, int(req.Old))
+	return nil, nil
 }
-func ProfileControllerCreateMiddleware(middleware ...jsonrpc.Option) ProfileControllerOption {
-	return func(o *ProfileControllerOptions) {
-		o.middlewareCreate = append(o.middlewareCreate, middleware...)
-	}
+func (r *routeProfileController) Remove(ctx context.Context, req *RemoveRequest) (*RemoveResponse, error) {
+	r.svc.Remove(req.Id)
+	return nil, nil
 }
-func ProfileControllerRemoveMiddleware(middleware ...jsonrpc.Option) ProfileControllerOption {
-	return func(o *ProfileControllerOptions) {
-		o.middlewareRemove = append(o.middlewareRemove, middleware...)
-	}
-}
-func SetupRoutesProfileController(svc controller.ProfileController, r *jsonrpc.Server, opts ...ProfileControllerOption) {
-	o := &ProfileControllerOptions{}
-	for _, opt := range opts {
-		opt(o)
-	}
-	r.Register("Create", profileControllerCreateEndpoint(svc), func(ctx context.Context, r *http.Request, params json.RawMessage) (req any, err error) {
-
-		req, err = profileControllerCreateReqDec(params)
-		if err != nil {
-			return
-		}
-		return
-	}, append(o.middleware, o.middlewareCreate...)...)
-	r.Register("Remove", profileControllerRemoveEndpoint(svc), func(ctx context.Context, r *http.Request, params json.RawMessage) (req any, err error) {
-
-		req, err = profileControllerRemoveReqDec(params)
-		if err != nil {
-			return
-		}
-		return
-	}, append(o.middleware, o.middlewareRemove...)...)
-}
+func NewServer() {}

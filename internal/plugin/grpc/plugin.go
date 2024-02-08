@@ -1,4 +1,4 @@
-package jsonrpc
+package grpc
 
 import (
 	"go/token"
@@ -10,6 +10,9 @@ import (
 	"github.com/555f/gg/pkg/errors"
 	"github.com/555f/gg/pkg/file"
 	"github.com/555f/gg/pkg/gg"
+	"github.com/555f/gg/pkg/strcase"
+	"github.com/555f/gg/pkg/types"
+	"github.com/dave/jennifer/jen"
 	"github.com/hashicorp/go-multierror"
 )
 
@@ -93,10 +96,60 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 		}
 	}
 
+	var walkNamedStruct func(t any, visited map[string]struct{}, fn func(named *types.Named))
+	walkNamedStruct = func(t any, visited map[string]struct{}, fn func(named *types.Named)) {
+		named, ok := t.(*types.Named)
+		if !ok {
+			return
+		}
+		visitID := named.Pkg.Path + named.Name
+		if _, ok := visited[visitID]; ok {
+			return
+		}
+
+		s := named.Struct()
+		if s == nil {
+			return
+		}
+		fn(named)
+
+		visited[visitID] = struct{}{}
+
+		for _, sf := range s.Fields {
+			walkNamedStruct(sf.Var.Type, visited, fn)
+		}
+	}
+
 	for _, s := range serverServices {
 		for _, ep := range s.Endpoints {
-			f.WriteText("message %sRequest {}\n", ep.RPCMethodName)
-			f.WriteText("message %sResponse {}\n", ep.RPCMethodName)
+			for _, p := range ep.Results {
+
+				walkNamedStruct(p.Type, map[string]struct{}{}, func(named *types.Named) {
+					f.WriteText("message %s {", named.Name)
+					for i, sf := range named.Struct().Fields {
+						f.WriteText("%s %s = %d; ", goType2GRPC(sf.Var.Type), strcase.ToLowerCamel(sf.Var.Name), i+1)
+					}
+					f.WriteText("}\n")
+				})
+			}
+		}
+	}
+
+	for _, s := range serverServices {
+		for _, ep := range s.Endpoints {
+			f.WriteText("message %sRequest {", ep.RPCMethodName)
+
+			for _, p := range ep.Params {
+				f.WriteText("%s %s = %s; ", goType2GRPC(p.Type), p.FldNameUnExport, p.Version)
+			}
+
+			f.WriteText("}\n")
+
+			f.WriteText("message %sResponse {", ep.RPCMethodName)
+			for _, p := range ep.Results {
+				f.WriteText("%s %s = %s; ", goType2GRPC(p.Type), p.FldNameUnExport, p.Version)
+			}
+			f.WriteText("}\n")
 		}
 	}
 
@@ -118,28 +171,68 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 	// clientBuilder := gen.NewBaseClientBuilder(clientFile)
 
 	if len(serverServices) > 0 {
-		serverBuilder.RegisterHandlerStrategy("default", func() gen.HandlerStrategy {
-			return gen.NewHandlerStrategyGRPC()
-		})
+		for _, s := range serverServices {
+			routeName := "route" + s.Name
 
-		for _, iface := range serverServices {
-			controllerBuilder := serverBuilder.Controller(iface)
+			serverFile.Type().Id(routeName).Struct(
+				jen.Id("svc").Do(serverFile.Import(s.PkgPath, s.Name)),
+			)
 
-			controllerBuilder.BuildHandlers()
+			for _, ep := range s.Endpoints {
+				requestName := ep.RPCMethodName + "Request"
+				responseName := ep.RPCMethodName + "Response"
 
-			// 		for _, ep := range iface.Endpoints {
-			// 			controllerBuilder.Endpoint(ep).BuildReqStruct().
-			// 				BuildReqDec().
-			// 				BuildRespStruct().
-			// 				Build()
-			// 		}
+				serverFile.Func().Params(jen.Id("r").Op("*").Id(routeName)).Id(ep.RPCMethodName).Params(
+					jen.Id("ctx").Qual("context", "Context"),
+					jen.Id("req").Op("*").Id(requestName),
+				).Params(
+					jen.Op("*").Id(responseName),
+					jen.Error(),
+				).BlockFunc(func(g *jen.Group) {
+					var params []jen.Code
+					for _, p := range ep.Params {
+						switch t := p.Type.(type) {
+						case *types.Basic:
+							switch {
+							default:
+								params = append(params, jen.Id("req").Dot(p.FldName))
+							case t.IsInt():
+								params = append(params, jen.Id("int").Call(jen.Id("req").Dot(p.FldName)))
+							}
+						}
+					}
+
+					g.Id("r").Dot("svc").Dot(ep.MethodName).Call(params...)
+					g.Return(jen.Nil(), jen.Nil())
+				},
+				)
+			}
 		}
 
-		serverFile.Comment("// test")
+		// serverBuilder.RegisterHandlerStrategy("default", func() gen.HandlerStrategy {
+		// 	return gen.NewHandlerStrategyGRPC()
+		// })
+
+		// for _, iface := range serverServices {
+		// 	controllerBuilder := serverBuilder.Controller(iface)
+
+		// 	controllerBuilder.BuildHandlers()
+
+		// 	// 		for _, ep := range iface.Endpoints {
+		// 	// 			controllerBuilder.Endpoint(ep).BuildReqStruct().
+		// 	// 				BuildReqDec().
+		// 	// 				BuildRespStruct().
+		// 	// 				Build()
+		// 	// 		}
+		// }
+
+		// // serverFile.Comment("// test")
 
 		files = append(files, serverFile)
 		serverFile.Add(serverBuilder.Build())
 	}
+
+	serverFile.Func().Id("NewServer").Params().Block()
 
 	// if len(clientServices) > 0 {
 	// 	for _, iface := range clientServices {

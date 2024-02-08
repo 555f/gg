@@ -38,6 +38,7 @@ func makeEndpointParam(
 		Type:            param.Type,
 		Zero:            param.Zero,
 		Required:        opts.Required,
+		Version:         opts.Version,
 	}
 	tagFmt := "lowerCamel"
 	if opts.Format != "" {

@@ -27,4 +27,7 @@ gen-examples-rest-service-echo:
 	 go run cmd/gg/main.go run  --config examples/rest-service-echo/gg.yaml
 
 gen-examples-rest-service-chi:
-	 go run cmd/gg/main.go run  --config examples/rest-service-chi/gg.yaml	 
+	 go run cmd/gg/main.go run  --config examples/rest-service-chi/gg.yaml
+
+gen-examples-grpc:
+	 go run cmd/gg/main.go run  --config examples/grpc-service/gg.yaml

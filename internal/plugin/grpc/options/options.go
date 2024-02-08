@@ -121,6 +121,7 @@ type EndpointParam struct {
 	IsVariadic      bool
 	Zero            string
 	Required        bool
+	Version         string
 	Params          EndpointParams
 }
 
@@ -133,6 +134,7 @@ type EndpointResult struct {
 	FldNameUnExport string
 	Format          string
 	Omitempty       bool
+	Version         string
 }
 
 func Decode(iface *gg.Interface) (opts Iface, errs error) {
@@ -238,6 +240,9 @@ func paramDecode(param *types.Var) (opts EndpointParam, err error) {
 			}
 		}
 	}
+	if t, ok := param.Tags.Get("grpc-version"); ok {
+		opts.Version = t.Value
+	}
 	if _, ok := param.Tags.Get("grpc-required"); ok {
 		opts.Required = true
 	}
@@ -267,6 +272,9 @@ func resultDecode(result *types.Var) (opts EndpointResult, err error) {
 			tagFmt = "lowerCamel"
 		}
 		opts.Name = formatName(result.Name, tagFmt)
+	}
+	if t, ok := result.Tags.Get("grpc-version"); ok {
+		opts.Version = t.Value
 	}
 	return
 }

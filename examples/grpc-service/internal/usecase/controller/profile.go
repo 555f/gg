@@ -10,22 +10,27 @@ import (
 // Методы для работы с профилем пользователя
 // @gg:"grpc"
 // @grpc-server
-// @grpc-interface:"~/examples/grpc-service/internal/interface/controller/pb.GreeterServer"
 type ProfileController interface {
 	// Create Создать профиль
-	// @jsonrpc-name:"profile.create"
 	Create(
+		// @grpc-version:"1"
 		token string,
+		// @grpc-version:"2"
 		firstName string,
+		// @grpc-version:"3"
 		lastName string,
+		// @grpc-version:"4"
 		address string,
+		// @grpc-version:"5"
+		old int,
 	) (
+		// @grpc-version:"1"
 		profile *dto.Profile,
 		err error,
 	)
 	// Remove Удалить профиль
-	// @jsonrpc-name:"profile.delete"
 	Remove(
+		// @grpc-version:"1"
 		id string,
 	) (
 		err error,

@@ -4,9 +4,11 @@ option go_package = "github.com/555f/gg/examples/grpc-service/internal/server";
 
 package server;
 
-message CreateRequest {}
-message CreateResponse {}
-message RemoveRequest {}
+message Profile {string fistName = 1; string lastName = 2; Address address = 3; }
+message Address {string street = 1; int64 apt = 2; }
+message CreateRequest {string token = 1; string firstName = 2; string lastName = 3; string address = 4; int64 old = 5; }
+message CreateResponse {Profile profile = 1; }
+message RemoveRequest {string id = 1; }
 message RemoveResponse {}
 service ProfileController {
 rpc Create(CreateRequest) returns (CreateResponse) {}
