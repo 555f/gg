@@ -204,6 +204,8 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 			)),
 			jen.CustomFunc(jen.Options{Multi: true}, func(g *jen.Group) {
 				if len(b.ep.BodyParams) > 0 {
+					g.Id("req").Dot("Header").Dot("Add").Call(jen.Lit("Content-Type"), jen.Lit("application/json"))
+
 					if len(b.ep.BodyParams) == 1 && b.ep.NoWrapRequest {
 						g.Id("body").Op("=").Id(recvName).Dot("params").Dot(b.ep.BodyParams[0].FldNameUnExport)
 					} else {
@@ -267,8 +269,6 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 					}
 					g.Id("req").Dot("URL").Dot("RawQuery").Op("=").Id("q").Dot("Encode").Call()
 				}
-
-				g.Id("req").Dot("Header").Dot("Add").Call(jen.Lit("Content-Type"), jen.Lit("application/json"))
 
 				for _, param := range b.ep.HeaderParams {
 					g.Add(makeParam(param, func(v jen.Code) jen.Code {
