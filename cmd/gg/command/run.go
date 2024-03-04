@@ -5,12 +5,14 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/555f/gg/pkg/errors"
 	"github.com/555f/gg/pkg/gg"
+	"github.com/sanbornm/go-selfupdate/selfupdate"
 
 	"github.com/fatih/color"
 	"github.com/hashicorp/go-multierror"
@@ -31,6 +33,31 @@ var runCmd = &cobra.Command{
 	Short: "Starts code generation",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
+		noSelfUpdate := viper.GetBool("no-selfupdate")
+
+		if !noSelfUpdate {
+			var updater = &selfupdate.Updater{
+				CurrentVersion: cmd.Root().Version,          // Manually update the const, or set it using `go build -ldflags="-X main.VERSION=<newver>" -o hello-updater src/hello-updater/main.go`
+				ApiURL:         "http://51.250.88.10:8081/", // The server hosting `$CmdName/$GOOS-$ARCH.json` which contains the checksum for the binary
+				BinURL:         "http://51.250.88.10:8081/", // The server hosting the zip file containing the binary application which is a fallback for the patch method
+				Dir:            "update/",                   // The directory created by the app when run which stores the cktime file
+				CmdName:        "",                          // The app name which is appended to the ApiURL to look for an update
+				ForceCheck:     true,                        // For this example, always check for an update unless the version is "dev"
+			}
+
+			cmd.Printf("Check latest version...")
+
+			err := updater.BackgroundRun()
+			if err != nil {
+				log.Println("Failed to update app:", err)
+			}
+			if updater.CurrentVersion != updater.Info.Version {
+				cmd.Printf(green(" update to latest version: %s\n"), updater.Info.Version)
+			} else {
+				cmd.Printf(green(" current version latest\n"))
+			}
+		}
+
 		packageNames := viper.GetStringSlice("packages")
 		isDebug := viper.GetBool("debug")
 		configFile := viper.ConfigFileUsed()
@@ -135,29 +162,6 @@ var runCmd = &cobra.Command{
 		} else {
 			cmd.Printf("\nnothing generation\n")
 		}
-
-		// if len(files) > 0 {
-		// 	cmd.Printf(green("\n\nfiles was generated:\n"))
-		// 	for _, f := range files {
-		// 		data, err := f.Bytes()
-		// 		if err != nil {
-		// 			cmd.Printf("%s %s %s: %s", red("𐄂"), red("error during file generation"), yellow(f.Filepath()), red(err))
-		// 			continue
-		// 		}
-		// 		dirPath := filepath.Dir(f.Filepath())
-		// 		if err := os.MkdirAll(dirPath, 0700); err != nil {
-		// 			cmd.Printf("%s %s %s: %s", red("𐄂"), red("error when creating a directory"), yellow(dirPath), red(err))
-		// 			continue
-		// 		}
-		// 		if err := os.WriteFile(f.Filepath(), data, 0700); err != nil {
-		// 			cmd.Printf("%s %s %s: %s", red("𐄂"), red("error when creating a file"), yellow(f.Filepath()), red(err))
-		// 			continue
-		// 		}
-		// 		cmd.Println(green("✓"), f.Filepath())
-		// 	}
-		// } else {
-		// 	cmd.Printf("\nnothing generation\n")
-		// }
 	},
 }
 
@@ -169,4 +173,7 @@ func init() {
 
 	runCmd.Flags().BoolP("debug", "d", false, "Debug mode")
 	_ = viper.BindPFlag("debug", runCmd.Flags().Lookup("debug"))
+
+	runCmd.Flags().BoolP("no-selfupdate", "s", false, "Disable self-update")
+	_ = viper.BindPFlag("no-selfupdate", runCmd.Flags().Lookup("no-selfupdate"))
 }
