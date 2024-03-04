@@ -1,25 +1,28 @@
-VERSION = snapshot
+GO_BIN = $(shell go env GOPATH)/bin
+GOOS = $(shell go env GOOS)
+GOARCH = $(shell go env GOARCH)
 
-.PHONY: build
+build-server-linux:
+	GOOS=linux GOARCH=amd64 go build  -o ./selfupdate-server ./cmd/selfupdate
 
-default: build
+sync:
+	rsync -a selfupdate-server ./public vitaly@51.250.88.10:~/
 
 build:
-	go mod download
-	go build -o ./build/gg ./cmd/gg
+	@./build.sh
 
-install:
-	go install ./cmd/gg
+install: build
+	@cp ./build/${GOOS}-${GOARCH} ${GO_BIN}/gg
 
 chglog:
-	git-chglog -o CHANGELOG.md
+	@git-chglog -o CHANGELOG.md
 
 check:
-	go vet ./...
-	go test -v ./...
+	@go vet ./...
+	@go test -v ./...
 
 css:
-	npx tailwindcss -i ./internal/plugin/http/files/tailwind.css -o ./internal/plugin/http/files/style.css  -c ./internal/plugin/http/files/tailwind.config.js --watch
+	@npx tailwindcss -i ./internal/plugin/http/files/tailwind.css -o ./internal/plugin/http/files/style.css  -c ./internal/plugin/http/files/tailwind.config.js --watch
 
 gen-examples: gen-examples-rest-service-echo gen-examples-rest-service-chi
 
@@ -31,3 +34,7 @@ gen-examples-rest-service-chi:
 
 gen-examples-grpc:
 	 go run cmd/gg/main.go run  --config examples/grpc-service/gg.yaml
+
+.PHONY: build
+
+default: build
