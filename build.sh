@@ -18,11 +18,15 @@ do
 		output_name+='.exe'
 	fi
 
+	echo "Build ${output_name}..."
+
     GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="-X main.Version=${VERSION}" -o ./build/${output_name} ./cmd/gg
     if [ $? -ne 0 ]; then
    		echo 'An error has occurred! Aborting the script execution...'
 		exit 1
 	fi    
 done
+
+echo "Selfupdate generate..."
 
 go-selfupdate ./build ${VERSION}
