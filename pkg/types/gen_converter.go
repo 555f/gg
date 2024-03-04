@@ -45,11 +45,9 @@ func (c *Converter) Convert(t any) (s *jen.Statement) {
 	case Vars:
 		var params []jen.Code
 		for _, v := range t {
-			var st *jen.Statement
+			var st jen.Statement
 			if !c.onlySign {
-				st = jen.Id(v.Name)
-			} else {
-				st = jen.Id("")
+				st.Id(v.Name)
 			}
 			typ := v.Type
 			if s, ok := typ.(*Slice); ok {
@@ -60,9 +58,11 @@ func (c *Converter) Convert(t any) (s *jen.Statement) {
 				}
 				typ = s.Value
 			}
-
+			if v.IsPointer {
+				st.Op("*")
+			}
 			st.Add(c.Convert(typ))
-			params = append(params, st)
+			params = append(params, &st)
 		}
 		s.Params(params...)
 	case *Sign:
@@ -91,7 +91,17 @@ func (c *Converter) Convert(t any) (s *jen.Statement) {
 		if t.Sig != nil {
 			s.Add(c.Convert(t.Sig))
 		}
+	case *Chan:
+		if t.Dir == RecvOnly {
+			s.Op("<-")
+		}
+		s.Chan()
+		if t.Dir == SendOnly {
+			s.Op("<-")
+		}
+		s.Add(c.Convert(t.Type))
 	}
+
 	return
 }
 

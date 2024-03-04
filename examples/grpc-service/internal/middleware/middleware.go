@@ -8,6 +8,7 @@ package middleware
 import (
 	controller "github.com/555f/gg/examples/grpc-service/internal/usecase/controller"
 	dto "github.com/555f/gg/examples/grpc-service/pkg/dto"
+	"time"
 )
 
 type ProfileControllerMiddleware func(controller.ProfileController) controller.ProfileController
@@ -26,13 +27,13 @@ type profileControllerBaseMiddleware struct {
 	mediator any
 }
 
-func (m *profileControllerBaseMiddleware) Create(token string, firstName string, lastName string, address string) (profile *dto.Profile, err error) {
+func (m *profileControllerBaseMiddleware) Create(token string, firstName string, lastName string, address string, old int, age time.Time, sleep time.Duration) (profile *dto.Profile, err error) {
 	defer func() {
 		if s, ok := m.mediator.(profileControllerCreateBaseMiddleware); ok {
-			s.Create(token, firstName, lastName, address)
+			s.Create(token, firstName, lastName, address, old, age, sleep)
 		}
 	}()
-	return m.next.Create(token, firstName, lastName, address)
+	return m.next.Create(token, firstName, lastName, address, old, age, sleep)
 }
 func (m *profileControllerBaseMiddleware) Remove(id string) (err error) {
 	defer func() {
@@ -42,12 +43,56 @@ func (m *profileControllerBaseMiddleware) Remove(id string) (err error) {
 	}()
 	return m.next.Remove(id)
 }
+func (m *profileControllerBaseMiddleware) Stream(profile chan *dto.Profile) (statistics chan *dto.Statistic, err error) {
+	defer func() {
+		if s, ok := m.mediator.(profileControllerStreamBaseMiddleware); ok {
+			s.Stream(profile)
+		}
+	}()
+	return m.next.Stream(profile)
+}
+func (m *profileControllerBaseMiddleware) Stream2(profile chan *dto.Profile) (err error) {
+	defer func() {
+		if s, ok := m.mediator.(profileControllerStream2BaseMiddleware); ok {
+			s.Stream2(profile)
+		}
+	}()
+	return m.next.Stream2(profile)
+}
+func (m *profileControllerBaseMiddleware) Stream3(profile *dto.Profile) (statistics chan *dto.Statistic, err error) {
+	defer func() {
+		if s, ok := m.mediator.(profileControllerStream3BaseMiddleware); ok {
+			s.Stream3(profile)
+		}
+	}()
+	return m.next.Stream3(profile)
+}
+func (m *profileControllerBaseMiddleware) Update(profile dto.Profile) (err error) {
+	defer func() {
+		if s, ok := m.mediator.(profileControllerUpdateBaseMiddleware); ok {
+			s.Update(profile)
+		}
+	}()
+	return m.next.Update(profile)
+}
 
 type profileControllerCreateBaseMiddleware interface {
-	Create(token string, firstName string, lastName string, address string)
+	Create(token string, firstName string, lastName string, address string, old int, age time.Time, sleep time.Duration)
 }
 type profileControllerRemoveBaseMiddleware interface {
 	Remove(id string)
+}
+type profileControllerStreamBaseMiddleware interface {
+	Stream(profile chan *dto.Profile)
+}
+type profileControllerStream2BaseMiddleware interface {
+	Stream2(profile chan *dto.Profile)
+}
+type profileControllerStream3BaseMiddleware interface {
+	Stream3(profile *dto.Profile)
+}
+type profileControllerUpdateBaseMiddleware interface {
+	Update(profile dto.Profile)
 }
 
 func ProfileControllerBaseMiddleware(mediator any) ProfileControllerMiddleware {

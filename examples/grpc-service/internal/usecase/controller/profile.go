@@ -3,13 +3,18 @@
 package controller
 
 import (
+	"time"
+
 	"github.com/555f/gg/examples/grpc-service/pkg/dto"
 )
 
 // ProfileController Профиль пользователя
 // Методы для работы с профилем пользователя
 // @gg:"grpc"
+// @gg:"middleware"
+// @gg:"klog"
 // @grpc-server
+// @grpc-client
 type ProfileController interface {
 	// Create Создать профиль
 	Create(
@@ -23,11 +28,19 @@ type ProfileController interface {
 		address string,
 		// @grpc-version:"5"
 		old int,
+		// @grpc-version:"6"
+		age time.Time,
+		// @grpc-version:"7"
+		sleep time.Duration,
 	) (
 		// @grpc-version:"1"
 		profile *dto.Profile,
 		err error,
 	)
+	Update(
+		// @grpc-version:"1"
+		profile dto.Profile,
+	) (err error)
 	// Remove Удалить профиль
 	Remove(
 		// @grpc-version:"1"
@@ -35,4 +48,10 @@ type ProfileController interface {
 	) (
 		err error,
 	)
+	Stream(profile chan *dto.Profile) (statistics chan *dto.Statistic, err error)
+	Stream2(profile chan *dto.Profile) (err error)
+	Stream3(
+		// @grpc-version:"1"
+		profile *dto.Profile,
+	) (statistics chan *dto.Statistic, err error)
 }

@@ -1,16 +1,26 @@
 syntax = "proto3";
 
-option go_package = "github.com/555f/gg/examples/grpc-service/internal/server";
+import "google/protobuf/duration.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
 
 package server;
 
-message Profile {string fistName = 1; string lastName = 2; Address address = 3; }
-message Address {string street = 1; int64 apt = 2; }
-message CreateRequest {string token = 1; string firstName = 2; string lastName = 3; string address = 4; int64 old = 5; }
-message CreateResponse {Profile profile = 1; }
-message RemoveRequest {string id = 1; }
-message RemoveResponse {}
+
+option go_package = "github.com/555f/gg/examples/grpc-service/internal/server" ;
+message Profile {int64 id = 1;string fistName = 2;string lastName = 3;Address address = 4;}
+message Address {string street = 1;int64 apt = 2;int32 apt2 = 3;uint32 apt3 = 4;}
+message Statistic {int64 profileID = 1;double sum = 2;google.protobuf.Timestamp createdAt = 3;}
+message CreateRequest {string token = 1;string firstName = 2;string lastName = 3;string address = 4;int64 old = 5;google.protobuf.Timestamp age = 6;google.protobuf.Duration sleep = 7;}
+message CreateResponse {Profile profile = 1;}
+message RemoveRequest {string id = 1;}
+message Stream3Request {Profile profile = 1;}
+message UpdateRequest {Profile profile = 1;}
 service ProfileController {
-rpc Create(CreateRequest) returns (CreateResponse) {}
-rpc Remove(RemoveRequest) returns (RemoveResponse) {}
+rpc Create (CreateRequest) returns (CreateResponse){}
+rpc Remove (RemoveRequest) returns (google.protobuf.Empty){}
+rpc Stream (stream Profile) returns (stream Statistic){}
+rpc Stream2 (stream Profile) returns (google.protobuf.Empty){}
+rpc Stream3 (Stream3Request) returns (stream Statistic){}
+rpc Update (UpdateRequest) returns (google.protobuf.Empty){}
 }

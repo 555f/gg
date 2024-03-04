@@ -53,7 +53,16 @@ func (d *Decoder) normalizeChan(t *stdtypes.Chan) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Chan{Type: tp}, nil
+	ch := &Chan{Type: tp}
+	switch t.Dir() {
+	case stdtypes.RecvOnly:
+		ch.Dir = RecvOnly
+	case stdtypes.SendOnly:
+		ch.Dir = SendOnly
+	case stdtypes.SendRecv:
+		ch.Dir = SendRecv
+	}
+	return ch, nil
 }
 
 func (d *Decoder) normalizeTuple(t *stdtypes.Tuple) (any, error) {
@@ -242,7 +251,12 @@ func (d *Decoder) normalizeNamed(named *stdtypes.Named, isPointer bool) (nt *Nam
 }
 
 func (d *Decoder) normalizeVar(t *stdtypes.Var) (*Var, error) {
-	varType, err := d.normalizeRecursive(t.Type(), false)
+	tp := t.Type()
+	ptr, isPointer := tp.(*stdtypes.Pointer)
+	if isPointer {
+		tp = ptr.Elem()
+	}
+	varType, err := d.normalizeRecursive(tp, false)
 	if err != nil {
 		return nil, err
 	}
@@ -257,6 +271,8 @@ func (d *Decoder) normalizeVar(t *stdtypes.Var) (*Var, error) {
 		IsField:   t.IsField(),
 		IsContext: IsContext(varType),
 		IsError:   IsError(varType),
+		IsChan:    IsChan(varType),
+		IsPointer: isPointer,
 		Type:      varType,
 		Zero:      zeroValue(t.Type().Underlying()),
 		Title:     title + "\n" + description,

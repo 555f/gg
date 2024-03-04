@@ -39,9 +39,9 @@ type ProfileControllerLoggingMiddleware struct {
 	logger log.Logger
 }
 
-func (s *ProfileControllerLoggingMiddleware) Create(token string, firstName string, lastName string, address string) (profile *dto.Profile, err error) {
+func (s *ProfileControllerLoggingMiddleware) Create(token string, firstName string, lastName string, address string, old int, age time.Time, sleep time.Duration) (profile *dto.Profile, err error) {
 	defer func(now time.Time) {
-		logger := log.WithPrefix(s.logger, "message", "call method - Create", "token", "token", token, "firstName", "firstName", firstName, "lastName", "lastName", lastName, "address", "address", address)
+		logger := log.WithPrefix(s.logger, "message", "call method - Create", "token", "token", token, "firstName", "firstName", firstName, "lastName", "lastName", lastName, "address", "address", address, "old", "old", old, "age", "age", age.String(), "sleep", "sleep", sleep.String())
 		if err != nil {
 			if e, ok := err.(errLevel); ok {
 				logger = levelLogger(e, logger)
@@ -58,7 +58,7 @@ func (s *ProfileControllerLoggingMiddleware) Create(token string, firstName stri
 		}
 		_ = logger.Log("dur", time.Since(now))
 	}(time.Now())
-	profile, err = s.next.Create(token, firstName, lastName, address)
+	profile, err = s.next.Create(token, firstName, lastName, address, old, age, sleep)
 	return
 }
 func (s *ProfileControllerLoggingMiddleware) Remove(id string) (err error) {
@@ -81,6 +81,94 @@ func (s *ProfileControllerLoggingMiddleware) Remove(id string) (err error) {
 		_ = logger.Log("dur", time.Since(now))
 	}(time.Now())
 	err = s.next.Remove(id)
+	return
+}
+func (s *ProfileControllerLoggingMiddleware) Stream(profile chan *dto.Profile) (statistics chan *dto.Statistic, err error) {
+	defer func(now time.Time) {
+		logger := log.WithPrefix(s.logger, "message", "call method - Stream")
+		if err != nil {
+			if e, ok := err.(errLevel); ok {
+				logger = levelLogger(e, logger)
+			} else {
+				logger = level.Error(logger)
+			}
+			if e, ok := err.(logError); ok {
+				logger = log.WithPrefix(logger, "err", e.LogError())
+			} else {
+				logger = log.WithPrefix(logger, "err", err)
+			}
+		} else {
+			logger = level.Debug(logger)
+		}
+		_ = logger.Log("dur", time.Since(now))
+	}(time.Now())
+	statistics, err = s.next.Stream(profile)
+	return
+}
+func (s *ProfileControllerLoggingMiddleware) Stream2(profile chan *dto.Profile) (err error) {
+	defer func(now time.Time) {
+		logger := log.WithPrefix(s.logger, "message", "call method - Stream2")
+		if err != nil {
+			if e, ok := err.(errLevel); ok {
+				logger = levelLogger(e, logger)
+			} else {
+				logger = level.Error(logger)
+			}
+			if e, ok := err.(logError); ok {
+				logger = log.WithPrefix(logger, "err", e.LogError())
+			} else {
+				logger = log.WithPrefix(logger, "err", err)
+			}
+		} else {
+			logger = level.Debug(logger)
+		}
+		_ = logger.Log("dur", time.Since(now))
+	}(time.Now())
+	err = s.next.Stream2(profile)
+	return
+}
+func (s *ProfileControllerLoggingMiddleware) Stream3(profile *dto.Profile) (statistics chan *dto.Statistic, err error) {
+	defer func(now time.Time) {
+		logger := log.WithPrefix(s.logger, "message", "call method - Stream3")
+		if err != nil {
+			if e, ok := err.(errLevel); ok {
+				logger = levelLogger(e, logger)
+			} else {
+				logger = level.Error(logger)
+			}
+			if e, ok := err.(logError); ok {
+				logger = log.WithPrefix(logger, "err", e.LogError())
+			} else {
+				logger = log.WithPrefix(logger, "err", err)
+			}
+		} else {
+			logger = level.Debug(logger)
+		}
+		_ = logger.Log("dur", time.Since(now))
+	}(time.Now())
+	statistics, err = s.next.Stream3(profile)
+	return
+}
+func (s *ProfileControllerLoggingMiddleware) Update(profile dto.Profile) (err error) {
+	defer func(now time.Time) {
+		logger := log.WithPrefix(s.logger, "message", "call method - Update")
+		if err != nil {
+			if e, ok := err.(errLevel); ok {
+				logger = levelLogger(e, logger)
+			} else {
+				logger = level.Error(logger)
+			}
+			if e, ok := err.(logError); ok {
+				logger = log.WithPrefix(logger, "err", e.LogError())
+			} else {
+				logger = log.WithPrefix(logger, "err", err)
+			}
+		} else {
+			logger = level.Debug(logger)
+		}
+		_ = logger.Log("dur", time.Since(now))
+	}(time.Now())
+	err = s.next.Update(profile)
 	return
 }
 func LoggingProfileControllerMiddleware(logger log.Logger) middleware.ProfileControllerMiddleware {

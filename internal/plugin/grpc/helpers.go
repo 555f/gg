@@ -1,6 +1,9 @@
 package grpc
 
 import (
+	"fmt"
+
+	"github.com/555f/gg/internal/plugin/grpc/options"
 	"github.com/555f/gg/pkg/types"
 
 	stdtypes "go/types"
@@ -28,12 +31,30 @@ func goType2GRPC(v any) string {
 			return "string"
 		}
 	case *types.Named:
+		switch t.Pkg.Name {
+		case "time":
+			switch t.Name {
+			case "Duration":
+				return "google.protobuf.Duration"
+			case "Time":
+				return "google.protobuf.Timestamp"
+			}
+		}
 		return t.Name
+	case *types.Slice:
+		if b, ok := t.Value.(*types.Basic); ok && b.IsByte() {
+			return "bytes"
+		}
+		return "repeated " + goType2GRPC(t.Value)
 	case *types.Array:
 		if b, ok := t.Value.(*types.Basic); ok && b.IsByte() {
 			return "bytes"
 		}
 		return "repeated " + goType2GRPC(t.Value)
 	}
-	panic("unknown go type")
+	panic(fmt.Sprintf("unknown go type: %T", v))
+}
+
+func hasResponseEndpoint(ep options.Endpoint) bool {
+	return (ep.InStream == nil && ep.OutStream == nil)
 }
