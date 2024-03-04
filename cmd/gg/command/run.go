@@ -12,6 +12,7 @@ import (
 
 	"github.com/555f/gg/pkg/errors"
 	"github.com/555f/gg/pkg/gg"
+	"github.com/manifoldco/promptui"
 	"github.com/sanbornm/go-selfupdate/selfupdate"
 
 	"github.com/fatih/color"
@@ -30,7 +31,7 @@ var (
 // runCmd represents the init command
 var runCmd = &cobra.Command{
 	Use:   "run",
-	Short: "Starts code generation",
+	Short: "Start code generation",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
 		noSelfUpdate := viper.GetBool("no-selfupdate")
@@ -44,17 +45,24 @@ var runCmd = &cobra.Command{
 				CmdName:        "",                          // The app name which is appended to the ApiURL to look for an update
 				ForceCheck:     true,                        // For this example, always check for an update unless the version is "dev"
 			}
-
-			cmd.Printf("Check latest version...")
-
-			err := updater.BackgroundRun()
+			version, err := updater.UpdateAvailable()
 			if err != nil {
-				log.Println("Failed to update app:", err)
+				cmd.Printf(red("Check update failed %v\n"), err)
+				return
 			}
-			if updater.CurrentVersion != updater.Info.Version {
-				cmd.Printf(green(" update to latest version: %s\n"), updater.Info.Version)
-			} else {
-				cmd.Printf(green(" current version latest\n"))
+			if version != "" {
+				prompt := promptui.Prompt{
+					Label:     "Do you have update",
+					IsConfirm: true,
+				}
+				result, _ := prompt.Run()
+				if result == "y" || result == "yes" {
+					err := updater.BackgroundRun()
+					if err != nil {
+						log.Println("Failed to update app:", err)
+					}
+					cmd.Printf(green("Update to latest version: %s\n"), updater.Info.Version)
+				}
 			}
 		}
 
