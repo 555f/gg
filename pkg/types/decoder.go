@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/constant"
 	"go/token"
+
 	stdtypes "go/types"
 	"path/filepath"
 	"strings"
@@ -349,6 +350,8 @@ func (d *Decoder) normalizeRecursive(t any, isPointer bool) (any, error) {
 	switch t := t.(type) {
 	case *stdpackages.Module:
 		return d.normalizeModule(t)
+	case *stdtypes.TypeParam:
+		return nil, nil // TODO: fix generic types
 	case *stdtypes.PkgName:
 		return d.normalizePkg(t.Pkg())
 	case *stdtypes.Var:
@@ -380,7 +383,7 @@ func (d *Decoder) normalizeRecursive(t any, isPointer bool) (any, error) {
 	case *stdtypes.Tuple:
 		return d.normalizeTuple(t)
 	}
-	return nil, fmt.Errorf("unknown type: %T", t)
+	return nil, fmt.Errorf("unknown type: %s", t)
 }
 
 func (d *Decoder) findFuncReturn(targetFn *Func) (values []any, err error) {

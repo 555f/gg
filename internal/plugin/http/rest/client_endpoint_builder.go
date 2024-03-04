@@ -347,6 +347,9 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 						jen.Default().Block(jen.Id("reader").Op("=").Id("resp").Dot("Body")),
 						jen.Case(jen.Lit("gzip")).Block(
 							jen.List(jen.Id("reader"), jen.Err()).Op("=").Qual("compress/gzip", "NewReader").Call(jen.Id("resp").Dot("Body")),
+							jen.Do(gen.CheckErr(
+								jen.Return(),
+							)),
 							jen.Defer().Id("reader").Dot("Close").Call(),
 						),
 					)
