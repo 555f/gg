@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 VERSION=$(gitver show)
-PLATFORMS=("windows/amd64" "windows/386" "darwin/arm64" "linux/arm64" "linux/amd64")
+PLATFORMS=("windows/amd64" "windows/386" "darwin/arm64" "darwin/amd64" "linux/arm64" "linux/amd64")
 PACKAGE_NAME="github.com/555f/gg"
 
 go mod download

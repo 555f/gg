@@ -6,7 +6,7 @@ build-server-linux:
 	GOOS=linux GOARCH=amd64 go build  -o ./selfupdate-server ./cmd/selfupdate
 
 sync:
-	rsync -a selfupdate-server ./public vitaly@51.250.88.10:~/
+	rsync -a --delete selfupdate-server ./public vitaly@51.250.88.10:~/
 
 build:
 	@./build.sh
