@@ -12,8 +12,8 @@ import (
 
 	"github.com/555f/gg/pkg/errors"
 	"github.com/555f/gg/pkg/gg"
+	"github.com/555f/selfupdate"
 	"github.com/manifoldco/promptui"
-	"github.com/sanbornm/go-selfupdate/selfupdate"
 
 	"github.com/fatih/color"
 	"github.com/hashicorp/go-multierror"
@@ -51,17 +51,20 @@ var runCmd = &cobra.Command{
 				return
 			}
 			if version != "" {
+				cmd.Print(green("Update available!!!\n"))
+
 				prompt := promptui.Prompt{
 					Label:     "Do you have update",
 					IsConfirm: true,
 				}
 				result, _ := prompt.Run()
 				if result == "y" || result == "yes" {
-					err := updater.BackgroundRun()
+					err := updater.Run()
 					if err != nil {
 						log.Println("Failed to update app:", err)
 					}
-					cmd.Printf(green("Update to latest version: %s\n"), updater.Info.Version)
+					cmd.Printf(green("Update to latest version: %s success, run command again.\n"), updater.Info.Version)
+					return
 				}
 			}
 		}

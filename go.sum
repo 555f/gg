@@ -48,6 +48,8 @@ github.com/555f/jsonrpc v0.0.0-20230728100528-9c89330d2af5 h1:GpdMbvNucpI05YSmBM
 github.com/555f/jsonrpc v0.0.0-20230728100528-9c89330d2af5/go.mod h1:oEJKytVn8CWiLAo5H94wkU8d4dy4BRFsmucicwLu1CE=
 github.com/555f/jsonrpc v0.0.0-20230928132107-600256798a49 h1:C8FZ6FB3IZ3MXtDA8Pf8cPHZkMp2e3hEW0Xp+dvfsKw=
 github.com/555f/jsonrpc v0.0.0-20230928132107-600256798a49/go.mod h1:oEJKytVn8CWiLAo5H94wkU8d4dy4BRFsmucicwLu1CE=
+github.com/555f/selfupdate v1.0.0 h1:NosU/R6CpnkeefuNUwA737AgErA5VpYgATZ2YRGoVJU=
+github.com/555f/selfupdate v1.0.0/go.mod h1:Jp+djeCk5MuJDsZN/+DuTpba52FEWowLzOI2NTlgAHs=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/alecthomas/chroma v0.10.0 h1:7XDcGkCQopCNKjZHfYrNLraA+M7e0fMiJ/Mfikbfjek=

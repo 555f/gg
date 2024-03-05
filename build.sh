@@ -29,4 +29,4 @@ done
 
 echo "Selfupdate generate..."
 
-go-selfupdate ./build ${VERSION}
+selfupdatectl ./build ${VERSION}

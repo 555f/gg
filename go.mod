@@ -1,6 +1,8 @@
 module github.com/555f/gg
 
-go 1.19
+go 1.21
+
+toolchain go1.21.7
 
 require (
 	github.com/555f/curlbuilder v1.0.1
@@ -22,6 +24,7 @@ require (
 
 require (
 	github.com/555f/jsonrpc v0.0.0-20230928132107-600256798a49 // indirect
+	github.com/555f/selfupdate v1.0.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect

@@ -3,7 +3,7 @@ GOOS = $(shell go env GOOS)
 GOARCH = $(shell go env GOARCH)
 
 build-server-linux:
-	GOOS=linux GOARCH=amd64 go build  -o ./selfupdate-server ./cmd/selfupdate
+	GOOS=linux GOARCH=amd64 go build ./cmd/selfupdate-server
 
 sync:
 	rsync -a --delete selfupdate-server ./public vitaly@51.250.88.10:~/
