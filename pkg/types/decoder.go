@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/constant"
 	"go/token"
+
 	stdtypes "go/types"
 	"path/filepath"
 	"strings"
@@ -53,7 +54,16 @@ func (d *Decoder) normalizeChan(t *stdtypes.Chan) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Chan{Type: tp}, nil
+	ch := &Chan{Type: tp}
+	switch t.Dir() {
+	case stdtypes.RecvOnly:
+		ch.Dir = RecvOnly
+	case stdtypes.SendOnly:
+		ch.Dir = SendOnly
+	case stdtypes.SendRecv:
+		ch.Dir = SendRecv
+	}
+	return ch, nil
 }
 
 func (d *Decoder) normalizeTuple(t *stdtypes.Tuple) (any, error) {
@@ -215,7 +225,17 @@ func (d *Decoder) normalizeNamed(named *stdtypes.Named, isPointer bool) (nt *Nam
 		return nil, err
 	}
 
-	_, isStruct := nt.Type.(*Struct)
+	var isStruct bool
+	if st, ok := nt.Type.(*Struct); ok {
+		isStruct = true
+		for _, f := range st.Fields {
+			if f.Var.Embedded {
+				if named, ok := f.Var.Type.(*Named); ok {
+					nt.Methods = append(nt.Methods, named.Methods...)
+				}
+			}
+		}
+	}
 
 	for i := 0; i < named.NumMethods(); i++ {
 		method, err := d.normalizeFunc(named.Method(i))
@@ -235,7 +255,12 @@ func (d *Decoder) normalizeNamed(named *stdtypes.Named, isPointer bool) (nt *Nam
 }
 
 func (d *Decoder) normalizeVar(t *stdtypes.Var) (*Var, error) {
-	varType, err := d.normalizeRecursive(t.Type(), false)
+	tp := t.Type()
+	ptr, isPointer := tp.(*stdtypes.Pointer)
+	if isPointer {
+		tp = ptr.Elem()
+	}
+	varType, err := d.normalizeRecursive(tp, false)
 	if err != nil {
 		return nil, err
 	}
@@ -250,6 +275,8 @@ func (d *Decoder) normalizeVar(t *stdtypes.Var) (*Var, error) {
 		IsField:   t.IsField(),
 		IsContext: IsContext(varType),
 		IsError:   IsError(varType),
+		IsChan:    IsChan(varType),
+		IsPointer: isPointer,
 		Type:      varType,
 		Zero:      zeroValue(t.Type().Underlying()),
 		Title:     title + "\n" + description,
@@ -326,6 +353,8 @@ func (d *Decoder) normalizeRecursive(t any, isPointer bool) (any, error) {
 	switch t := t.(type) {
 	case *stdpackages.Module:
 		return d.normalizeModule(t)
+	case *stdtypes.TypeParam:
+		return nil, nil // TODO: fix generic types
 	case *stdtypes.PkgName:
 		return d.normalizePkg(t.Pkg())
 	case *stdtypes.Var:
@@ -357,7 +386,7 @@ func (d *Decoder) normalizeRecursive(t any, isPointer bool) (any, error) {
 	case *stdtypes.Tuple:
 		return d.normalizeTuple(t)
 	}
-	return nil, fmt.Errorf("unknown type: %T", t)
+	return nil, fmt.Errorf("unknown type: %s", t)
 }
 
 func (d *Decoder) findFuncReturn(targetFn *Func) (values []any, err error) {

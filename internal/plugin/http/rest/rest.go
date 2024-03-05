@@ -32,22 +32,12 @@ type HandlerFuncBuilder interface {
 }
 
 type ServerControllerBuilder interface {
-	Endpoint(ep options.Endpoint) ServerEndpointBuilder
-	BuildHandlers() ServerControllerBuilder
-}
-
-type ServerEndpointBuilder interface {
-	BuildReqStruct() ServerEndpointBuilder
-	BuildRespStruct() ServerEndpointBuilder
-	BuildReqDec() ServerEndpointBuilder
-	BuildRespEnc() ServerEndpointBuilder
-	Build()
+	Build() ServerControllerBuilder
 }
 
 type ServerBuilder interface {
 	SetErrorWrapper(errorWrapper *options.ErrorWrapper) ServerBuilder
 	Build() jen.Code
-	BuildTypes() ServerBuilder
 	Controller(iface options.Iface) ServerControllerBuilder
 }
 
@@ -70,24 +60,24 @@ type ClientEndpointBuilder interface {
 
 type HandlerStrategy interface {
 	ID() string
-	ReqType() (typ jen.Code)
 	ReqArgName() string
 	RespType() (typ jen.Code)
 	RespArgName() string
 	LibType() (typ jen.Code)
 	LibArgName() string
-	QueryParams() (typ jen.Code)
+	Context() jen.Code
 	QueryParam(queryName string) (name string, typ jen.Code)
 	PathParam(pathName string) (name string, typ jen.Code)
 	HeaderParam(headerName string) (name string, typ jen.Code)
 	BodyPathParam() (typ jen.Code)
 	FormParam(formName string) (name string, typ jen.Code)
 	MultipartFormParam(formName string) (name string, typ jen.Code)
-	FormParams() (typ jen.Code)
-	MultipartFormParams(multipartMaxMemory int64) (typ jen.Code)
+	FormParams() (typ jen.Code, hasErr bool)
+	MultipartFormParams(multipartMaxMemory int64) (typ jen.Code, hasErr bool)
 	MiddlewareType() jen.Code
-	HandlerFunc(method, pattern string, result, middlewares jen.Code, bodyFunc ...jen.Code) (typ jen.Code)
+	HandlerFunc(method, pattern string, middlewares jen.Code, handlerFunc func(g *jen.Group)) (typ jen.Code)
 	SetHeader(k, v jen.Code) (typ jen.Code)
 	UsePathParams() bool
 	WriteError(statusCode, data jen.Code) (typ jen.Code)
+	WriteBody(data, contentType jen.Code, statusCode int) (typ jen.Code)
 }

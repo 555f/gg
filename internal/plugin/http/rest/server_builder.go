@@ -59,6 +59,11 @@ func (b *BaseServerBuilder) Build() jen.Code {
 
 				g.Add(handleStrategy.WriteError(jen.Id("statusCode"), jen.Id("err")))
 			}),
+
+			jen.Func().Id("encodeBody").Params(
+				jen.Id("rw").Do(b.qualifier.Qual(httpPkg, "ResponseWriter")),
+				jen.Id("data").Any(),
+			).Block(),
 		)
 	}
 
@@ -68,21 +73,6 @@ func (b *BaseServerBuilder) Build() jen.Code {
 	statements = append(statements, b.codes...)
 
 	return jen.Custom(jen.Options{Multi: true}, statements...)
-}
-
-func (b *BaseServerBuilder) SetErrorWrapper(errorWrapper *options.ErrorWrapper) ServerBuilder {
-	b.errorWrapper = errorWrapper
-	return b
-}
-
-func (b *BaseServerBuilder) BuildTypes() ServerBuilder {
-	b.typesStatement = jen.Custom(
-		jen.Options{Multi: true},
-		jen.Type().Id("contentTypeInvalidError").Struct(),
-		jen.Func().Params(jen.Op("*").Id("contentTypeInvalidError")).Id("Error").Params().String().Block(jen.Return(jen.Lit("Unsupported Media Type"))),
-		jen.Func().Params(jen.Op("*").Id("contentTypeInvalidError")).Id("StatusCode").Params().Int().Block(jen.Return(jen.Lit(415))),
-	)
-	return b
 }
 
 func (b *BaseServerBuilder) RegisterHandlerStrategy(name string, f HandlerStrategyBuilderFactory) {
@@ -101,10 +91,11 @@ func (b *BaseServerBuilder) Controller(iface options.Iface) ServerControllerBuil
 	return &serverControllerBuilder{BaseServerBuilder: b, iface: iface, handlerStrategy: handlerStrategy}
 }
 
-func NewServerBuilder(qualifier Qualifier) *BaseServerBuilder {
+func NewServerBuilder(qualifier Qualifier, errorWrapper *options.ErrorWrapper) *BaseServerBuilder {
 	return &BaseServerBuilder{
 		qualifier:            qualifier,
 		handlerStrategies:    map[string]HandlerStrategyBuilderFactory{},
 		loadedHandleStrategy: map[string]HandlerStrategy{},
+		errorWrapper:         errorWrapper,
 	}
 }

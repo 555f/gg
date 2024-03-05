@@ -55,6 +55,7 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 	)
 	errorWrapperPath := p.ctx.Options.GetString("error-wrapper")
 	defaultErrorPath := p.ctx.Options.GetString("error-default")
+	isCheckStrict := p.ctx.Options.GetBoolWithDefault("strict", true)
 
 	var (
 		serverServices  []options.Iface
@@ -75,7 +76,7 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 		}
 	}
 	for _, iface := range p.ctx.Interfaces {
-		s, err := options.Decode(iface)
+		s, err := options.Decode(iface, isCheckStrict)
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		}
@@ -130,7 +131,7 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 	clientFile := file.NewGoFile(p.ctx.Module, clientOutput)
 	clientFile.SetVersion(p.ctx.Version)
 
-	serverBuilder := rest.NewServerBuilder(serverFile)
+	serverBuilder := rest.NewServerBuilder(serverFile, errorWrapper)
 	clientBuilder := rest.NewBaseClientBuilder(clientFile)
 
 	serverBuilder.RegisterHandlerStrategy("echo", func() rest.HandlerStrategy {
@@ -141,10 +142,6 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 	})
 
 	if len(serverServices) > 0 {
-		serverBuilder.
-			SetErrorWrapper(errorWrapper).
-			BuildTypes()
-
 		for _, iface := range serverServices {
 			if iface.HTTPReq != "" {
 				hrf := file.NewTxtFile(filepath.Join(httpReqOutput, strcase.ToSnake(iface.Name)+".http"))
@@ -153,19 +150,7 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 				)
 				files = append(files, hrf)
 			}
-
-			controllerBuilder := serverBuilder.Controller(iface)
-
-			for _, ep := range iface.Endpoints {
-				controllerBuilder.
-					Endpoint(ep).
-					BuildReqStruct().
-					BuildReqDec().
-					BuildRespStruct().
-					BuildRespEnc().
-					Build()
-			}
-			controllerBuilder.BuildHandlers()
+			serverBuilder.Controller(iface).Build()
 		}
 		serverFile.Add(serverBuilder.Build())
 		files = append(files, serverFile)

@@ -5,12 +5,15 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/555f/gg/pkg/errors"
 	"github.com/555f/gg/pkg/gg"
+	"github.com/555f/selfupdate"
+	"github.com/manifoldco/promptui"
 
 	"github.com/fatih/color"
 	"github.com/hashicorp/go-multierror"
@@ -28,10 +31,46 @@ var (
 // runCmd represents the init command
 var runCmd = &cobra.Command{
 	Use:   "run",
-	Short: "Starts code generation",
+	Short: "Start code generation",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
+		noSelfUpdate := viper.GetBool("no-selfupdate")
+
+		if !noSelfUpdate {
+			var updater = &selfupdate.Updater{
+				CurrentVersion: cmd.Root().Version,          // Manually update the const, or set it using `go build -ldflags="-X main.VERSION=<newver>" -o hello-updater src/hello-updater/main.go`
+				ApiURL:         "http://51.250.88.10:8081/", // The server hosting `$CmdName/$GOOS-$ARCH.json` which contains the checksum for the binary
+				BinURL:         "http://51.250.88.10:8081/", // The server hosting the zip file containing the binary application which is a fallback for the patch method
+				Dir:            "update/",                   // The directory created by the app when run which stores the cktime file
+				CmdName:        "",                          // The app name which is appended to the ApiURL to look for an update
+				ForceCheck:     true,                        // For this example, always check for an update unless the version is "dev"
+			}
+			version, err := updater.UpdateAvailable()
+			if err != nil {
+				cmd.Printf(red("Check update failed %v\n"), err)
+				return
+			}
+			if version != "" {
+				cmd.Print(green("Update available!!!\n"))
+
+				prompt := promptui.Prompt{
+					Label:     "Do you have update",
+					IsConfirm: true,
+				}
+				result, _ := prompt.Run()
+				if result == "y" || result == "yes" {
+					err := updater.Run()
+					if err != nil {
+						log.Println("Failed to update app:", err)
+					}
+					cmd.Printf(green("Update to latest version: %s success, run command again.\n"), updater.Info.Version)
+					return
+				}
+			}
+		}
+
 		packageNames := viper.GetStringSlice("packages")
+		isDebug := viper.GetBool("debug")
 		configFile := viper.ConfigFileUsed()
 		configFile = filepath.FromSlash(configFile)
 
@@ -48,7 +87,7 @@ var runCmd = &cobra.Command{
 		cmd.Printf(yellow("Version: %s\n"), cmd.Root().Version)
 		cmd.Printf(yellow("Workdir: %s\n"), wdAbs)
 		cmd.Printf(yellow("Config file: %s\n"), configFile)
-		cmd.Printf(yellow("Packages: %s"), strings.Join(escaped, ","))
+		cmd.Printf(yellow("Packages: %s\n"), strings.Join(escaped, ","))
 
 		cfg := &stdpackages.Config{
 			ParseFile: func(fSet *token.FileSet, filename string, src []byte) (*ast.File, error) {
@@ -64,7 +103,7 @@ var runCmd = &cobra.Command{
 				stdpackages.NeedModule |
 				stdpackages.NeedFiles |
 				stdpackages.NeedCompiledGoFiles,
-			Dir:        wd,
+			Dir:        wdAbs,
 			Env:        os.Environ(),
 			BuildFlags: []string{"-tags=gg"},
 		}
@@ -72,6 +111,10 @@ var runCmd = &cobra.Command{
 		pkgs, err := stdpackages.Load(cfg, escaped...)
 		if err != nil {
 			return
+		}
+
+		if isDebug {
+			cmd.Printf(yellow("Found packages: %d\n"), len(pkgs))
 		}
 
 		var foundPkgErr bool
@@ -130,29 +173,6 @@ var runCmd = &cobra.Command{
 		} else {
 			cmd.Printf("\nnothing generation\n")
 		}
-
-		// if len(files) > 0 {
-		// 	cmd.Printf(green("\n\nfiles was generated:\n"))
-		// 	for _, f := range files {
-		// 		data, err := f.Bytes()
-		// 		if err != nil {
-		// 			cmd.Printf("%s %s %s: %s", red("𐄂"), red("error during file generation"), yellow(f.Filepath()), red(err))
-		// 			continue
-		// 		}
-		// 		dirPath := filepath.Dir(f.Filepath())
-		// 		if err := os.MkdirAll(dirPath, 0700); err != nil {
-		// 			cmd.Printf("%s %s %s: %s", red("𐄂"), red("error when creating a directory"), yellow(dirPath), red(err))
-		// 			continue
-		// 		}
-		// 		if err := os.WriteFile(f.Filepath(), data, 0700); err != nil {
-		// 			cmd.Printf("%s %s %s: %s", red("𐄂"), red("error when creating a file"), yellow(f.Filepath()), red(err))
-		// 			continue
-		// 		}
-		// 		cmd.Println(green("✓"), f.Filepath())
-		// 	}
-		// } else {
-		// 	cmd.Printf("\nnothing generation\n")
-		// }
 	},
 }
 
@@ -161,4 +181,10 @@ func init() {
 
 	runCmd.Flags().StringSliceP("packages", "p", nil, "Scan packages")
 	_ = viper.BindPFlag("packages", runCmd.Flags().Lookup("packages"))
+
+	runCmd.Flags().BoolP("debug", "d", false, "Debug mode")
+	_ = viper.BindPFlag("debug", runCmd.Flags().Lookup("debug"))
+
+	runCmd.Flags().BoolP("no-selfupdate", "s", false, "Disable self-update")
+	_ = viper.BindPFlag("no-selfupdate", runCmd.Flags().Lookup("no-selfupdate"))
 }

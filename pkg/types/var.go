@@ -34,6 +34,8 @@ type Var struct {
 	IsVariadic bool
 	IsContext  bool
 	IsError    bool
+	IsChan     bool
+	IsPointer  bool
 	Type       any
 	Title      string
 	Zero       string

@@ -64,3 +64,8 @@ func IsContext(t any) bool {
 	}
 	return false
 }
+
+func IsChan(t any) (ok bool) {
+	_, ok = t.(*Chan)
+	return
+}

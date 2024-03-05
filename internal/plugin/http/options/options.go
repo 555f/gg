@@ -200,10 +200,20 @@ func (ep Endpoint) SprintfPath() string {
 	return strings.Join(parts, "/")
 }
 
+type HTTPType string
+
+const (
+	PathHTTPType   HTTPType = "path"
+	CookieHTTPType HTTPType = "cookie"
+	QueryHTTPType  HTTPType = "query"
+	HeaderHTTPType HTTPType = "header"
+	BodyHTTPType   HTTPType = "body"
+)
+
 type EndpointParam struct {
 	Parent          *EndpointParam
 	Type            any
-	HTTPType        string
+	HTTPType        HTTPType
 	Title           string
 	Name            string
 	FldName         string
@@ -294,7 +304,7 @@ func DecodeErrorWrapper(errorWrapperPath, defaultErrorPath string, structs []*gg
 	return
 }
 
-func Decode(iface *gg.Interface) (opts Iface, errs error) {
+func Decode(iface *gg.Interface, isCheckStrict bool) (opts Iface, errs error) {
 	opts.Name = iface.Named.Name
 	opts.Title = iface.Named.Title
 	opts.Description = iface.Named.Description
@@ -305,13 +315,13 @@ func Decode(iface *gg.Interface) (opts Iface, errs error) {
 		if t, ok := iface.Named.Tags.Get("http-type"); ok {
 			switch t.Value {
 			default:
-				errs = multierror.Append(errs, errors.Error("invalid http type, valid values echo, jsonrpc, chi, mux", t.Position))
+				errs = multierror.Append(errs, errors.Error("invalid http type, valid values echo, chi, mux", t.Position))
 			case "echo", "chi", "mux":
 				opts.Type = t.Value
 			}
 		}
 		if opts.Type == "" {
-			errs = multierror.Append(errs, errors.Error("the transport type is not set, use the http-type tag to set it, valid values: echo, jsonrpc, chi, mux", iface.Named.Position))
+			errs = multierror.Append(errs, errors.Error("the transport type is not set, use the http-type tag to set it, valid values: echo, chi, mux", iface.Named.Position))
 		}
 	}
 	if _, ok := iface.Named.Tags.Get("http-client"); ok {
@@ -350,7 +360,7 @@ func Decode(iface *gg.Interface) (opts Iface, errs error) {
 		opts.HTTPReq = t.Value
 	}
 	for _, method := range iface.Named.Interface().Methods {
-		epOpts, err := endpointDecode(opts, method)
+		epOpts, err := endpointDecode(opts, method, isCheckStrict)
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		}
@@ -359,7 +369,7 @@ func Decode(iface *gg.Interface) (opts Iface, errs error) {
 	return
 }
 
-func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs error) {
+func endpointDecode(ifaceOpts Iface, method *types.Func, isCheckStrict bool) (opts Endpoint, errs error) {
 	opts.Name = strcase.ToLowerCamel(ifaceOpts.Name) + method.Name + "Endpoint"
 	opts.MethodName = method.Name
 	opts.Title = method.Title
@@ -378,10 +388,6 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 		case "GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH":
 			opts.HTTPMethod = t.Value
 		}
-	}
-
-	if ifaceOpts.Type == "jsonrpc" {
-		opts.HTTPMethod = "POST"
 	}
 	if opts.HTTPMethod == "" {
 		errs = multierror.Append(errs, errors.Error("the http-method parameter is required", method.Position))
@@ -402,11 +408,6 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 			opts.ParamsIdxName[paramName] = len(opts.ParamsNameIdx) - 1
 		}
 	}
-
-	if opts.Path == "" && ifaceOpts.Type == "jsonrpc" {
-		opts.Path = strcase.ToLowerCamel(ifaceOpts.Name) + "." + strcase.ToLowerCamel(method.Name)
-	}
-
 	if t, ok := method.Tags.Get("http-openapi-tags"); ok {
 		opts.OpenapiTags = []string{t.Value}
 		opts.OpenapiTags = append(opts.OpenapiTags, t.Options...)
@@ -426,46 +427,51 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 		}
 		opts.OpenapiHeaders = append(opts.OpenapiHeaders, oh)
 	}
-	if t, ok := method.Tags.Get("http-content-types"); ok {
-		opts.ContentTypes = []string{t.Value}
-		opts.ContentTypes = append(opts.ContentTypes, t.Options...)
 
-		for _, contentType := range opts.ContentTypes {
+	for _, t := range method.Tags.GetSlice("http-content-type") {
+		contentType := t.Value
+
+		switch contentType {
+		default:
+			errs = multierror.Append(errs, errors.Error("invalid http-content-types use 'json', 'xml', 'urlencoded' or 'multipart'", t.Position))
+		case "json", "xml", "urlencoded", "multipart":
 			switch contentType {
-			default:
-				errs = multierror.Append(errs, errors.Error("invalid http-content-types use 'json', 'xml', 'urlencoded' or 'multipart'", t.Position))
-			case "json", "xml", "urlencoded", "multipart":
-				switch contentType {
-				case "xml":
-					opts.ReqRootXMLName = t.Params["root-xml"]
-					if opts.ReqRootXMLName == "" {
-						errs = multierror.Append(errs, errors.Error("the root-xml parameter of the http-content-types tag is required when using the XML content type", t.Position))
-					}
-				case "multipart":
-					opts.MultipartMaxMemory = 67108864
-					if t.Params["multipart-max-memory"] != "" {
-						multipartMaxMemory, err := strconv.ParseInt(t.Params["multipart-max-memory"], 10, 64)
-						if err == nil {
-							opts.MultipartMaxMemory = multipartMaxMemory
-						} else {
-							errs = multierror.Append(errs, errors.Error("invalid multipart-max-memory must be integer", t.Position))
-						}
+			case "xml":
+				opts.ReqRootXMLName = t.Params["root"]
+				if opts.ReqRootXMLName == "" {
+					errs = multierror.Append(errs, errors.Error("the root-xml parameter of the http-content-types tag is required when using the XML content type", t.Position))
+				}
+			case "multipart":
+				opts.MultipartMaxMemory = 67108864
+				if t.Params["multipart-max-memory"] != "" {
+					multipartMaxMemory, err := strconv.ParseInt(t.Params["max-memory"], 10, 64)
+					if err == nil {
+						opts.MultipartMaxMemory = multipartMaxMemory
 					} else {
-						errs = multierror.Append(errs, errors.Warn(fmt.Sprintf("multipartMaxMemory uses the default value of %d bytes", opts.MultipartMaxMemory), t.Position))
+						errs = multierror.Append(errs, errors.Error("invalid multipart-max-memory must be integer", t.Position))
 					}
+				} else {
+					errs = multierror.Append(errs, errors.Warn(fmt.Sprintf("multipartMaxMemory uses the default value of %d bytes", opts.MultipartMaxMemory), t.Position))
 				}
 			}
 		}
+		opts.ContentTypes = append(opts.ContentTypes, contentType)
 	}
-	if t, ok := method.Tags.Get("http-accept-types"); ok {
-		switch t.Value {
+
+	for _, t := range method.Tags.GetSlice("http-accept-type") {
+		acceptType := t.Value
+		switch acceptType {
 		default:
 			errs = multierror.Append(errs, errors.Error("invalid http-accept-types, use 'json', 'xml', 'urlencoded' or 'multipart'", t.Position))
 		case "json", "xml", "urlencoded", "multipart":
-			opts.RespRootXMLName = t.Params["root-xml"]
-			opts.AcceptTypes = append([]string{t.Value}, t.Options...)
+			switch acceptType {
+			case "xml":
+				opts.RespRootXMLName = t.Params["root"]
+			}
 		}
+		opts.AcceptTypes = append(opts.AcceptTypes, acceptType)
 	}
+
 	queryValues := method.Tags.GetSlice("http-query-value")
 	for _, q := range queryValues {
 		var val string
@@ -492,12 +498,6 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 	errorTags := method.Tags.GetSlice("http-error")
 	for _, tag := range errorTags {
 		opts.Errors = append(opts.Errors, tag.Value)
-	}
-	if len(opts.ContentTypes) == 0 {
-		opts.ContentTypes = []string{"json"}
-	}
-	if len(opts.AcceptTypes) == 0 {
-		opts.AcceptTypes = []string{"json"}
 	}
 	for _, param := range method.Sig.Params {
 		if param.IsContext {
@@ -588,8 +588,10 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 			opts.BodyResults = append(opts.BodyResults, result)
 		}
 	}
-	if len(opts.BodyParams) > 0 && (opts.HTTPMethod != "POST" && opts.HTTPMethod != "PUT" && opts.HTTPMethod != "DELETE" && opts.HTTPMethod != "PATCH") {
-		errs = multierror.Append(errs, errors.Error("only HTTP POST, PUT, PATCH and DELETE methods can have a request body. Current value: "+opts.HTTPMethod, method.Position))
+	if isCheckStrict {
+		if len(opts.BodyParams) > 0 && (opts.HTTPMethod != "POST" && opts.HTTPMethod != "PUT" && opts.HTTPMethod != "DELETE" && opts.HTTPMethod != "PATCH") {
+			errs = multierror.Append(errs, errors.Error("only HTTP POST, PUT, PATCH and DELETE methods can have a request body. Current value: "+opts.HTTPMethod, method.Position))
+		}
 	}
 	if len(opts.PathParams) != len(opts.ParamsNameIdx) {
 		errs = multierror.Append(errs, errors.Error("the method has no parameters found for the http-path tag, the required parameters: "+strings.Join(opts.ParamsNameIdx, ", "), method.Position))
@@ -610,7 +612,6 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 	if len(opts.BodyParams) != 1 && opts.NoWrapRequest {
 		errs = multierror.Append(errs, errors.Error("the \"@http-nowrap-request\" tag can be used for only one request body parameter", method.Position))
 	}
-
 	if opts.Error == nil {
 		errs = multierror.Append(errs, errors.Error("the return of an error by the method is required", method.Position))
 	}
@@ -632,7 +633,7 @@ func paramDecode(param *types.Var) (opts EndpointParam, err error) {
 		}
 	}
 	if t, ok := param.Tags.Get("http-type"); ok {
-		opts.HTTPType = t.Value
+		opts.HTTPType = HTTPType(t.Value)
 	}
 	if _, ok := param.Tags.Get("http-required"); ok {
 		opts.Required = true

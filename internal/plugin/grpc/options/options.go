@@ -1,9 +1,6 @@
 package options
 
 import (
-	"bytes"
-	"strconv"
-
 	"github.com/555f/gg/pkg/errors"
 	"github.com/555f/gg/pkg/gg"
 	"github.com/555f/gg/pkg/strcase"
@@ -44,67 +41,36 @@ type APIDoc struct {
 
 type EndpointParams []*EndpointParam
 
-func paramJSONFromType(name string, t any) string {
-	var buf bytes.Buffer
-
-	buf.WriteString("  " + strconv.Quote(name) + ":")
-
-	switch v := t.(type) {
-	case *types.Named:
-		name := v.Pkg.Path + "." + v.Name
-		switch name {
-		default:
-			if st := v.Struct(); st != nil {
-				buf.WriteString("{\n")
-				for _, f := range v.Struct().Fields {
-					name := f.Var.Name
-					if t, err := f.SysTags.Get("json"); err == nil {
-						name = t.Value()
-					}
-					buf.WriteString("  " + paramJSONFromType(name, f.Var.Type))
-				}
-				buf.WriteString("  }")
-			} else {
-				buf.WriteString("\"\"")
-			}
-		case "time.Time":
-			buf.WriteString("\"\"")
-		}
-
-	case *types.Slice, *types.Array:
-		buf.WriteString("[]")
-	case *types.Basic:
-		if v.IsNumeric() {
-			buf.WriteString("0")
-		} else {
-			buf.WriteString("\"\"")
-		}
-	}
-	return buf.String()
+func (params EndpointParams) Len() int {
+	return len(params)
 }
 
-func (params EndpointParams) ToJSON() string {
-	var buf bytes.Buffer
-	buf.WriteString("{\n")
-	for i, p := range params {
-		if i > 0 {
-			buf.WriteString(",\n")
-		}
-		buf.WriteString(paramJSONFromType(p.Name, p.Type))
-	}
-	buf.WriteString("}\n")
-	return buf.String()
+type EndpointResults []*EndpointResult
+
+func (params EndpointResults) Len() int {
+	return len(params)
+}
+
+type InStream struct {
+	Param *EndpointParam
+	Chan  *types.Chan
+}
+
+type OutStream struct {
+	Param *EndpointResult
+	Chan  *types.Chan
 }
 
 type Endpoint struct {
-	Name          string
 	MethodName    string
 	RPCMethodName string
 	Title         string
 	Description   string
 	OpenapiTags   []string
 	Params        EndpointParams
-	Results       []*EndpointResult
+	Results       EndpointResults
+	InStream      *InStream
+	OutStream     *OutStream
 	Context       *types.Var
 	Error         *types.Var
 	Sig           *types.Sign
@@ -117,10 +83,13 @@ type EndpointParam struct {
 	FldName         string
 	FldNameUnExport string
 	Format          string
-	Omitempty       bool
-	IsVariadic      bool
 	Zero            string
-	Required        bool
+	IsOmitempty     bool
+	IsVariadic      bool
+	IsRequired      bool
+	IsStream        bool
+	IsPointer       bool
+	Version         string
 	Params          EndpointParams
 }
 
@@ -132,7 +101,10 @@ type EndpointResult struct {
 	FldNameExport   string
 	FldNameUnExport string
 	Format          string
-	Omitempty       bool
+	IsOmitempty     bool
+	IsStream        bool
+	IsPointer       bool
+	Version         string
 }
 
 func Decode(iface *gg.Interface) (opts Iface, errs error) {
@@ -169,7 +141,6 @@ func Decode(iface *gg.Interface) (opts Iface, errs error) {
 }
 
 func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs error) {
-	opts.Name = strcase.ToLowerCamel(ifaceOpts.Name) + method.Name + "Endpoint"
 	opts.MethodName = method.Name
 	opts.Title = method.Title
 	opts.Description = method.Description
@@ -182,6 +153,7 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 	if t, ok := method.Tags.Get("grpc-name"); ok {
 		opts.RPCMethodName = t.Value
 	}
+
 	for _, param := range method.Sig.Params {
 		if param.IsContext {
 			if opts.Context != nil {
@@ -193,12 +165,29 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 		if param.Name == "" {
 			errs = multierror.Append(errs, errors.Error("the parameter name cannot be empty or the grpc-name parameter must be set", param.Position))
 		}
-		p, err := makeEndpointParam(nil, param)
+		p, err := paramDecode(param)
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		}
+		if param.IsChan {
+			p.IsStream = true
+			opts.InStream = &InStream{
+				Param: p,
+				Chan:  param.Type.(*types.Chan),
+			}
+		}
 		opts.Params = append(opts.Params, p)
 	}
+
+	if opts.InStream != nil {
+		if len(opts.Params) > 1 {
+			errs = multierror.Append(errs, errors.Error("when streaming, there can be only one parameter", method.Position))
+		}
+		// if opts.InStream.Chan.Dir != types.RecvOnly {
+		// errs = multierror.Append(errs, errors.Error("the channel for the request must be read-only", method.Position))
+		// }
+	}
+
 	for _, result := range method.Sig.Results {
 		if result.IsError {
 			if result.Name == "" {
@@ -213,11 +202,18 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 		if result.Name == "" {
 			errs = multierror.Append(errs, errors.Error("the parameter name cannot be empty or the grpc-name parameter must be set", result.Position))
 		}
-		varOpts, err := resultDecode(result)
+		r, err := resultDecode(result)
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		}
-		opts.Results = append(opts.Results, &varOpts)
+		if result.IsChan {
+			r.IsStream = true
+			opts.OutStream = &OutStream{
+				Param: r,
+				Chan:  r.Type.(*types.Chan),
+			}
+		}
+		opts.Results = append(opts.Results, r)
 	}
 	if opts.Error == nil {
 		errs = multierror.Append(errs, errors.Error("the return of an error by the method is required", method.Position))
@@ -225,36 +221,62 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 	return
 }
 
-func paramDecode(param *types.Var) (opts EndpointParam, err error) {
+func paramDecode(param *types.Var) (opts *EndpointParam, err error) {
+	opts = &EndpointParam{
+		Title:           param.Title,
+		FldName:         strcase.ToCamel(param.Name),
+		FldNameUnExport: strcase.ToLowerCamel(param.Name),
+		IsVariadic:      param.IsVariadic,
+		IsPointer:       param.IsPointer,
+		Type:            param.Type,
+		Zero:            param.Zero,
+	}
+	tagFmt := "lowerCamel"
+	if opts.Format != "" {
+		tagFmt = opts.Format
+	}
+	name := formatName(param.Name, tagFmt)
+	if opts.Name != "" {
+		name = opts.Name
+	}
+	opts.Name = name
+
 	opts.Format = "lowerCamel"
 	if t, ok := param.Tags.Get("grpc-name"); ok {
 		opts.Name = t.Value
 		for _, option := range t.Options {
 			if option == "omitempty" {
-				opts.Omitempty = true
+				opts.IsOmitempty = true
 			}
 			if v, ok := t.Param("format"); ok {
 				opts.Format = v
 			}
 		}
 	}
+	if t, ok := param.Tags.Get("grpc-version"); ok {
+		opts.Version = t.Value
+	}
 	if _, ok := param.Tags.Get("grpc-required"); ok {
-		opts.Required = true
+		opts.IsRequired = true
 	}
 	return
 }
 
-func resultDecode(result *types.Var) (opts EndpointResult, err error) {
-	opts.Type = result.Type
-	opts.Format = "lowerCamel"
-	opts.FldName = result.Name
-	opts.FldNameExport = strcase.ToCamel(result.Name)
-	opts.FldNameUnExport = strcase.ToLowerCamel(result.Name)
+func resultDecode(result *types.Var) (opts *EndpointResult, err error) {
+	opts = &EndpointResult{
+		Type:            result.Type,
+		Format:          "lowerCamel",
+		FldName:         result.Name,
+		FldNameExport:   strcase.ToCamel(result.Name),
+		FldNameUnExport: strcase.ToLowerCamel(result.Name),
+		IsPointer:       result.IsPointer,
+	}
+
 	if t, ok := result.Tags.Get("grpc-name"); ok {
 		opts.Name = t.Value
 		for _, option := range t.Options {
 			if option == "omitempty" {
-				opts.Omitempty = true
+				opts.IsOmitempty = true
 			}
 			if v, ok := t.Param("format"); ok {
 				opts.Format = v
@@ -267,6 +289,9 @@ func resultDecode(result *types.Var) (opts EndpointResult, err error) {
 			tagFmt = "lowerCamel"
 		}
 		opts.Name = formatName(result.Name, tagFmt)
+	}
+	if t, ok := result.Tags.Get("grpc-version"); ok {
+		opts.Version = t.Value
 	}
 	return
 }

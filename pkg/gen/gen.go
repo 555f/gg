@@ -35,6 +35,18 @@ func FormatValue(id Code, t any, qualFunc types.QualFunc, timeFormat string) (s 
 			}
 		}
 	case *types.Named:
+		var stingMethodFound bool
+		for _, m := range t.Methods {
+			if m.Name == "String" && len(m.Sig.Results) == 1 {
+				if b, ok := m.Sig.Results[0].Type.(*types.Basic); ok && b.IsString() {
+					stingMethodFound = true
+				}
+			}
+		}
+		if stingMethodFound {
+			s.Add(id).Dot("String").Call()
+			return s
+		}
 		switch t.Pkg.Path {
 		case "gopkg.in/guregu/null.v4":
 			switch t.Name {

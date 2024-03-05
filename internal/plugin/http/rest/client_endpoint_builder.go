@@ -118,18 +118,26 @@ func (b *clientEndpointBuilder) BuildMethod() ClientEndpointBuilder {
 					}
 				}
 			}).CustomFunc(jen.Options{}, func(g *jen.Group) {
-				for _, param := range append(b.ep.BodyParams, b.ep.QueryParams...) {
-					if param.Required {
-						continue
+				buildSetters := func(params options.EndpointParams) {
+					for _, param := range params {
+						if param.Required {
+							continue
+						}
+						methodSetName := param.FldName
+						fldName := jen.Id(param.FldNameUnExport)
+						if param.Parent != nil {
+							methodSetName = param.Parent.FldName + param.FldName
+							fldName = jen.Id(param.Parent.FldNameUnExport).Dot(param.FldName)
+						}
+						g.Dot("Set" + methodSetName).Call(fldName)
 					}
-					methodSetName := param.FldName
-					fldName := jen.Id(param.FldNameUnExport)
-					if param.Parent != nil {
-						methodSetName = param.Parent.FldName + param.FldName
-						fldName = jen.Id(param.Parent.FldNameUnExport).Dot(param.FldName)
-					}
-					g.Dot("Set" + methodSetName).Call(fldName)
 				}
+
+				buildSetters(b.ep.BodyParams)
+				buildSetters(b.ep.QueryParams)
+				buildSetters(b.ep.HeaderParams)
+				buildSetters(b.ep.CookieParams)
+
 			}).Dot("Execute").Call()
 			g.Return()
 		}))
@@ -196,6 +204,8 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 			)),
 			jen.CustomFunc(jen.Options{Multi: true}, func(g *jen.Group) {
 				if len(b.ep.BodyParams) > 0 {
+					g.Id("req").Dot("Header").Dot("Add").Call(jen.Lit("Content-Type"), jen.Lit("application/json"))
+
 					if len(b.ep.BodyParams) == 1 && b.ep.NoWrapRequest {
 						g.Id("body").Op("=").Id(recvName).Dot("params").Dot(b.ep.BodyParams[0].FldNameUnExport)
 					} else {
@@ -219,35 +229,40 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 			}),
 
 			jen.CustomFunc(jen.Options{Multi: true}, func(g *jen.Group) {
-				if len(b.ep.QueryParams) > 0 || len(b.ep.QueryValues) > 0 {
-					g.Id("q").Op(":=").Id("req").Dot("URL").Dot("Query").Call()
 
-					for _, param := range b.ep.QueryParams {
-						fldName := param.FldNameUnExport
-						if param.Parent != nil {
-							fldName = param.Parent.FldNameUnExport + param.FldName
-						}
+				makeParam := func(p *options.EndpointParam, f func(v jen.Code) jen.Code) jen.Code {
+					fldName := p.FldNameUnExport
+					if p.Parent != nil {
+						fldName = p.Parent.FldNameUnExport + p.FldName
+					}
 
-						paramID := jen.Id(recvName).Dot("params").Dot(fldName)
+					paramID := jen.Id(recvName).Dot("params").Dot(fldName)
 
-						var code jen.Code
+					named, isNamed := p.Type.(*types.Named)
 
-						if param.Required {
-							code = jen.Id("q").Dot("Add").Call(jen.Lit(param.Name), gen.FormatValue(paramID, param.Type, b.qualifier.Qual, b.ep.TimeFormat))
+					var code jen.Code
+					if p.Required {
+						code = f(paramID)
+					} else {
+						if isNamed && named.Pkg.Path == "gopkg.in/guregu/null.v4" {
+							code = jen.If(jen.Add(paramID).Dot("Valid")).Block(f(paramID))
 						} else {
-							if named, ok := param.Type.(*types.Named); ok {
-								if named.Pkg.Path == "gopkg.in/guregu/null.v4" {
-									code = jen.If(jen.Add(paramID).Dot("Valid")).Block(
-										jen.Id("q").Dot("Add").Call(jen.Lit(param.Name), gen.FormatValue(jen.Add(paramID), param.Type, b.qualifier.Qual, b.ep.TimeFormat)),
-									)
-								}
+							if isNamed {
+								code = jen.If(jen.Add(paramID).Op("!=").Nil()).Block(f(jen.Call(jen.Op("*").Add(paramID))))
 							} else {
-								code = jen.If(jen.Add(paramID).Op("!=").Nil()).Block(
-									jen.Id("q").Dot("Add").Call(jen.Lit(param.Name), gen.FormatValue(jen.Op("*").Add(paramID), param.Type, b.qualifier.Qual, b.ep.TimeFormat)),
-								)
+								code = jen.If(jen.Add(paramID).Op("!=").Nil()).Block(f(jen.Op("*").Add(paramID)))
 							}
 						}
-						g.Add(code)
+					}
+					return code
+				}
+
+				if len(b.ep.QueryParams) > 0 || len(b.ep.QueryValues) > 0 {
+					g.Id("q").Op(":=").Id("req").Dot("URL").Dot("Query").Call()
+					for _, param := range b.ep.QueryParams {
+						g.Add(makeParam(param, func(v jen.Code) jen.Code {
+							return jen.Id("q").Dot("Add").Call(jen.Lit(param.Name), gen.FormatValue(v, param.Type, b.qualifier.Qual, b.ep.TimeFormat))
+						}))
 					}
 					for _, param := range b.ep.QueryValues {
 						g.Id("q").Dot("Add").Call(jen.Lit(param.Name), jen.Lit(param.Value))
@@ -255,16 +270,18 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 					g.Id("req").Dot("URL").Dot("RawQuery").Op("=").Id("q").Dot("Encode").Call()
 				}
 
-				g.Id("req").Dot("Header").Dot("Add").Call(jen.Lit("Content-Type"), jen.Lit("application/json"))
-
 				for _, param := range b.ep.HeaderParams {
-					g.Id("req").Dot("Header").Dot("Add").Call(jen.Lit(param.Name), gen.FormatValue(jen.Id(recvName).Dot("params").Dot(param.FldNameUnExport), param.Type, b.qualifier.Qual, b.ep.TimeFormat))
+					g.Add(makeParam(param, func(v jen.Code) jen.Code {
+						return jen.Id("req").Dot("Header").Dot("Add").Call(jen.Lit(param.Name), gen.FormatValue(v, param.Type, b.qualifier.Qual, b.ep.TimeFormat))
+					}))
 				}
 				for _, param := range b.ep.CookieParams {
-					g.Id("req").Dot("AddCookie").Call(jen.Op("&").Qual(httpPkg, "Cookie").Values(
-						jen.Id("Name").Op(":").Lit(param.Name),
-						jen.Id("Value").Op(":").Add(gen.FormatValue(jen.Id(recvName).Dot("params").Dot(param.FldNameUnExport), param.Type, b.qualifier.Qual, b.ep.TimeFormat)),
-					))
+					g.Add(makeParam(param, func(v jen.Code) jen.Code {
+						return jen.Id("req").Dot("AddCookie").Call(jen.Op("&").Qual(httpPkg, "Cookie").Values(
+							jen.Id("Name").Op(":").Lit(param.Name),
+							jen.Id("Value").Op(":").Add(gen.FormatValue(v, param.Type, b.qualifier.Qual, b.ep.TimeFormat)),
+						))
+					}))
 				}
 			}),
 
@@ -330,6 +347,9 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 						jen.Default().Block(jen.Id("reader").Op("=").Id("resp").Dot("Body")),
 						jen.Case(jen.Lit("gzip")).Block(
 							jen.List(jen.Id("reader"), jen.Err()).Op("=").Qual("compress/gzip", "NewReader").Call(jen.Id("resp").Dot("Body")),
+							jen.Do(gen.CheckErr(
+								jen.Return(),
+							)),
 							jen.Defer().Id("reader").Dot("Close").Call(),
 						),
 					)
@@ -378,13 +398,8 @@ func (b *clientEndpointBuilder) buildSetter(parentParam, param *options.Endpoint
 		).Id("Set"+fnName).Params(
 			jen.Id(fldName).Add(types.Convert(param.Type, b.qualifier.Qual)),
 		).Op("*").Id(methodRequestName).BlockFunc(func(g *jen.Group) {
-
 			g.Add(jen.CustomFunc(jen.Options{}, func(g *jen.Group) {
-				g.Id(recvName).Dot("params").Dot(fldName).Op("=")
-				if _, ok := param.Type.(*types.Named); !ok {
-					g.Op("&")
-				}
-				g.Id(fldName)
+				g.Id(recvName).Dot("params").Dot(fldName).Op("=").Op("&").Id(fldName)
 			}))
 			g.Return(jen.Id(recvName))
 		}))
@@ -412,10 +427,7 @@ func (b *clientEndpointBuilder) makeRequestStructParam(parentParam, param *optio
 		fldName = parentParam.FldNameUnExport + param.FldName
 	}
 	paramID := jen.Id(fldName)
-
-	_, isBasicType := param.Type.(*types.Basic)
-
-	if !param.Required && isBasicType {
+	if !param.Required {
 		paramID.Op("*")
 	}
 	paramID.Add(types.Convert(param.Type, importFn))
