@@ -399,7 +399,11 @@ func (b *clientEndpointBuilder) buildSetter(parentParam, param *options.Endpoint
 			jen.Id(fldName).Add(types.Convert(param.Type, b.qualifier.Qual)),
 		).Op("*").Id(methodRequestName).BlockFunc(func(g *jen.Group) {
 			g.Add(jen.CustomFunc(jen.Options{}, func(g *jen.Group) {
-				g.Id(recvName).Dot("params").Dot(fldName).Op("=").Op("&").Id(fldName)
+				g.Id(recvName).Dot("params").Dot(fldName).Op("=")
+				if !param.Required && !isNamedType(param.Type) {
+					g.Op("&")
+				}
+				g.Id(fldName)
 			}))
 			g.Return(jen.Id(recvName))
 		}))
@@ -427,7 +431,7 @@ func (b *clientEndpointBuilder) makeRequestStructParam(parentParam, param *optio
 		fldName = parentParam.FldNameUnExport + param.FldName
 	}
 	paramID := jen.Id(fldName)
-	if !param.Required {
+	if !param.Required && !isNamedType(param.Type) {
 		paramID.Op("*")
 	}
 	paramID.Add(types.Convert(param.Type, importFn))

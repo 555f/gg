@@ -58,9 +58,6 @@ func (c *Converter) Convert(t any) (s *jen.Statement) {
 				}
 				typ = s.Value
 			}
-			if v.IsPointer {
-				st.Op("*")
-			}
 			st.Add(c.Convert(typ))
 			params = append(params, &st)
 		}

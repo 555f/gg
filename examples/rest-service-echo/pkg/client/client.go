@@ -171,6 +171,7 @@ func (r *ProfileControllerCreateRequest) Execute(opts ...ClientOption) (profile 
 		return
 	}
 
+	req.Header.Add("Content-Type", "application/json")
 	body.FirstName = r.params.firstName
 	body.LastName = r.params.lastName
 	body.Address = r.params.address
@@ -182,8 +183,6 @@ func (r *ProfileControllerCreateRequest) Execute(opts ...ClientOption) (profile 
 		return
 	}
 	req.Body = io.NopCloser(&reqData)
-
-	req.Header.Add("Content-Type", "application/json")
 	before := append(r.c.opts.before, r.opts.before...)
 	for _, before := range before {
 		ctx, err = before(ctx, req)
@@ -228,6 +227,9 @@ func (r *ProfileControllerCreateRequest) Execute(opts ...ClientOption) (profile 
 		reader = resp.Body
 	case "gzip":
 		reader, err = gzip.NewReader(resp.Body)
+		if err != nil {
+			return
+		}
 		defer reader.Close()
 	}
 	err = json.NewDecoder(reader).Decode(&respBody)
@@ -266,8 +268,6 @@ func (r *ProfileControllerDownloadFileRequest) Execute(opts ...ClientOption) (da
 		cancel()
 		return
 	}
-
-	req.Header.Add("Content-Type", "application/json")
 	before := append(r.c.opts.before, r.opts.before...)
 	for _, before := range before {
 		ctx, err = before(ctx, req)
@@ -312,6 +312,9 @@ func (r *ProfileControllerDownloadFileRequest) Execute(opts ...ClientOption) (da
 		reader = resp.Body
 	case "gzip":
 		reader, err = gzip.NewReader(resp.Body)
+		if err != nil {
+			return
+		}
 		defer reader.Close()
 	}
 	err = json.NewDecoder(reader).Decode(&respBody)
@@ -350,8 +353,6 @@ func (r *ProfileControllerRemoveRequest) Execute(opts ...ClientOption) (err erro
 		cancel()
 		return
 	}
-
-	req.Header.Add("Content-Type", "application/json")
 	before := append(r.c.opts.before, r.opts.before...)
 	for _, before := range before {
 		ctx, err = before(ctx, req)
