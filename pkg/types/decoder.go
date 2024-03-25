@@ -186,25 +186,21 @@ func (d *Decoder) normalizeNamed(named *stdtypes.Named, isPointer bool) (nt *Nam
 	if named.Obj().Pkg() != nil {
 		pkgPath = named.Obj().Pkg().Path() + "."
 	}
-	k := pkgPath + named.Obj().Name()
+	visitKey := pkgPath + named.Obj().Name()
 	if isPointer {
-		k = "*" + k
+		visitKey = "*" + visitKey
 	}
-
-	if v, ok := d.visited[k].(*Named); ok {
+	if v, ok := d.visited[visitKey].(*Named); ok {
 		return v, nil
 	}
-
 	pkg, err := d.normalizePkg(named.Obj().Pkg())
 	if err != nil {
 		return nil, err
 	}
-
 	title, description, tags, err := d.commentsAndTagsFind(named.Obj().Name(), named.Obj().Pos())
 	if err != nil {
 		return nil, err
 	}
-
 	nt = &Named{
 		origin:      named,
 		Pkg:         pkg,
@@ -218,7 +214,7 @@ func (d *Decoder) normalizeNamed(named *stdtypes.Named, isPointer bool) (nt *Nam
 		Tags:        tags,
 	}
 
-	d.visited[k] = nt
+	d.visited[visitKey] = nt
 
 	nt.Type, err = d.normalizeRecursive(named.Obj().Type().Underlying(), false)
 	if err != nil {
@@ -260,7 +256,7 @@ func (d *Decoder) normalizeVar(t *stdtypes.Var) (*Var, error) {
 	if isPointer {
 		tp = ptr.Elem()
 	}
-	varType, err := d.normalizeRecursive(tp, false)
+	varType, err := d.normalizeRecursive(tp, isPointer)
 	if err != nil {
 		return nil, err
 	}

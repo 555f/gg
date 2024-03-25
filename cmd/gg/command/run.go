@@ -109,7 +109,8 @@ var runCmd = &cobra.Command{
 
 		pkgs, err := stdpackages.Load(cfg, escaped...)
 		if err != nil {
-			return
+			cmd.Printf("\n\n%s\n", red(err))
+			os.Exit(1)
 		}
 
 		if isDebug {

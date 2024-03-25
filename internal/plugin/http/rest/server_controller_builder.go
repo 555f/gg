@@ -277,7 +277,7 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 								}).Dot(p.FldNameExport).Op("=").Id(p.FldName)
 							}
 						} else if len(ep.BodyResults) == 1 {
-							g.Id("resp").Op(":=").Id(ep.BodyResults[0].FldName)
+							g.Id(respName).Op(":=").Id(ep.BodyResults[0].FldName)
 						}
 
 						g.Var().Id("respData").Index().Byte()
