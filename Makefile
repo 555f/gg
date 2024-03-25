@@ -27,13 +27,23 @@ css:
 gen-examples: gen-examples-rest-service-echo gen-examples-rest-service-chi
 
 gen-examples-rest-service-echo:
-	 go run cmd/gg/main.go run  --config examples/rest-service-echo/gg.yaml
+	 go run cmd/gg/main.go run --config examples/rest-service-echo/gg.yaml
 
 gen-examples-rest-service-chi:
-	 go run cmd/gg/main.go run  --config examples/rest-service-chi/gg.yaml
+	 go run cmd/gg/main.go run --config examples/rest-service-chi/gg.yaml
 
 gen-examples-grpc:
-	 go run cmd/gg/main.go run  --config examples/grpc-service/gg.yaml
+	 go run cmd/gg/main.go run --config examples/grpc-service/gg.yaml
+
+gen-examples-pwa:
+	 go run cmd/gg/main.go run --config examples/pwa/gg.yaml
+
+gen-examples-pwa-build:
+	GOARCH=wasm GOOS=js go build -o ./examples/pwa/web/app.wasm ./examples/pwa/cmd/pwa/main.go
+	go build -o ./examples/pwa ./examples/pwa/cmd/pwa
+
+gen-examples-pwa-dev: gen-examples-pwa-build
+	$(shell cd ./examples/pwa && ./pwa)
 
 .PHONY: build
 

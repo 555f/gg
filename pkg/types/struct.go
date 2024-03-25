@@ -22,7 +22,7 @@ func (s *Struct) Path(v string) *StructFieldType {
 		}
 		if vv, ok := graph[part]; ok {
 			graph = graphByType(vv.Var.Type)
-			if graph == nil {
+			if graph == nil || len(parts) == 1 {
 				return vv
 			}
 		}

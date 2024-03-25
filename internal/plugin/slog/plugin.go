@@ -37,7 +37,7 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 		return
 	}
 
-	loggerPkg := "golang.org/x/exp/slog"
+	loggerPkg := "log/slog"
 	timePkg := "time"
 
 	f.Type().Id("errLevel").Interface(Id("Level").Params().String())
@@ -180,7 +180,7 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 						BlockFunc(func(g *Group) {
 							g.Id("logger").
 								Op(":=").
-								Qual(loggerPkg, "With").
+								Id("s").Dot("logger").Dot("With").
 								Call(logParams...)
 							if len(errorVars) > 0 {
 								for _, e := range errorVars {
@@ -199,14 +199,14 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 												Id(e.Name).Assert(Id("logError")).
 												Op(";").Id("ok"),
 											).Block(
-											Id("logger").Op("=").Qual(loggerPkg, "With").Call(Lit(e.Name), Id("e").Dot("LogError").Call()),
+											Id("logger").Op("=").Id("logger").Dot("With").Call(Lit(e.Name), Id("e").Dot("LogError").Call()),
 										).Else().Block(
-											Id("logger").Op("=").Qual(loggerPkg, "With").Call(Lit(e.Name), Id(e.Name)),
+											Id("logger").Op("=").Id("logger").Dot("With").Call(Lit(e.Name), Id(e.Name)),
 										),
 									)
 								}
 							}
-							g.Id("logger").Op("=").Qual(loggerPkg, "With").Call(Lit("dur"), Qual("time", "Since").Call(Id("now")))
+							g.Id("logger").Op("=").Id("logger").Dot("With").Call(Lit("dur"), Qual("time", "Since").Call(Id("now")).Dot("String").Call())
 							g.Id("logger").Dot("Log").Call(
 								Qual("context", "TODO").Call(),
 								Id("logLever"),

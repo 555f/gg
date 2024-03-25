@@ -368,12 +368,6 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 						}
 					})
 
-					if ep.OutStream != nil {
-						g.For(jen.Id("data").Op(":=").Range().Id(ep.OutStream.Param.FldNameUnExport)).BlockFunc(func(g *jen.Group) {
-							g.Id("stream").Dot("Send").Call(structToProtobuf(*jen.Id("data"), ep.OutStream.Chan.Type, serverQual))
-						})
-					}
-
 					hasResponse := hasResponseEndpoint(ep)
 
 					g.Do(gen.CheckErr(jen.ReturnFunc(func(g *jen.Group) {
@@ -385,11 +379,17 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 						}
 					})))
 
-					if ep.OutStream == nil && len(ep.Results) > 0 {
-						g.Var().Id("resp").Op("*").Id(responseName)
-						for _, p := range ep.Results {
-							g.Id("resp").Dot(p.FldNameExport).Op("=").Add(structToProtobuf(*jen.Id(p.FldName), p.Type, serverQual))
-						}
+					if ep.OutStream != nil {
+						g.For(jen.Id("data").Op(":=").Range().Id(ep.OutStream.Param.FldNameUnExport)).BlockFunc(func(g *jen.Group) {
+							g.Id("stream").Dot("Send").Call(structToProtobuf(*jen.Id("data"), ep.OutStream.Chan.Type, serverQual))
+						})
+					} else if ep.OutStream == nil && len(ep.Results) > 0 {
+						g.Id("resp").Op(":=").Op("&").Id(responseName).ValuesFunc(func(g *jen.Group) {
+							for _, p := range ep.Results {
+								g.Id(p.FldNameExport).Op(":").Add(structToProtobuf(*jen.Id(p.FldName), p.Type, serverQual))
+							}
+						})
+
 					}
 
 					g.ReturnFunc(func(g *jen.Group) {
@@ -465,6 +465,10 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 						}
 					})
 
+					g.Do(gen.CheckErr(
+						jen.Return(),
+					))
+
 					hasResponse := hasResponseEndpoint(ep)
 					if hasResponse {
 						for _, p := range ep.Results {
@@ -475,10 +479,6 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 							}).Add(protobufToStuct(*jen.Id("resp").Dot(p.FldNameExport), p.Type, clientFile.Import))
 						}
 					}
-
-					g.Do(gen.CheckErr(
-						jen.Return(),
-					))
 
 					if ep.OutStream != nil {
 						g.Id(ep.OutStream.Param.Name).Op("=").Make(jen.Chan().Add(types.Convert(ep.OutStream.Chan.Type, clientFile.Import)))
@@ -509,7 +509,7 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 					g.Return()
 				})
 		}
-		clientFile.Func().Id("New" + s.Name + "Cient").Params(
+		clientFile.Func().Id("New" + s.Name + "Client").Params(
 			jen.Id("cc").Qual(pkgGRPC, "ClientConnInterface"),
 		).Op("*").Id(clientStructName).BlockFunc(func(g *jen.Group) {
 			g.Return(

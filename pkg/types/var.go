@@ -15,15 +15,18 @@ func (v Vars) HasError() bool {
 	return false
 }
 
+func (v Vars) Len() int {
+	return len(v)
+}
+
 func (v Vars) LenFunc(f func(v *Var) bool) int {
-	l := len(v)
 	var offset int
 	for _, val := range v {
 		if f(val) {
 			offset++
 		}
 	}
-	return l - offset
+	return v.Len() - offset
 }
 
 type Var struct {
