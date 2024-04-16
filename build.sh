@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 
-VERSION=$(gitver show)
+if test -d ./public/${VERSION}; then
+  echo "Version ${VERSION} exists."
+  exit 1
+fi
+
 PLATFORMS=("windows/amd64" "windows/386" "darwin/arm64" "darwin/amd64" "linux/arm64" "linux/amd64")
 PACKAGE_NAME="github.com/555f/gg"
 
