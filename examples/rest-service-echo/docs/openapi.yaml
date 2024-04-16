@@ -7,6 +7,15 @@ info:
     email: vitaly@lobchuk.ru
   version: v1.0.0
 paths:
+  /addresses:
+    get:
+      tags:
+      - address
+      description: |
+        TestSpaceParamName
+      responses:
+        200:
+          description: OK
   /profiles:
     post:
       tags:

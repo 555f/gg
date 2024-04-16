@@ -4,6 +4,31 @@ import (
 	"github.com/555f/gg/examples/rest-service-echo/pkg/dto"
 )
 
+// AddressController Адреса пользователя
+// Методы для получения адреса
+// @gg:"http"
+// @gg:"middleware"
+// @gg:"klog"
+// @http-type:"echo"
+// @http-openapi
+// @http-api-doc
+// @http-openapi-tags:"address"
+// @http-client
+// @http-server
+type AddressController interface {
+	// TestSpaceParamName
+	// @http-path:"/addresses"
+	// @http-method:"GET"
+	Addres(
+		// @http-required
+		// @http-name:"id_2 "
+		id string,
+	) (
+		addr string,
+		err error,
+	)
+}
+
 // ProfileController Профиль пользователя
 // Методы для работы с профилем пользователя
 // @gg:"http"

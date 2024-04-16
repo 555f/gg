@@ -618,11 +618,15 @@ func endpointDecode(ifaceOpts Iface, method *types.Func, isCheckStrict bool) (op
 	return
 }
 
-func paramDecode(param *types.Var) (opts EndpointParam, err error) {
+func paramDecode(param *types.Var) (opts EndpointParam, errs error) {
 	opts.HTTPType = "body"
 	opts.Format = "lowerCamel"
 	if t, ok := param.Tags.Get("http-name"); ok {
 		opts.Name = t.Value
+		if strings.ContainsAny(opts.Name, " ") {
+			errs = multierror.Append(errs, errors.Error("the http-name parameter is not contains spaces", param.Position))
+			return
+		}
 		for _, option := range t.Options {
 			if option == "omitempty" {
 				opts.Omitempty = true

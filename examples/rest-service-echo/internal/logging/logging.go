@@ -113,3 +113,39 @@ func LoggingProfileControllerMiddleware(logger log.Logger) middleware.ProfileCon
 		}
 	}
 }
+
+type AddressControllerLoggingMiddleware struct {
+	next   controller.AddressController
+	logger log.Logger
+}
+
+func (s *AddressControllerLoggingMiddleware) Addres(id string) (addr string, err error) {
+	defer func(now time.Time) {
+		logger := log.WithPrefix(s.logger, "message", "call method - Addres", "id", "id", id)
+		if err != nil {
+			if e, ok := err.(errLevel); ok {
+				logger = levelLogger(e, logger)
+			} else {
+				logger = level.Error(logger)
+			}
+			if e, ok := err.(logError); ok {
+				logger = log.WithPrefix(logger, "err", e.LogError())
+			} else {
+				logger = log.WithPrefix(logger, "err", err)
+			}
+		} else {
+			logger = level.Debug(logger)
+		}
+		_ = logger.Log("dur", time.Since(now))
+	}(time.Now())
+	addr, err = s.next.Addres(id)
+	return
+}
+func LoggingAddressControllerMiddleware(logger log.Logger) middleware.AddressControllerMiddleware {
+	return func(next controller.AddressController) controller.AddressController {
+		return &AddressControllerLoggingMiddleware{
+			logger: logger,
+			next:   next,
+		}
+	}
+}

@@ -66,3 +66,38 @@ func ProfileControllerBaseMiddleware(mediator any) ProfileControllerMiddleware {
 		return &profileControllerBaseMiddleware{next: next, mediator: mediator}
 	}
 }
+
+type AddressControllerMiddleware func(controller.AddressController) controller.AddressController
+
+func AddressControllerMiddlewareChain(outer AddressControllerMiddleware, others ...AddressControllerMiddleware) AddressControllerMiddleware {
+	return func(next controller.AddressController) controller.AddressController {
+		for i := len(others) - 1; i >= 0; i-- {
+			next = others[i](next)
+		}
+		return outer(next)
+	}
+}
+
+type addressControllerBaseMiddleware struct {
+	next     controller.AddressController
+	mediator any
+}
+
+func (m *addressControllerBaseMiddleware) Addres(id string) (addr string, err error) {
+	defer func() {
+		if s, ok := m.mediator.(addressControllerAddresBaseMiddleware); ok {
+			s.Addres(id)
+		}
+	}()
+	return m.next.Addres(id)
+}
+
+type addressControllerAddresBaseMiddleware interface {
+	Addres(id string)
+}
+
+func AddressControllerBaseMiddleware(mediator any) AddressControllerMiddleware {
+	return func(next controller.AddressController) controller.AddressController {
+		return &addressControllerBaseMiddleware{next: next, mediator: mediator}
+	}
+}
