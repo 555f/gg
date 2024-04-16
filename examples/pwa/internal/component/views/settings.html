@@ -1,12 +1,16 @@
 <div>
-    <div>Test</div>
+    <div class="foo">Test</div>
     <ul>
         <li v-range="i in items">
             <ul>
-                <li v-range="j in items[i].children">vddb {items[i].children[i]}</li>
+                <li v-range="j in items[i].children">vddb {items[i].children[j]}</li>
             </ul>
         </li>
     </ul>
+    <ul>
+        <li v-range="key in itemMap">{itemMap[key]}</li>
+    </ul>
+    <p v-if="isOk">hello</p>
     <p>Просто текст который мы отобразим - {title}.</p>
     <p>Число - {num}</p>
     <p>{test}</p>

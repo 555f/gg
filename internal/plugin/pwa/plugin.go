@@ -1,7 +1,6 @@
 package pwa
 
 import (
-	"fmt"
 	"go/token"
 	"os"
 	"path/filepath"
@@ -48,8 +47,10 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 				continue
 			}
 
-			hg := html2go.NewHTML2Go(name, structMap)
-			fmt.Println(hg.Parse(string(data)))
+			f := file.NewGoFile(p.ctx.Module, filepath.Join(structPath, strcase.ToSnake(s.Named.Name+"_render.go")))
+
+			hg := html2go.NewHTML2Go(name, f.Qual, structMap)
+			codes, _ := hg.Parse(string(data))
 
 			// reader := strings.NewReader(string(data))
 			// doc, err := html.Parse(reader)
@@ -57,8 +58,6 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 			// errs = multierror.Append(errs, errors.Error(err.Error(), token.Position{}))
 			// continue
 			// }
-
-			f := file.NewGoFile(p.ctx.Module, filepath.Join(structPath, strcase.ToSnake(s.Named.Name+"_render.go")))
 
 			// codes := load(f, structMap, s, doc.FirstChild.FirstChild.NextSibling, func(c jen.Code) {
 			// 	f.Add(c)
@@ -77,7 +76,7 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 						jen.Id("cc").Dot("OnBeforeRender").Call(),
 					),
 					jen.Return(
-					// codes...
+						codes...,
 					),
 				)
 

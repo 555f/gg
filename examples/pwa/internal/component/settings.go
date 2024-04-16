@@ -19,8 +19,10 @@ type Settings struct {
 	title, test string
 	num         int
 
-	Enable   bool
-	Children app.UI
+	itemMap map[string]string
+
+	Enable, isOk bool
+	Children     app.UI
 
 	Params url.Values
 }

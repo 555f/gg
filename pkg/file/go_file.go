@@ -26,7 +26,6 @@ func (f *GoFile) SetVersion(version string) {
 }
 
 func (f *GoFile) IsCurrPkg(pkgPath string) bool {
-	// fmt.Println(path.Join(f.module.Path, f.packagePath))
 	return path.Join(f.module.Path, f.packagePath) == pkgPath
 }
 

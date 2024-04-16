@@ -6,7 +6,7 @@ import (
 	"github.com/maxence-charriere/go-app/v9/pkg/app"
 )
 
-// @gg:"pwa2"
+// @gg:"pwa"
 // @pwa-view:"./views/command_palette.html"
 type CommandPalette struct {
 	app.Compo
