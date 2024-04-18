@@ -9,7 +9,7 @@ sync:
 	rsync -a --delete selfupdate-server ./public vitaly@51.250.88.10:~/
 
 build:
-	@./build.sh
+	@VERSION=$(shell gitver show) ./build.sh
 
 install: build
 	@cp ./build/${GOOS}-${GOARCH} ${GO_BIN}/gg

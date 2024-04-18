@@ -28,7 +28,6 @@ func makeEndpointParam(
 	opts, err := paramDecode(param)
 	if err != nil {
 		errs = multierror.Append(errs, err)
-		return
 	}
 	epParam = &EndpointParam{
 		Title:           param.Title,

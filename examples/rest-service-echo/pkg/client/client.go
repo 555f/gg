@@ -396,3 +396,115 @@ func NewProfileControllerClient(target string, opts ...ClientOption) *ProfileCon
 	}
 	return c
 }
+
+type AddressControllerClient struct {
+	target string
+	opts   *clientOptions
+}
+type AddressControllerAddresRequest struct {
+	c      *AddressControllerClient
+	client *http.Client
+	opts   *clientOptions
+	params struct {
+		id *string
+	}
+}
+
+func (r *AddressControllerAddresRequest) SetId(id string) *AddressControllerAddresRequest {
+	r.params.id = &id
+	return r
+}
+func (r *AddressControllerClient) Addres(id string) (addr string, err error) {
+	addr, err = r.AddresRequest().SetId(id).Execute()
+	return
+}
+func (r *AddressControllerClient) AddresRequest() *AddressControllerAddresRequest {
+	m := &AddressControllerAddresRequest{client: r.opts.client, opts: &clientOptions{ctx: context.TODO()}, c: r}
+	return m
+}
+func (r *AddressControllerAddresRequest) Execute(opts ...ClientOption) (addr string, err error) {
+	for _, o := range opts {
+		o(r.opts)
+	}
+	var body struct {
+		Id *string `json:"id_2 ,omitempty"`
+	}
+	ctx, cancel := context.WithCancel(r.opts.ctx)
+	path := "/addresses"
+	req, err := http.NewRequest("GET", r.c.target+path, nil)
+	if err != nil {
+		cancel()
+		return
+	}
+
+	req.Header.Add("Content-Type", "application/json")
+	body.Id = r.params.id
+	var reqData bytes.Buffer
+	err = json.NewEncoder(&reqData).Encode(body)
+	if err != nil {
+		cancel()
+		return
+	}
+	req.Body = io.NopCloser(&reqData)
+	before := append(r.c.opts.before, r.opts.before...)
+	for _, before := range before {
+		ctx, err = before(ctx, req)
+		if err != nil {
+			cancel()
+			return
+		}
+	}
+	resp, err := r.client.Do(req)
+	if err != nil {
+		cancel()
+		return
+	}
+	after := append(r.c.opts.after, r.opts.after...)
+	for _, after := range after {
+		ctx = after(ctx, resp)
+	}
+	defer resp.Body.Close()
+	defer cancel()
+	if resp.StatusCode > 399 {
+		var errorWrapper errors.ErrorWrapper
+		var bytes []byte
+		bytes, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return
+		}
+		err = json.Unmarshal(bytes, &errorWrapper)
+		if err != nil {
+			err = fmt.Errorf("unmarshal error (%s): %w", bytes, err)
+			return
+		}
+		err = &errors.DefaultError{Data: errorWrapper.Data, ErrorText: errorWrapper.ErrorText, Code: errorWrapper.Code}
+		return
+	}
+	var respBody struct {
+		Addr string `json:"addr"`
+	}
+
+	var reader io.ReadCloser
+	switch resp.Header.Get("Content-Encoding") {
+	default:
+		reader = resp.Body
+	case "gzip":
+		reader, err = gzip.NewReader(resp.Body)
+		if err != nil {
+			return
+		}
+		defer reader.Close()
+	}
+	err = json.NewDecoder(reader).Decode(&respBody)
+	if err != nil {
+		return
+	}
+	return respBody.Addr, nil
+}
+func NewAddressControllerClient(target string, opts ...ClientOption) *AddressControllerClient {
+	c := &AddressControllerClient{target: target, opts: &clientOptions{client: http.DefaultClient}}
+	for _, o := range opts {
+		o(c.opts)
+	}
+	return c
+}

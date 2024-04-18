@@ -234,3 +234,58 @@ func SetupRoutesProfileController(svc controller.ProfileController, e *v4.Echo, 
 		return
 	}, append(o.middleware, o.middlewareRemove...)...)
 }
+
+type AddressControllerOption func(*AddressControllerOptions)
+type AddressControllerOptions struct {
+	errorEncoder     func(ctx v4.Context, err error)
+	middleware       []v4.MiddlewareFunc
+	middlewareAddres []v4.MiddlewareFunc
+}
+
+func AddressControllerMiddleware(middleware ...v4.MiddlewareFunc) AddressControllerOption {
+	return func(o *AddressControllerOptions) {
+		o.middleware = append(o.middleware, middleware...)
+	}
+}
+func AddressControllerWithErrorEncoder(errorEncoder func(ctx v4.Context, err error)) AddressControllerOption {
+	return func(o *AddressControllerOptions) {
+		o.errorEncoder = errorEncoder
+	}
+}
+func AddressControllerAddresMiddleware(middleware ...v4.MiddlewareFunc) AddressControllerOption {
+	return func(o *AddressControllerOptions) {
+		o.middlewareAddres = append(o.middlewareAddres, middleware...)
+	}
+}
+func SetupRoutesAddressController(svc controller.AddressController, e *v4.Echo, opts ...AddressControllerOption) {
+	o := &AddressControllerOptions{errorEncoder: echoDefaultErrorEncoder}
+	for _, opt := range opts {
+		opt(o)
+	}
+	e.Add("GET", "/addresses", func(ctx v4.Context) (_ error) {
+		var err error
+		var req struct {
+			Id string `json:"id_2 "`
+		}
+		addr, err := svc.Addres(req.Id)
+		if err != nil {
+			o.errorEncoder(ctx, err)
+			return
+		}
+		var resp struct {
+			Addr string `json:"addr"`
+		}
+		resp.Addr = addr
+		var respData []byte
+		respData, err = json.Marshal(resp)
+		if err != nil {
+			o.errorEncoder(ctx, err)
+			return
+		}
+
+		ctx.Response().Header().Add("content-type", "application/json")
+		ctx.Response().WriteHeader(200)
+		ctx.Response().Write(respData)
+		return
+	}, append(o.middleware, o.middlewareAddres...)...)
+}
