@@ -169,7 +169,8 @@ func (r *EchoClientNoWrapperErrorControllerFooRequest) Execute(opts ...ClientOpt
 	defer resp.Body.Close()
 	defer cancel()
 	if resp.StatusCode > 399 {
-		return fmt.Errorf("http error %d", resp.StatusCode)
+		err = fmt.Errorf("http error %d", resp.StatusCode)
+		return
 	}
 	return nil
 }

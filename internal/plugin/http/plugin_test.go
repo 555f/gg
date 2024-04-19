@@ -16,7 +16,7 @@ type testData struct {
 }
 
 func Test(t *testing.T) {
-	wd, _ := filepath.Abs("./examples")
+	wd, _ := filepath.Abs("./tests")
 
 	type output struct {
 		path         string
@@ -33,7 +33,7 @@ func Test(t *testing.T) {
 			fileName: "echo_no_wrapper_error.go",
 			outputs: []output{
 				{
-					"/home/vitaly/Documents/work/my/gg/internal/plugin/http/examples/internal/server/client.go",
+					"/home/vitaly/Documents/work/my/gg/internal/plugin/http/tests/internal/server/client.go",
 					"echo_no_wrapper_error.go",
 				},
 			},

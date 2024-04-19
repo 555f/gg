@@ -1,4 +1,4 @@
-package restnowrapper
+package tests
 
 // @gg:"http"
 // @http-type:"echo"
