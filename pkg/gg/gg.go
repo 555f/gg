@@ -3,6 +3,7 @@ package gg
 import (
 	"fmt"
 	"go/ast"
+	"go/parser"
 	"go/token"
 	stdtypes "go/types"
 	"os"
@@ -19,10 +20,45 @@ import (
 )
 
 type Result struct {
-	Filepath string
+	File file.File
 }
 
-func Run(version, wd string, packages []*stdpackages.Package, plugins map[string]any) (result []*Result, errs error) {
+func Run(version, wd string, packageNames []string, pluginOpts map[string]any, isSaveFile bool) (result []*Result, errs error) {
+	cfg := &stdpackages.Config{
+		ParseFile: func(fSet *token.FileSet, filename string, src []byte) (*ast.File, error) {
+			return parser.ParseFile(fSet, filename, src, parser.AllErrors|parser.ParseComments)
+		},
+		Mode: stdpackages.NeedDeps |
+			stdpackages.NeedSyntax |
+			stdpackages.NeedTypesInfo |
+			stdpackages.NeedTypes |
+			stdpackages.NeedTypesSizes |
+			stdpackages.NeedImports |
+			stdpackages.NeedName |
+			stdpackages.NeedModule |
+			stdpackages.NeedFiles |
+			stdpackages.NeedCompiledGoFiles,
+		Dir:        wd,
+		Env:        os.Environ(),
+		BuildFlags: []string{"-tags=gg"},
+	}
+	escaped := make([]string, len(packageNames))
+	for i := range packageNames {
+		escaped[i] = "pattern=" + packageNames[i]
+	}
+	packages, err := stdpackages.Load(cfg, escaped...)
+	if err != nil {
+		errs = multierror.Append(errs, err)
+		return
+	}
+	for _, pkg := range packages {
+		for _, err := range pkg.Errors {
+			errs = multierror.Append(errs, err)
+		}
+	}
+	if errs != nil {
+		return
+	}
 	module, err := Module(packages)
 	if err != nil {
 		errs = multierror.Append(errs, errors.Error("the golang module was not found, see for more details https://go.dev/blog/using-go-modules", token.Position{}))
@@ -83,11 +119,17 @@ func Run(version, wd string, packages []*stdpackages.Package, plugins map[string
 
 	var pluginGraph = newGraph()
 
-	pkgPath := module.Path + strings.Replace(wd, module.Dir, "", -1)
+	var pkgPath string
+
+	if module != nil {
+		pkgPath = module.Path + strings.Replace(wd, module.Dir, "", -1)
+	} else {
+		pkgPath = filepath.Base(wd)
+	}
 
 	for name, f := range pluginFactories {
 		if len(interfaceSet[name]) > 0 || len(structSet[name]) > 0 {
-			options, _ := plugins[name].(map[string]any)
+			options, _ := pluginOpts[name].(map[string]any)
 			ctx := &Context{
 				Version:     version,
 				pluginGraph: pluginGraph,
@@ -135,21 +177,23 @@ func Run(version, wd string, packages []*stdpackages.Package, plugins map[string
 			if err != nil {
 				return err
 			}
-			dirPath := filepath.Dir(f.Filepath())
+			dirPath := filepath.Dir(f.Path())
 			if err := os.MkdirAll(dirPath, 0700); err != nil {
 				return err
 			}
-			if err := os.WriteFile(f.Filepath(), data, 0700); err != nil {
+			if err := os.WriteFile(f.Path(), data, 0700); err != nil {
 				return err
 			}
 			return nil
 		}
 		for _, f := range files {
-			if err := saveFile(f); err != nil {
-				errs = multierror.Append(errs, err)
+			if isSaveFile {
+				if err := saveFile(f); err != nil {
+					errs = multierror.Append(errs, err)
+				}
 			}
 			result = append(result, &Result{
-				Filepath: f.Filepath(),
+				File: f,
 			})
 		}
 		if p, ok := plugin.(PluginAfterGen); ok {

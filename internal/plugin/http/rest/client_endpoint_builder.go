@@ -327,8 +327,11 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 							g.Id("StatusCode").Op(":").Id("resp").Dot("StatusCode")
 						}
 					})
+					g.Return()
+				} else {
+					g.Err().Op("=").Do(b.qualifier.Qual(fmtPkg, "Errorf")).Call(jen.Lit("http error %d"), jen.Id("resp").Dot("StatusCode"))
+					g.Return()
 				}
-				g.Return()
 			}),
 			jen.Do(func(s *jen.Statement) {
 				if len(b.ep.BodyResults) > 0 {

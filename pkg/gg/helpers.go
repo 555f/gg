@@ -11,7 +11,7 @@ import (
 
 func Module(pkgs []*packages.Package) (*types.Module, error) {
 	for _, p := range pkgs {
-		if p.Module.Main {
+		if p.Module != nil && p.Module.Main {
 			result, err := types.NewDecoder(p, nil).Decode(p.Module)
 			if err != nil {
 				return nil, err
