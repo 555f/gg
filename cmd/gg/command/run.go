@@ -2,9 +2,6 @@ package command
 
 import (
 	"fmt"
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"log"
 	"os"
 	"path/filepath"
@@ -19,7 +16,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	stdpackages "golang.org/x/tools/go/packages"
 )
 
 var (
@@ -70,70 +66,21 @@ var runCmd = &cobra.Command{
 		}
 
 		packageNames := viper.GetStringSlice("packages")
-		isDebug := viper.GetBool("debug")
 		configFile := viper.ConfigFileUsed()
 		configFile = filepath.FromSlash(configFile)
 
 		wd := filepath.Dir(configFile)
 		wdAbs, _ := filepath.Abs(wd)
 
-		plugins := viper.GetStringMap("plugins")
-
-		escaped := make([]string, len(packageNames))
-		for i := range packageNames {
-			escaped[i] = "pattern=" + packageNames[i]
-		}
+		pluginOpts := viper.GetStringMap("plugins")
 
 		cmd.Printf(yellow("Version: %s\n"), cmd.Root().Version)
 		cmd.Printf(yellow("Workdir: %s\n"), wdAbs)
 		cmd.Printf(yellow("Config file: %s\n"), configFile)
-		cmd.Printf(yellow("Packages: %s\n"), strings.Join(escaped, ","))
-
-		cfg := &stdpackages.Config{
-			ParseFile: func(fSet *token.FileSet, filename string, src []byte) (*ast.File, error) {
-				return parser.ParseFile(fSet, filename, src, parser.AllErrors|parser.ParseComments)
-			},
-			Mode: stdpackages.NeedDeps |
-				stdpackages.NeedSyntax |
-				stdpackages.NeedTypesInfo |
-				stdpackages.NeedTypes |
-				stdpackages.NeedTypesSizes |
-				stdpackages.NeedImports |
-				stdpackages.NeedName |
-				stdpackages.NeedModule |
-				stdpackages.NeedFiles |
-				stdpackages.NeedCompiledGoFiles,
-			Dir:        wdAbs,
-			Env:        os.Environ(),
-			BuildFlags: []string{"-tags=gg"},
-		}
-
-		pkgs, err := stdpackages.Load(cfg, escaped...)
-		if err != nil {
-			cmd.Printf("\n\n%s\n", red(err))
-			os.Exit(1)
-		}
-
-		if isDebug {
-			cmd.Printf(yellow("Found packages: %d\n"), len(pkgs))
-		}
-
-		var foundPkgErr bool
-		for _, pkg := range pkgs {
-			if len(pkg.Errors) > 0 {
-				foundPkgErr = true
-				for _, err := range pkg.Errors {
-					cmd.Printf("\n\n%s\n", red(err))
-				}
-			}
-		}
-		if foundPkgErr {
-			os.Exit(1)
-		}
 
 		var isExitApp bool
 
-		result, err := gg.Run(cmd.Root().Version, wdAbs, pkgs, plugins)
+		result, err := gg.Run(cmd.Root().Version, wdAbs, packageNames, pluginOpts, true)
 		if err != nil {
 			if merr, ok := err.(*multierror.Error); ok {
 				merr.ErrorFormat = func(es []error) string {
@@ -169,7 +116,7 @@ var runCmd = &cobra.Command{
 		if len(result) > 0 {
 			cmd.Printf(green("\n\nfiles was generated:\n"))
 			for _, r := range result {
-				cmd.Println(green("✓"), r.Filepath)
+				cmd.Println(green("✓"), r.File.Path())
 			}
 		} else {
 			cmd.Printf("\nnothing generation\n")

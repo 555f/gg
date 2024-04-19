@@ -28,7 +28,7 @@ func (f *TxtFile) WriteText(format string, a ...any) {
 	_, _ = fmt.Fprintf(&f.buf, format, a...)
 }
 
-func (f *TxtFile) Filepath() string {
+func (f *TxtFile) Path() string {
 	return f.path
 }
 

@@ -1,6 +1,6 @@
 package file
 
 type File interface {
-	Filepath() string
+	Path() string
 	Bytes() ([]byte, error)
 }
