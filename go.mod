@@ -35,7 +35,7 @@ require (
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
-	github.com/google/uuid v1.3.1 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
