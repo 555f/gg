@@ -1,6 +1,7 @@
 package types
 
 import (
+	"container/list"
 	"strings"
 
 	"github.com/fatih/structtag"
@@ -12,22 +13,25 @@ type Struct struct {
 	IsPointer bool
 }
 
-func (s *Struct) Path(v string) *StructFieldType {
-	parts := strings.Split(v, ".")
+func (s *Struct) Path(v string) (vv *StructFieldType) {
 	graph := s.Graph
-	for _, part := range parts {
+	l := split(v, ".")
+	for e := l.Front(); e != nil; e = e.Next() {
+		if graph == nil {
+			break
+		}
+		part := e.Value.(string)
 		start := strings.Index(part, "[")
 		if start != -1 {
 			part = part[:start]
 		}
-		if vv, ok := graph[part]; ok {
+		var ok bool
+		vv, ok = graph[part]
+		if ok {
 			graph = graphByType(vv.Var.Type)
-			if graph == nil || len(parts) == 1 {
-				return vv
-			}
 		}
 	}
-	return nil
+	return
 }
 
 type StructFieldType struct {
@@ -48,4 +52,22 @@ func graphByType(i any) map[string]*StructFieldType {
 	case *Array:
 		return graphByType(t.Value)
 	}
+}
+
+func split(s, sep string) (l *list.List) {
+	l = list.New()
+	i := 0
+	for {
+		m := strings.Index(s, sep)
+		if m < 0 {
+			if len(s) != 0 {
+				l.PushBack(s)
+			}
+			break
+		}
+		l.PushBack(s[:m])
+		s = s[m+len(sep):]
+		i++
+	}
+	return
 }

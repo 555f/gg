@@ -21,10 +21,15 @@ type Settings struct {
 
 	itemMap map[string]string
 
-	Enable, isOk bool
-	Children     app.UI
+	isOk     bool
+	Children app.UI
+	enable   bool
+	Params   url.Values
+}
 
-	Params url.Values
+func (c *Settings) Enable(enable bool) *Settings {
+	c.enable = enable
+	return c
 }
 
 func (c *Settings) OnMount(ctx app.Context) {

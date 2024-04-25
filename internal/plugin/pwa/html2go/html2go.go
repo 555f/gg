@@ -1,7 +1,7 @@
 package html2go
 
 import (
-	"bytes"
+	"database/sql"
 	"fmt"
 
 	"strconv"
@@ -18,161 +18,6 @@ import (
 )
 
 const pkgApp = "github.com/maxence-charriere/go-app/v9/pkg/app"
-
-type tagType int
-
-const (
-	unsetTagType tagType = iota
-	rangeTagType
-	ifTagType
-)
-
-type htmlListener struct {
-	*parser.BaseHTMLParserListener
-
-	name      string
-	structMap map[string]*gg.Struct
-	buf       bytes.Buffer
-
-	classBuf bytes.Buffer
-
-	index     int
-	prevIndex int
-
-	tagType      tagType
-	tagTypeValue string
-
-	prevVars []varparser.Var
-}
-
-func (s *htmlListener) EnterHtmlMisc(ctx *parser.HtmlMiscContext) {}
-
-func (s *htmlListener) EnterHtmlChardata(ctx *parser.HtmlChardataContext) {
-	// n := ctx.HTML_TEXT()
-	// if n == nil {
-	// 	return
-	// }
-
-	// s.index++
-
-	// if s.index == s.prevIndex {
-	// 	fmt.Fprintf(&s.buf, ",")
-	// }
-	// text := strings.TrimSpace(n.GetText())
-	// vars := varparser.Parse(text)
-
-	// for _, v := range vars {
-	// 	st := s.structMap[s.name]
-	// 	if f := st.Type.Path(v.ID); f != nil {
-	// 		if b, ok := f.Var.Type.(*types.Basic); ok {
-	// 			var fmtf string
-	// 			switch {
-	// 			default:
-	// 				fmtf = "%%s"
-	// 			case b.IsNumeric():
-	// 				fmtf = "%%d"
-	// 			case b.IsFloat():
-	// 				fmtf = "%%f"
-	// 			}
-	// 			text = text[0:v.Pos.Start] + fmtf + text[v.Pos.Finish:]
-	// 			s.prevVars = append(s.prevVars, v)
-	// 		}
-	// 	}
-	// }
-	// fmt.Fprintf(&s.buf, "app.Text")
-	// if len(s.prevVars) > 0 {
-	// 	fmt.Fprintf(&s.buf, "f")
-	// }
-
-	// fmt.Fprintf(&s.buf, "("+strconv.Quote(text))
-}
-
-func (s *htmlListener) ExitHtmlChardata(ctx *parser.HtmlChardataContext) {
-	// n := ctx.HTML_TEXT()
-	// if n == nil {
-	// 	return
-	// }
-	// if len(s.prevVars) > 0 {
-	// 	for _, v := range s.prevVars {
-	// 		fmt.Fprintf(&s.buf, ",")
-	// 		fmt.Fprintf(&s.buf, "c."+v.ID)
-	// 	}
-	// 	s.prevVars = []varparser.Var{}
-	// }
-
-	// fmt.Fprintf(&s.buf, ")")
-
-	// s.prevIndex = s.index
-
-	// s.index--
-}
-
-func (s *htmlListener) EnterHtmlElement(ctx *parser.HtmlElementContext) {
-	// s.index++
-	// tagName := strcase.ToCamel(ctx.TAG_NAME(0).GetText())
-	// if s.index == s.prevIndex {
-	// 	fmt.Fprintf(&s.buf, ",")
-	// }
-
-	// fmt.Println(tagName)
-
-	// switch s.tagType {
-	// default:
-	// 	fmt.Fprintf(&s.buf, "app.%s().Body(", tagName)
-	// 	// case ifTagType:
-	// 	// 	fmt.Fprintf(&s.buf, "app.%s().Body(app.If(c.%s, ", tagName, s.tagTypeValue)
-	// 	// case rangeTagType:
-	// 	// 	idx := strings.Index(s.tagTypeValue, "in")
-	// 	// 	if idx > -1 {
-	// 	// 		vRangeKey := strings.TrimSpace(s.tagTypeValue[:idx])
-	// 	// 		vRangeSlice := strings.TrimSpace(s.tagTypeValue[idx+2:])
-	// 	// 		fmt.Fprintf(&s.buf, "app.%s().Body(app.Range(c.%s).Slice(func (%s int) app.UI { return ", tagName, vRangeSlice, vRangeKey)
-	// 	// 	}
-	// }
-}
-
-func (s *htmlListener) ExitHtmlElement(ctx *parser.HtmlElementContext) {
-	// switch s.tagType {
-	// default:
-	// 	fmt.Fprintf(&s.buf, ")")
-	// 	// case ifTagType:
-	// 	// 	fmt.Fprint(&s.buf, "))")
-	// 	// case rangeTagType:
-	// 	// 	fmt.Fprint(&s.buf, "}))")
-	// }
-
-	// if s.classBuf.Len() > 0 {
-	// 	fmt.Fprint(&s.buf, s.classBuf.String())
-	// 	s.classBuf.Reset()
-	// }
-
-	// s.tagType = unsetTagType
-	// s.tagTypeValue = ""
-
-	// s.prevIndex = s.index
-
-	// s.index--
-}
-
-func (s *htmlListener) EnterHtmlAttribute(ctx *parser.HtmlAttributeContext) {
-	attrName := ctx.TAG_NAME().GetText()
-	switch attrName {
-	default:
-		fmt.Fprintf(&s.classBuf, ".%s(", strcase.ToCamel(attrName))
-	case "v-if":
-		s.tagType = ifTagType
-		s.tagTypeValue, _ = strconv.Unquote(ctx.ATTVALUE_VALUE().GetText())
-	case "v-range":
-		s.tagType = rangeTagType
-		s.tagTypeValue, _ = strconv.Unquote(ctx.ATTVALUE_VALUE().GetText())
-	}
-}
-
-func (s *htmlListener) ExitHtmlAttribute(ctx *parser.HtmlAttributeContext) {
-	if s.tagType == unsetTagType {
-		fmt.Fprintf(&s.classBuf, ")")
-	}
-}
 
 var _ antlr.ErrorListener = &errorListener{}
 
@@ -214,8 +59,46 @@ func (hg *HTML2Go) Parse(html string) (codes []jen.Code, err error) {
 	p := parser.NewHTMLParser(stream)
 
 	// p.AddErrorListener(&errorListener{})
-	codes = hg.recursiveParse(p.HtmlDocument(), 0)
+	codes = hg.recursiveParse(p.HtmlElements(), 0)
 
+	return
+}
+
+func htmlToString(t antlr.Tree) (tagText string) {
+	if r, ok := t.(antlr.RuleNode); ok {
+		ctx := r.GetRuleContext().(antlr.ParserRuleContext)
+		switch e := ctx.(type) {
+		default:
+			for _, n := range ctx.GetChildren() {
+				tagText += htmlToString(n)
+			}
+		case *parser.HtmlChardataContext:
+			if e.HTML_TEXT() != nil {
+				return strings.TrimSpace(e.HTML_TEXT().GetText())
+			}
+			return ""
+		case *parser.HtmlElementContext:
+			tagName := e.TAG_NAME(0).GetText()
+
+			tagText = "<" + tagName + " "
+			for i, a := range e.AllHtmlAttribute() {
+				if i > 0 {
+					tagText += " "
+				}
+				tagText += a.TAG_NAME().GetText() + "=" + a.ATTVALUE_VALUE().GetText()
+			}
+
+			if len(e.GetChildren()) > 0 {
+				tagText += ">"
+				for _, n := range ctx.GetChildren() {
+					tagText += htmlToString(n)
+				}
+				tagText += "</" + tagName + ">"
+			} else {
+				tagText += "/>"
+			}
+		}
+	}
 	return
 }
 
@@ -227,34 +110,74 @@ func (hg *HTML2Go) recursiveParse(t antlr.Tree, nested int) (codes []jen.Code) {
 			for _, n := range ctx.GetChildren() {
 				codes = append(codes, hg.recursiveParse(n, nested+1)...)
 			}
+		case *parser.HtmlChardataContext:
+			if e.HTML_TEXT() != nil {
+				text := strings.TrimSpace(e.HTML_TEXT().GetText())
+				vars := varparser.Parse(text)
+
+				var varIDs []string
+				for _, v := range vars {
+					if f := hg.s.Type.Path(v.ID); f != nil {
+						t := f.Var.Type
+						switch tt := t.(type) {
+						case *types.Slice:
+							t = tt.Value
+						case *types.Array:
+							t = tt.Value
+						}
+
+						if b, ok := t.(*types.Basic); ok {
+							var fmtf string
+							switch {
+							default:
+								fmtf = "%s"
+							case b.IsNumeric():
+								fmtf = "%d"
+							case b.IsFloat():
+								fmtf = "%f"
+							}
+							text = text[0:v.Pos.Start] + fmtf + text[v.Pos.Finish:]
+							varIDs = append(varIDs, v.ID)
+						}
+					}
+				}
+				if len(varIDs) > 0 {
+					codes = append(codes, jen.Qual(pkgApp, "Textf").CallFunc(func(g *jen.Group) {
+						g.Lit(text)
+						for _, id := range varIDs {
+							g.Id("c").Dot(id)
+						}
+					}))
+				} else {
+					codes = append(codes, jen.Qual(pkgApp, "Text").Call(jen.Lit(text)))
+				}
+			}
 		case *parser.HtmlElementContext:
-			tagName := e.TAG_NAME(0).GetText()
-
 			// fmt.Println(strings.Repeat(" ", nested), tagName)
-
+			tagName := e.TAG_NAME(0).GetText()
 			if tagName == "svg" {
-				codes = append(codes, jen.Qual(pkgApp, "Raw").Call(jen.Lit(r.GetText())))
+				tagText := htmlToString(e)
+				codes = append(codes, jen.Qual(pkgApp, "Raw").Call(jen.Lit(tagText)))
 				return
 			}
 
 			tag := jen.Qual(pkgApp, strcase.ToCamel(tagName)).Call()
 
 			var (
-				callCodes   []jen.Code
+				callCodes   = make([]jen.Code, 0, 3000)
 				vRange, vIf string
-				cmpMethods  []*types.Func
-				isFoundComp bool
+				cmpMethods  = make([]*types.Func, 0, 128)
 			)
 
 			if ss, ok := hg.structMap[tagName]; ok {
-				isFoundComp = true
+
 				cmpMethods = ss.Named.Methods
 
 				tag = jen.Op("&").Do(hg.qual(ss.Named.Pkg.Path, ss.Named.Name))
 				tag.Values()
 				tag = jen.Call(tag)
 			} else if p := hg.s.Type.Path(strcase.ToLowerCamel(tagName)); p != nil {
-				isFoundComp = true
+
 				switch tt := p.Var.Type.(type) {
 				case *types.Named:
 					if iface := tt.Interface(); iface != nil {
@@ -272,8 +195,11 @@ func (hg *HTML2Go) recursiveParse(t antlr.Tree, nested int) (codes []jen.Code) {
 			}
 
 			for _, a := range e.AllHtmlAttribute() {
+				var attrVal sql.NullString
 				attrName := a.TAG_NAME().GetText()
-				attrVal := trimQuote(a.ATTVALUE_VALUE().GetText())
+				if a.ATTVALUE_VALUE() != nil {
+					attrVal = sql.NullString{Valid: true, String: trimQuote(a.ATTVALUE_VALUE().GetText())}
+				}
 
 				if f, ok := cmpMethodMap[strcase.ToCamel(attrName)]; ok && f.Sig.Params.Len() > 0 {
 					pt := f.Sig.Params[0]
@@ -282,22 +208,25 @@ func (hg *HTML2Go) recursiveParse(t antlr.Tree, nested int) (codes []jen.Code) {
 					if t, ok := pt.Type.(*types.Slice); ok && pt.IsVariadic {
 						tt = t.Value
 					}
-
+					var codeVal jen.Code
 					switch t := tt.(type) {
+					default:
+						codeVal = jen.Id(attrVal.String)
 					case *types.Basic:
-						var val any
 						switch {
 						default:
-							val = attrVal
+							codeVal = jen.Lit(attrVal.String)
 						case t.IsBool():
-							val, _ = strconv.ParseBool(attrVal)
+							val, _ := strconv.ParseBool(attrVal.String)
+							codeVal = jen.Lit(val)
 						case t.IsFloat():
-							val, _ = strconv.ParseFloat(attrVal, 64)
+							val, _ := strconv.ParseFloat(attrVal.String, 64)
+							codeVal = jen.Lit(val)
 						case t.IsInteger():
-							i, _ := strconv.ParseInt(attrVal, 10, 64)
-							val = int(i)
+							i, _ := strconv.ParseInt(attrVal.String, 10, 64)
+							codeVal = jen.Lit(int(i))
 						}
-						tag.Dot(strcase.ToCamel(attrName)).Call(jen.Lit(val))
+						tag.Dot(strcase.ToCamel(attrName)).Call(codeVal)
 					}
 					continue
 				}
@@ -306,113 +235,76 @@ func (hg *HTML2Go) recursiveParse(t antlr.Tree, nested int) (codes []jen.Code) {
 					attrName := attrName[1:]
 					if strings.HasPrefix(attrName, "on") {
 						methodName := strcase.ToCamel(attrName[2:])
-						tag.Dot("On" + methodName).Call(jen.Id("c").Dot(attrVal))
+						tag.Dot("On" + methodName).Call(jen.Id("c").Dot(attrVal.String))
 					} else {
-						tag.Dot(strcase.ToCamel(attrName)).Call(jen.Id("c").Dot(attrVal))
+						tag.Dot(strcase.ToCamel(attrName)).Call(jen.Id("c").Dot(attrVal.String))
 					}
 					continue
 				}
+				if attrName == "style" {
+					attrVal.String = strings.Trim(attrVal.String, ";")
+					attrVal.String = strings.TrimSpace(attrVal.String)
 
-				if name, key := extractKeyValue(attrName, "aria-"); name != "" {
-					tag.Dot(name).Call(jen.Lit(key), jen.Lit(attrVal))
+					styles := strings.Split(attrVal.String, ";")
+					for _, style := range styles {
+						parts := strings.Split(style, ":")
+						key, val := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+						tag.Dot("Style").Call(jen.Lit(key), jen.Lit(val))
+					}
 					continue
 				}
-				if name, key := extractKeyValue(attrName, "data-"); name != "" {
-					tag.Dot(name).Call(jen.Lit(key), jen.Lit(attrVal))
+				if key := extractKeyName(attrName, "aria-"); key != "" {
+					tag.Dot("Aria").Call(jen.Lit(key), jen.Lit(attrVal.String))
+					continue
+				}
+				if key := extractKeyName(attrName, "data-"); key != "" {
+					tag.Dot("DataSet").Call(jen.Lit(key), jen.Lit(attrVal.String))
 					continue
 				}
 
 				switch attrName {
 				case "v-range":
-					vRange = attrVal
+					vRange = attrVal.String
 					continue
 				case "v-if":
-					vIf = attrVal
+					vIf = attrVal.String
 					continue
 				}
 				switch attrName {
 				default:
 					attrName = strcase.ToCamel(attrName)
+				case "autocomplete", "required":
+					continue
 				case "tabindex":
 					attrName = "TabIndex"
-					v, _ := strconv.ParseInt(attrVal, 10, 64)
+					v, _ := strconv.ParseInt(attrVal.String, 10, 64)
 					tag.Dot(attrName).Call(jen.Lit(int(v)))
 					continue
 				case "id":
 					attrName = "ID"
 				}
-				tag.Dot(attrName).Call(jen.Lit(attrVal))
-			}
-
-			if htmlContent := e.HtmlContent(); htmlContent != nil {
-				for _, c := range e.HtmlContent().AllHtmlChardata() {
-					if c.HTML_TEXT() != nil {
-						text := strings.TrimSpace(c.HTML_TEXT().GetText())
-						vars := varparser.Parse(text)
-
-						var varIDs []string
-						for _, v := range vars {
-							if f := hg.s.Type.Path(v.ID); f != nil {
-								t := f.Var.Type
-								switch tt := t.(type) {
-								case *types.Slice:
-									t = tt.Value
-								case *types.Array:
-									t = tt.Value
-								}
-
-								if b, ok := t.(*types.Basic); ok {
-									var fmtf string
-									switch {
-									default:
-										fmtf = "%s"
-									case b.IsNumeric():
-										fmtf = "%d"
-									case b.IsFloat():
-										fmtf = "%f"
-									}
-									text = text[0:v.Pos.Start] + fmtf + text[v.Pos.Finish:]
-									varIDs = append(varIDs, v.ID)
-								}
-							}
-						}
-						if len(varIDs) > 0 {
-							callCodes = append(callCodes, jen.Qual(pkgApp, "Textf").CallFunc(func(g *jen.Group) {
-								g.Lit(text)
-								for _, id := range varIDs {
-									g.Id("c").Dot(id)
-								}
-							}))
-						} else {
-							callCodes = append(callCodes, jen.Qual(pkgApp, "Text").Call(jen.Lit(text)))
-						}
+				tag.Dot(attrName).CallFunc(func(g *jen.Group) {
+					if attrVal.Valid {
+						g.Lit(attrVal.String)
 					}
-				}
+				})
 			}
 			for _, n := range ctx.GetChildren() {
 				callCodes = append(callCodes, hg.recursiveParse(n, nested+1)...)
 			}
-
-			if tagName == "routerprovider" {
-				fmt.Println(ctx.GetChildren()[0].(*antlr.TerminalNodeImpl).String(), isFoundComp, len(callCodes))
-			}
-
 			if len(callCodes) > 0 {
-
-				// if isFoundComp {
-				// tag.Dot("Children").Call(callCodes...)
-				// } else {
 				tag.Dot("Body").Call(callCodes...)
-				// }
 			}
 			if vIf != "" {
 				tag = jen.Qual(pkgApp, "If").Call(jen.Id("c").Dot(vIf), tag)
 			}
 			if vRange != "" {
 				idx := strings.Index(vRange, "in")
+
 				if idx > -1 {
 					key := strings.TrimSpace(vRange[:idx])
 					slice := strings.TrimSpace(vRange[idx+2:])
+
 					if f := hg.s.Type.Path(slice); f != nil {
 						switch f.Var.Type.(type) {
 						case *types.Array, *types.Slice:

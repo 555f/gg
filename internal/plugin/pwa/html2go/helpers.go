@@ -2,8 +2,6 @@ package html2go
 
 import (
 	"strings"
-
-	"github.com/555f/gg/pkg/strcase"
 )
 
 func trimQuote(s string) string {
@@ -15,10 +13,9 @@ func trimQuote(s string) string {
 	return s
 }
 
-func extractKeyValue(attrName, prefix string) (name, key string) {
+func extractKeyName(attrName, prefix string) (key string) {
 	if i := strings.Index(attrName, prefix); i != -1 {
 		key = attrName[i+len(prefix):]
-		name = strcase.ToCamel(prefix)
 		return
 	}
 	return

@@ -12,47 +12,57 @@ type RouterComponent interface {
 
 // @gg:"pwa"
 type Route struct {
-	Path      string
-	TestInt   int
+	path      string
+	testInt   int
 	component RouterComponent
 }
 
-func (r *Route) Children(component RouterComponent) *Route {
+func (r *Route) Path(path string) *Route {
+	r.path = path
+	return r
+}
+
+func (r *Route) TestInt(testInt int) *Route {
+	r.testInt = testInt
+	return r
+}
+
+func (r *Route) Body(component RouterComponent) *Route {
 	r.component = component
 	return r
 }
 
 func (r *Route) Try(path string) (url.Values, bool) {
 	p := make(url.Values)
-	if r.Path == path {
+	if r.path == path {
 		return p, true
 	}
 	var i, j int
 	for i < len(path) {
 		switch {
-		case j >= len(r.Path):
-			if r.Path != "/" && len(r.Path) > 0 && r.Path[len(r.Path)-1] == '/' {
+		case j >= len(r.path):
+			if r.path != "/" && len(r.path) > 0 && r.path[len(r.path)-1] == '/' {
 				return p, true
 			}
 			return nil, false
-		case r.Path[j] == ':':
+		case r.path[j] == ':':
 			var name, val string
 			var nextc byte
-			name, nextc, j = match(r.Path, isAlnum, j+1)
+			name, nextc, j = match(r.path, isAlnum, j+1)
 			val, _, i = match(path, matchPart(nextc), i)
 			escval, err := url.QueryUnescape(val)
 			if err != nil {
 				return nil, false
 			}
 			p.Add(name, escval)
-		case path[i] == r.Path[j]:
+		case path[i] == r.path[j]:
 			i++
 			j++
 		default:
 			return nil, false
 		}
 	}
-	if j != len(r.Path) {
+	if j != len(r.path) {
 		return nil, false
 	}
 	return p, true
@@ -99,7 +109,7 @@ func (c *RouterProvider) OnNav(ctx app.Context) {
 	c.currentURL = ctx.Page().URL()
 }
 
-func (c *RouterProvider) Children(elems ...any) *RouterProvider {
+func (c *RouterProvider) Body(elems ...any) *RouterProvider {
 	for _, e := range elems {
 		if r, ok := e.(*Route); ok {
 			c.routes = append(c.routes, r)
