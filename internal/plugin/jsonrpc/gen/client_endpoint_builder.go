@@ -39,14 +39,20 @@ func (b *clientEndpointBuilder) BuildReqStruct() ClientEndpointBuilder {
 			g.Id("after").Index().Qual("github.com/555f/jsonrpc", "ClientAfterFunc")
 			// g.Id("ctx").Qual("context", "Context")
 		}),
-
+		jen.Func().Params(jen.Id(recvName).Op("*").Id(methodRequestName)).Id("Before").Params().
+			Index().Qual("github.com/555f/jsonrpc", "ClientBeforeFunc").Block(
+			jen.Return(jen.Id(recvName).Dot("before")),
+		),
 		jen.Func().Params(jen.Id(recvName).Op("*").Id(methodRequestName)).Id("SetBefore").Params(
 			jen.Id("before").Op("...").Qual("github.com/555f/jsonrpc", "ClientBeforeFunc"),
 		).Op("*").Id(methodRequestName).Block(
 			jen.Id(recvName).Dot("before").Op("=").Id("before"),
 			jen.Return(jen.Id(recvName)),
 		),
-
+		jen.Func().Params(jen.Id(recvName).Op("*").Id(methodRequestName)).Id("After").Params().
+			Index().Qual("github.com/555f/jsonrpc", "ClientAfterFunc").Block(
+			jen.Return(jen.Id(recvName).Dot("after")),
+		),
 		jen.Func().Params(jen.Id(recvName).Op("*").Id(methodRequestName)).Id("SetAfter").Params(
 			jen.Id("after").Op("...").Qual("github.com/555f/jsonrpc", "ClientAfterFunc"),
 		).Op("*").Id(methodRequestName).Block(
@@ -95,16 +101,20 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 			BlockFunc(func(g *jen.Group) {
 				batchResultID := jen.Id("batchResult")
 				resultAssignOp := ":="
-				if len(b.ep.Results) == 0 {
+
+				if len(b.ep.Results) == 0 && b.ep.Error == nil {
 					batchResultID = jen.Id("_")
 					resultAssignOp = "="
 				}
 				g.List(batchResultID, jen.Err()).Op(resultAssignOp).Id(recvName).Dot("c").Dot("Client").Dot("Execute").Call(jen.Id(recvName))
 				g.Do(gen.CheckErr(jen.Return()))
 
-				if len(b.ep.Results) > 0 {
+				if b.ep.Error != nil {
 					g.Err().Op("=").Id("batchResult").Dot("Error").Call(jen.Lit(0))
 					g.Do(gen.CheckErr(jen.Return()))
+				}
+
+				if len(b.ep.Results) > 0 {
 					g.Id("clientResult").Op(":=").Id("batchResult").Dot("At").Call(jen.Lit(0)).Assert(jen.Id(resultName))
 				}
 
