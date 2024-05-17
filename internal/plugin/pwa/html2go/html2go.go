@@ -1,7 +1,6 @@
 package html2go
 
 import (
-	"database/sql"
 	"fmt"
 
 	"strconv"
@@ -18,6 +17,23 @@ import (
 )
 
 const pkgApp = "github.com/maxence-charriere/go-app/v9/pkg/app"
+
+type attrKind int
+
+const (
+	normalAttrKind attrKind = iota
+	rangeAttrKind
+	ifAttrKind
+	dynamicAttrKind
+)
+
+type attr struct {
+	name      string
+	fieldName string
+	value     any
+	rawValue  string
+	kind      attrKind
+}
 
 var _ antlr.ErrorListener = &errorListener{}
 
@@ -61,6 +77,56 @@ func (hg *HTML2Go) Parse(html string) (codes []jen.Code, err error) {
 	// p.AddErrorListener(&errorListener{})
 	codes = hg.recursiveParse(p.HtmlElements(), 0)
 
+	return
+}
+
+func parseSVG(t antlr.Tree) (codes []jen.Code) {
+	if r, ok := t.(antlr.RuleNode); ok {
+		ctx := r.GetRuleContext().(antlr.ParserRuleContext)
+		switch e := ctx.(type) {
+		default:
+			for _, n := range ctx.GetChildren() {
+				codes = append(codes, parseSVG(n)...)
+			}
+		case *parser.HtmlChardataContext:
+			// if e.HTML_TEXT() != nil {
+			// return strings.TrimSpace(e.HTML_TEXT().GetText())
+			// }
+			return
+		case *parser.HtmlElementContext:
+			tagName := e.TAG_NAME(0).GetText()
+
+			tag := jen.Empty()
+
+			tag.Qual(pkgApp, "Elem").Call(jen.Lit(tagName)).
+				Dot("XMLNS").Call(jen.Lit("http://www.w3.org/2000/svg"))
+
+			// tagText = "<" + tagName + " "
+			for _, a := range e.AllHtmlAttribute() {
+				tag.Dot("Attr").Call(
+					jen.Lit(a.TAG_NAME().GetText()),
+					jen.Lit(a.ATTVALUE_VALUE().GetText()),
+				)
+				// if i > 0 {
+				// 	tagText += " "
+				// }
+				// tagText += a.TAG_NAME().GetText() + "=" + a.ATTVALUE_VALUE().GetText()
+			}
+
+			codes = append(codes, tag)
+
+			if len(e.GetChildren()) > 0 {
+				// tagText += ">"
+				// for _, n := range ctx.GetChildren() {
+
+				// 	tagText += htmlToString(n)
+				// }
+				// tagText += "</" + tagName + ">"
+			} else {
+				// tagText += "/>"
+			}
+		}
+	}
 	return
 }
 
@@ -117,23 +183,40 @@ func (hg *HTML2Go) recursiveParse(t antlr.Tree, nested int) (codes []jen.Code) {
 
 				var varIDs []string
 				for _, v := range vars {
-					if f := hg.s.Type.Path(v.ID); f != nil {
+
+					path := v.ID
+					if v.Path != "" {
+						path = v.Path
+					}
+
+					if f := hg.s.Type.Path(path); f != nil {
+						var isSlice bool
 						t := f.Var.Type
 						switch tt := t.(type) {
 						case *types.Slice:
 							t = tt.Value
+							isSlice = true
 						case *types.Array:
 							t = tt.Value
+							isSlice = true
 						}
 
-						if b, ok := t.(*types.Basic); ok {
+						switch t := t.(type) {
+						case *types.Named:
+							id := jen.Id("c").Dot(v.ID)
+							if isSlice {
+								id.Op("...")
+							}
+							codes = append(codes, id)
+							return
+						case *types.Basic:
 							var fmtf string
 							switch {
 							default:
 								fmtf = "%s"
-							case b.IsNumeric():
+							case t.IsNumeric():
 								fmtf = "%d"
-							case b.IsFloat():
+							case t.IsFloat():
 								fmtf = "%f"
 							}
 							text = text[0:v.Pos.Start] + fmtf + text[v.Pos.Finish:]
@@ -161,91 +244,199 @@ func (hg *HTML2Go) recursiveParse(t antlr.Tree, nested int) (codes []jen.Code) {
 				return
 			}
 
-			tag := jen.Qual(pkgApp, strcase.ToCamel(tagName)).Call()
+			tag := jen.Empty()
+
+			// var isSvg bool
+
+			// switch tagName {
+			// default:
+			tag.Qual(pkgApp, strcase.ToCamel(tagName)).Call()
+			// case "svg", "path", "g", "circle", "text":
+			// 	isSvg = true
+			// 	tag.Qual(pkgApp, "Elem").Call(jen.Lit(tagName)).
+			// 		Dot("XMLNS").Call(jen.Lit("http://www.w3.org/2000/svg"))
+			// }
 
 			var (
 				callCodes   = make([]jen.Code, 0, 3000)
 				vRange, vIf string
-				cmpMethods  = make([]*types.Func, 0, 128)
+				// cmpMethods  = make([]*types.Func, 0, 128)
 			)
 
-			if ss, ok := hg.structMap[tagName]; ok {
+			var (
+				tagAttributes, structAttributes []attr
+			)
 
-				cmpMethods = ss.Named.Methods
+			st, isStructTag := hg.structMap[tagName]
 
-				tag = jen.Op("&").Do(hg.qual(ss.Named.Pkg.Path, ss.Named.Name))
-				tag.Values()
+			for _, a := range e.AllHtmlAttribute() {
+				var attrVal string
+				attrName := a.TAG_NAME().GetText()
+				if a.ATTVALUE_VALUE() != nil {
+					attrVal = trimQuote(a.ATTVALUE_VALUE().GetText())
+				}
+
+				at := attr{
+					name:     attrName,
+					rawValue: attrVal,
+					kind:     normalAttrKind,
+				}
+
+				if strings.HasPrefix(at.name, ":") {
+					at.name = strings.TrimPrefix(at.name, ":")
+					at.kind = dynamicAttrKind
+				}
+
+				at.fieldName = strcase.ToCamel(at.name)
+
+				if isStructTag {
+					if f := st.Type.Path(at.fieldName); f != nil {
+						tt := f.Var.Type
+						if t, ok := tt.(*types.Slice); ok {
+							tt = t.Value
+						}
+						switch t := tt.(type) {
+						case *types.Basic:
+							switch {
+							default:
+								at.value = at.rawValue
+							case t.IsBool():
+								val, _ := strconv.ParseBool(at.rawValue)
+								at.value = val
+							case t.IsFloat():
+								val, _ := strconv.ParseFloat(at.rawValue, 64)
+								at.value = val
+							case t.IsInteger():
+								val, _ := strconv.ParseInt(at.rawValue, 10, 64)
+								at.value = val
+							}
+						}
+						structAttributes = append(structAttributes, at)
+					}
+				} else {
+					switch at.name {
+					default:
+						at.value = at.rawValue
+					case "v-if":
+						at.kind = ifAttrKind
+					case "v-range":
+						at.kind = rangeAttrKind
+					case "autocomplete", "required":
+						continue
+					case "tabindex":
+						at.fieldName = "TabIndex"
+						v, _ := strconv.ParseInt(at.rawValue, 10, 64)
+						at.value = v
+						continue
+					case "id":
+						at.fieldName = "ID"
+						at.value = at.rawValue
+					}
+
+					tagAttributes = append(tagAttributes, at)
+				}
+			}
+
+			if isStructTag {
+				tag = jen.Op("&").Do(hg.qual(st.Named.Pkg.Path, st.Named.Name))
+				tag.ValuesFunc(func(g *jen.Group) {
+					for _, a := range structAttributes {
+						var (
+							codeVal jen.Code
+						)
+						switch a.kind {
+						default:
+							continue
+						case dynamicAttrKind:
+							codeVal = jen.Id("c").Dot(a.rawValue)
+						case normalAttrKind:
+							if a.value == nil {
+								continue
+							}
+							codeVal = jen.Lit(a.value)
+						}
+
+						g.Id(a.fieldName).Op(":").Add(codeVal)
+					}
+				})
+
 				tag = jen.Call(tag)
 			} else if p := hg.s.Type.Path(strcase.ToLowerCamel(tagName)); p != nil {
 
-				switch tt := p.Var.Type.(type) {
-				case *types.Named:
-					if iface := tt.Interface(); iface != nil {
-						cmpMethods = iface.Methods
-					} else {
-						cmpMethods = tt.Methods
-					}
-				}
+				// switch tt := p.Var.Type.(type) {
+				// case *types.Named:
+				// 	if iface := tt.Interface(); iface != nil {
+				// 		// cmpMethods = iface.Methods
+				// 	} else {
+				// 		// cmpMethods = tt.Methods
+				// 	}
+				// }
 				tag = jen.Id("c").Dot(strcase.ToLowerCamel(tagName))
 			}
 
-			cmpMethodMap := make(map[string]*types.Func, len(cmpMethods))
-			for _, m := range cmpMethods {
-				cmpMethodMap[m.Name] = m
-			}
+			// cmpMethodMap := make(map[string]*types.Func, len(cmpMethods))
+			// for _, m := range cmpMethods {
+			// cmpMethodMap[m.Name] = m
+			// }
 
-			for _, a := range e.AllHtmlAttribute() {
-				var attrVal sql.NullString
-				attrName := a.TAG_NAME().GetText()
-				if a.ATTVALUE_VALUE() != nil {
-					attrVal = sql.NullString{Valid: true, String: trimQuote(a.ATTVALUE_VALUE().GetText())}
-				}
+			for _, a := range tagAttributes {
+				// var attrVal sql.NullString
+				// attrName := a.TAG_NAME().GetText()
+				// if a.ATTVALUE_VALUE() != nil {
+				// attrVal = sql.NullString{Valid: true, String: trimQuote(a.ATTVALUE_VALUE().GetText())}
+				// }
 
-				if f, ok := cmpMethodMap[strcase.ToCamel(attrName)]; ok && f.Sig.Params.Len() > 0 {
-					pt := f.Sig.Params[0]
+				// if f, ok := cmpMethodMap[strcase.ToCamel(attrName)]; ok && f.Sig.Params.Len() > 0 {
+				// 	pt := f.Sig.Params[0]
 
-					tt := pt.Type
-					if t, ok := pt.Type.(*types.Slice); ok && pt.IsVariadic {
-						tt = t.Value
-					}
-					var codeVal jen.Code
-					switch t := tt.(type) {
-					default:
-						codeVal = jen.Id(attrVal.String)
-					case *types.Basic:
-						switch {
-						default:
-							codeVal = jen.Lit(attrVal.String)
-						case t.IsBool():
-							val, _ := strconv.ParseBool(attrVal.String)
-							codeVal = jen.Lit(val)
-						case t.IsFloat():
-							val, _ := strconv.ParseFloat(attrVal.String, 64)
-							codeVal = jen.Lit(val)
-						case t.IsInteger():
-							i, _ := strconv.ParseInt(attrVal.String, 10, 64)
-							codeVal = jen.Lit(int(i))
-						}
-						tag.Dot(strcase.ToCamel(attrName)).Call(codeVal)
-					}
-					continue
-				}
+				// 	tt := pt.Type
+				// 	if t, ok := pt.Type.(*types.Slice); ok && pt.IsVariadic {
+				// 		tt = t.Value
+				// 	}
+				// 	var codeVal jen.Code
+				// 	switch t := tt.(type) {
+				// 	default:
+				// 		codeVal = jen.Id(attrVal.String)
+				// 	case *types.Basic:
+				// 		switch {
+				// 		default:
+				// 			codeVal = jen.Lit(attrVal.String)
+				// 		case t.IsBool():
+				// 			val, _ := strconv.ParseBool(attrVal.String)
+				// 			codeVal = jen.Lit(val)
+				// 		case t.IsFloat():
+				// 			val, _ := strconv.ParseFloat(attrVal.String, 64)
+				// 			codeVal = jen.Lit(val)
+				// 		case t.IsInteger():
+				// 			i, _ := strconv.ParseInt(attrVal.String, 10, 64)
+				// 			codeVal = jen.Lit(int(i))
+				// 		}
+				// 		tag.Dot(strcase.ToCamel(attrName)).Call(codeVal)
+				// 	}
+				// 	continue
+				// }
 
-				if strings.HasPrefix(attrName, ":") {
-					attrName := attrName[1:]
-					if strings.HasPrefix(attrName, "on") {
-						methodName := strcase.ToCamel(attrName[2:])
-						tag.Dot("On" + methodName).Call(jen.Id("c").Dot(attrVal.String))
+				if a.kind == dynamicAttrKind {
+					if strings.HasPrefix(a.name, "on") {
+						methodName := strcase.ToCamel(strings.TrimPrefix(a.name, "on"))
+						tag.Dot("On" + methodName).Call(jen.Id("c").Dot(a.rawValue))
 					} else {
-						tag.Dot(strcase.ToCamel(attrName)).Call(jen.Id("c").Dot(attrVal.String))
+						tag.Dot(a.fieldName).Call(jen.Id("c").Dot(a.rawValue))
 					}
 					continue
 				}
-				if attrName == "style" {
-					attrVal.String = strings.Trim(attrVal.String, ";")
-					attrVal.String = strings.TrimSpace(attrVal.String)
 
-					styles := strings.Split(attrVal.String, ";")
+				// if isSvg && attrName != "style" && attrName != "class" && attrName != "v-if" {
+				// 	tag.Dot("Attr").Call(jen.Lit(attrName), jen.Lit(attrVal.String))
+
+				// 	continue
+				// }
+
+				if a.name == "style" {
+					styleStr := strings.Trim(a.rawValue, ";")
+					styleStr = strings.TrimSpace(styleStr)
+
+					styles := strings.Split(styleStr, ";")
 					for _, style := range styles {
 						parts := strings.Split(style, ":")
 						key, val := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
@@ -253,39 +444,27 @@ func (hg *HTML2Go) recursiveParse(t antlr.Tree, nested int) (codes []jen.Code) {
 					}
 					continue
 				}
-				if key := extractKeyName(attrName, "aria-"); key != "" {
-					tag.Dot("Aria").Call(jen.Lit(key), jen.Lit(attrVal.String))
+				if key := extractKeyName(a.name, "aria-"); key != "" {
+					// tag.Dot("Aria").Call(jen.Lit(key), jen.Lit(a.value))
 					continue
 				}
-				if key := extractKeyName(attrName, "data-"); key != "" {
-					tag.Dot("DataSet").Call(jen.Lit(key), jen.Lit(attrVal.String))
+				if key := extractKeyName(a.name, "data-"); key != "" {
+					// tag.Dot("DataSet").Call(jen.Lit(key), jen.Lit(a.value))
 					continue
 				}
 
-				switch attrName {
-				case "v-range":
-					vRange = attrVal.String
+				switch a.kind {
+				case rangeAttrKind:
+					vRange = a.rawValue
 					continue
-				case "v-if":
-					vIf = attrVal.String
+				case ifAttrKind:
+					vIf = a.rawValue
 					continue
 				}
-				switch attrName {
-				default:
-					attrName = strcase.ToCamel(attrName)
-				case "autocomplete", "required":
-					continue
-				case "tabindex":
-					attrName = "TabIndex"
-					v, _ := strconv.ParseInt(attrVal.String, 10, 64)
-					tag.Dot(attrName).Call(jen.Lit(int(v)))
-					continue
-				case "id":
-					attrName = "ID"
-				}
-				tag.Dot(attrName).CallFunc(func(g *jen.Group) {
-					if attrVal.Valid {
-						g.Lit(attrVal.String)
+
+				tag.Dot(a.fieldName).CallFunc(func(g *jen.Group) {
+					if a.value != nil {
+						g.Lit(a.value)
 					}
 				})
 			}

@@ -44,6 +44,15 @@ func TestVarParser_Parse(t *testing.T) {
 				{ID: "items[i].children[i]", Pos: VarPos{5, 27}},
 			},
 		},
+		{
+			name: "",
+			args: args{
+				s: "vddb {foo(items[i].children[i])}",
+			},
+			want: []Var{
+				{ID: "foo(items[i].children[i])", Path: "items[i].children[i]", Pos: VarPos{5, 32}},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

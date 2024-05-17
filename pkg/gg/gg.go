@@ -85,6 +85,9 @@ func Run(version, wd string, packageNames []string, pluginOpts map[string]any, i
 	pluginUsesSet := map[string][]token.Position{}
 
 	for _, s := range structs {
+		if _, ok := s.Named.Tags.Get("gg"); !ok {
+			continue
+		}
 		if !s.Named.IsExported {
 			if len(s.Named.Tags) > 0 {
 				errs = multierror.Append(errs, errors.Warn("tags are defined for the structure, but it is not exportable", s.Named.Position))
@@ -264,12 +267,11 @@ func findTypes(packages []*stdpackages.Package, checkTypeFn func(tp stdtypes.Typ
 		if !ok {
 			return nil
 		}
-
-		if named.Obj().IsAlias() {
+		if !named.Obj().Exported() {
 			return nil
 		}
 
-		if !ok {
+		if named.Obj().IsAlias() {
 			return nil
 		}
 		if !checkTypeFn(named.Underlying()) {

@@ -9,8 +9,9 @@ type VarPos struct {
 }
 
 type Var struct {
-	ID  string
-	Pos VarPos
+	ID   string
+	Path string
+	Pos  VarPos
 }
 
 func Parse(s string) (vars []Var) {
@@ -25,7 +26,16 @@ func Parse(s string) (vars []Var) {
 			finishPos = i
 		}
 		if startPos != -1 && finishPos != -1 {
-			vars = append(vars, Var{ID: val[startPos+1 : finishPos], Pos: VarPos{Start: startPos, Finish: finishPos + 1}})
+			var path string
+			id := val[startPos+1 : finishPos]
+
+			if opIdx := strings.Index(id, "("); opIdx != -1 {
+				if clIdx := strings.Index(id, ")"); clIdx != -1 {
+					path = id[opIdx+1 : clIdx]
+				}
+			}
+
+			vars = append(vars, Var{ID: id, Path: path, Pos: VarPos{Start: startPos, Finish: finishPos + 1}})
 			startPos, finishPos = -1, -1
 		}
 		i++

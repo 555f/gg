@@ -58,6 +58,38 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 	clientFile := file.NewGoFile(p.ctx.Module, clientAbsOutput)
 	clientFile.SetVersion(p.ctx.Version)
 
+	convertStructsCode := jen.Func().Id("convertStructs").Types(
+		jen.Id("A").Any(),
+		jen.Id("B").Any(),
+		jen.Id("IN").Index().Id("A"),
+	).Params(
+		jen.Id("a").Id("IN"),
+		jen.Id("c").Func().Params(jen.Id("A")).Id("B"),
+	).Params(jen.Id("r").Index().Id("B")).Block(
+		jen.For(jen.List(jen.Id("_"), jen.Id("v")).Op(":=").Range().Id("a")).Block(
+			jen.Id("r").Op("=").Append(jen.Id("r"), jen.Id("convertStruct").Types(jen.Id("A"), jen.Id("B")).Call(
+				jen.Id("v"),
+				jen.Id("c"),
+			)),
+		),
+		jen.Return(),
+	)
+	convertStructCode := jen.Func().Id("convertStruct").Types(
+		jen.Id("A").Any(),
+		jen.Id("B").Any(),
+	).Params(
+		jen.Id("a").Id("A"),
+		jen.Id("c").Func().Params(jen.Id("A")).Id("B"),
+	).Params(jen.Id("r").Id("B")).Block(
+		jen.Return(jen.Id("c").Call(jen.Id("a"))),
+	)
+
+	serverFile.Add(convertStructCode)
+	serverFile.Add(convertStructsCode)
+
+	clientFile.Add(convertStructCode)
+	clientFile.Add(convertStructsCode)
+
 	var (
 		serverServices []options.Iface
 		clientServices []options.Iface
@@ -87,6 +119,8 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 	var walkType func(t any, visited map[string]struct{}, fn func(named *types.Named))
 	walkType = func(t any, visited map[string]struct{}, fn func(named *types.Named)) {
 		switch t := t.(type) {
+		case *types.Slice:
+			walkType(t.Value, visited, fn)
 		case *types.Named:
 			if t.Pkg.Path == "time" {
 				return
@@ -118,6 +152,27 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 	}
 	protobufToStuctRecursive = func(path jen.Statement, t any, qualFn types.QualFunc) jen.Code {
 		switch t := t.(type) {
+		case *types.Slice:
+			if named, ok := t.Value.(*types.Named); ok {
+
+				return jen.Id("convertStructs").Call(jen.Add(&path), jen.Func().
+					Params(jen.Id("a").Op("*").Qual(pkgServer, named.Name)).Do(func(s *jen.Statement) {
+					// s.Id("a")
+					// if named.IsPointer {
+					// s.Op("*")
+					// }
+					// s.Qual(named.Pkg.Path, named.Name)
+				}).Do(func(s *jen.Statement) {
+					if named.IsPointer {
+						s.Op("*")
+					}
+					s.Qual(named.Pkg.Path, named.Name)
+				}).Block(
+					jen.Return(
+						jen.Add(protobufToStuct(*jen.Id("a"), t.Value, qualFn)),
+					),
+				))
+			}
 		case *types.Named:
 			switch t.Pkg.Name {
 			case "time":
@@ -175,6 +230,23 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 	}
 	structToProtobufRecursive = func(path jen.Statement, t any, qualFn types.QualFunc) jen.Code {
 		switch t := t.(type) {
+		case *types.Slice:
+			if named, ok := t.Value.(*types.Named); ok {
+				return jen.Id("convertStructs").Call(jen.Add(&path), jen.Func().
+					ParamsFunc(func(g *jen.Group) {
+						g.Do(func(s *jen.Statement) {
+							s.Id("a")
+							if named.IsPointer {
+								s.Op("*")
+							}
+							s.Qual(named.Pkg.Path, named.Name)
+						})
+					}).Op("*").Id(named.Name).Block(
+					jen.Return(
+						jen.Add(structToProtobuf(*jen.Id("a"), t.Value, qualFn)),
+					),
+				))
+			}
 		case *types.Named:
 			switch t.Pkg.Name {
 			case "time":
@@ -359,9 +431,9 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 						} else {
 							for _, p := range ep.Params {
 								g.Do(func(s *jen.Statement) {
-									if p.IsPointer {
-										s.Op("&")
-									}
+									// if p.IsPointer {
+									// s.Op("&")
+									// }
 									s.Add(protobufToStuct(*jen.Id("req").Dot(p.FldName), p.Type, serverFile.Import))
 								})
 							}
@@ -473,9 +545,9 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 					if hasResponse {
 						for _, p := range ep.Results {
 							g.Id(p.FldName).Op("=").Do(func(s *jen.Statement) {
-								if p.IsPointer {
-									s.Op("&")
-								}
+								// if p.IsPointer {
+								// s.Op("&")
+								// }
 							}).Add(protobufToStuct(*jen.Id("resp").Dot(p.FldNameExport), p.Type, clientFile.Import))
 						}
 					}

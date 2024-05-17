@@ -193,6 +193,7 @@ func (d *Decoder) normalizeNamed(named *stdtypes.Named, isPointer bool) (nt *Nam
 	if v, ok := d.visited[visitKey].(*Named); ok {
 		return v, nil
 	}
+
 	pkg, err := d.normalizePkg(named.Obj().Pkg())
 	if err != nil {
 		return nil, err
