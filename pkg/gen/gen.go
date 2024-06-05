@@ -1,15 +1,11 @@
 package gen
 
 import (
-	"github.com/555f/gg/internal/plugin/http/options"
 	"github.com/555f/gg/pkg/strcase"
 	"github.com/555f/gg/pkg/types"
 
-	"github.com/dave/jennifer/jen"
 	. "github.com/dave/jennifer/jen"
 )
-
-const multierrorPkg = "github.com/hashicorp/go-multierror"
 
 func CheckErr(statements ...Code) func(s *Statement) {
 	return func(s *Statement) {
@@ -55,11 +51,11 @@ func FormatValue(id Code, t any, qualFunc types.QualFunc, timeFormat string) (s 
 			case "Time":
 				s.Add(id).Dot("Time").Dot("Format").Call(Lit(timeFormat))
 			case "Int":
-				s.Qual("strconv", "FormatInt").Call(jen.Add(id).Dot("Int64"), jen.Lit(10))
+				s.Qual("strconv", "FormatInt").Call(Add(id).Dot("Int64"), Lit(10))
 			case "Float":
-				s.Qual("strconv", "FormatFloat").Call(jen.Add(id).Dot("Float64"), jen.LitRune('g'), jen.Lit(-1), jen.Lit(64))
+				s.Qual("strconv", "FormatFloat").Call(Add(id).Dot("Float64"), LitRune('g'), Lit(-1), Lit(64))
 			case "Bool":
-				s.Qual("strconv", "FormatBool").Call(jen.Add(id).Dot("Bool"))
+				s.Qual("strconv", "FormatBool").Call(Add(id).Dot("Bool"))
 			}
 		case "time":
 			if t.Name == "Time" {
@@ -88,9 +84,9 @@ func ParseValue(id, assignID Code, op string, t any, qualFunc types.QualFunc, er
 				s.Add(assignID).Op(op).Do(qualFunc(t.Pkg.Path, t.Name)).Call(id)
 			} else {
 				s.CustomFunc(Options{Multi: true}, func(g *Group) {
-					g.List(Id("v"), jen.Err()).Op(":=").Do(parseFunc(id, basic, qualFunc))
+					g.List(Id("v"), Err()).Op(":=").Do(parseFunc(id, basic, qualFunc))
 					g.Do(CheckErr(
-						jen.Return(jen.Nil(), jen.Err()),
+						Return(Nil(), Err()),
 					))
 					g.Add(assignID).Op(op).Qual(t.Pkg.Path, t.Name).Call(Id("v"))
 				})
@@ -245,14 +241,10 @@ func ExtractFields(v any) []*types.StructFieldType {
 	}
 }
 
-func WrapResponse(names []string, results []*options.EndpointResult, qualFunc types.QualFunc) func(g *Group) {
+func WrapResponse(names []string, qualFunc types.QualFunc) func(g *Group) {
 	return func(g *Group) {
 		if len(names) > 0 {
-			g.Id(strcase.ToCamel(names[0])).StructFunc(WrapResponse(names[1:], results, qualFunc)).Tag(map[string]string{"json": names[0]})
-		} else {
-			for _, result := range results {
-				g.Id(result.FldNameExport).Add(types.Convert(result.Type, qualFunc)).Tag(map[string]string{"json": result.Name})
-			}
+			g.Id(strcase.ToCamel(names[0])).StructFunc(WrapResponse(names[1:], qualFunc)).Tag(map[string]string{"json": names[0]})
 		}
 	}
 }

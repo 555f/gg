@@ -29,15 +29,17 @@ func makeEndpointParam(
 	if err != nil {
 		errs = multierror.Append(errs, err)
 	}
+
 	epParam = &EndpointParam{
-		Title:           param.Title,
-		Parent:          parent,
-		FldName:         strcase.ToCamel(param.Name),
-		FldNameUnExport: strcase.ToLowerCamel(param.Name),
-		IsVariadic:      param.IsVariadic,
-		Type:            param.Type,
-		Required:        opts.Required,
-		Zero:            param.Zero,
+		EndpointParamBase: EndpointParamBase{
+			Title:   param.Title,
+			FldName: NewString(param.Name),
+			Type:    param.Type,
+		},
+		Parent:     parent,
+		IsVariadic: param.IsVariadic,
+		Required:   opts.Required,
+		Zero:       param.Zero,
 	}
 	tagFmt := "lowerCamel"
 	if opts.Format != "" {

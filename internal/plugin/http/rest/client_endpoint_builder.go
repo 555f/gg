@@ -66,7 +66,7 @@ func (b *clientEndpointBuilder) BuildReqMethod() ClientEndpointBuilder {
 		ParamsFunc(func(g *jen.Group) {
 			for _, param := range b.ep.Params {
 				if param.Required {
-					g.Id(param.FldNameUnExport).Add(types.Convert(param.Type, b.qualifier.Qual))
+					g.Id(param.FldName.LowerCamel()).Add(types.Convert(param.Type, b.qualifier.Qual))
 				}
 			}
 		}).
@@ -80,7 +80,7 @@ func (b *clientEndpointBuilder) BuildReqMethod() ClientEndpointBuilder {
 		)
 		for _, param := range b.ep.Params {
 			if param.Required {
-				g.Id("m").Dot("params").Dot(param.FldNameUnExport).Op("=").Id(param.FldNameUnExport)
+				g.Id("m").Dot("params").Dot(param.FldName.LowerCamel()).Op("=").Id(param.FldName.LowerCamel())
 			}
 		}
 		g.Return(jen.Id("m"))
@@ -108,13 +108,13 @@ func (b *clientEndpointBuilder) BuildMethod() ClientEndpointBuilder {
 		BlockFunc(func(g *jen.Group) {
 			g.ListFunc(func(g *jen.Group) {
 				for _, param := range b.ep.BodyResults {
-					g.Id(param.FldNameUnExport)
+					g.Id(param.FldName.LowerCamel())
 				}
 				g.Err()
 			}).Op("=").Id(recvName).Dot(methodReqName).CallFunc(func(g *jen.Group) {
 				for _, param := range b.ep.Params {
 					if param.Required {
-						g.Id(param.FldNameUnExport)
+						g.Id(param.FldName.LowerCamel())
 					}
 				}
 			}).CustomFunc(jen.Options{}, func(g *jen.Group) {
@@ -123,11 +123,11 @@ func (b *clientEndpointBuilder) BuildMethod() ClientEndpointBuilder {
 						if param.Required {
 							continue
 						}
-						methodSetName := param.FldName
-						fldName := jen.Id(param.FldNameUnExport)
+						methodSetName := param.FldName.String()
+						fldName := jen.Id(param.FldName.LowerCamel())
 						if param.Parent != nil {
-							methodSetName = param.Parent.FldName + param.FldName
-							fldName = jen.Id(param.Parent.FldNameUnExport).Dot(param.FldName)
+							methodSetName = param.Parent.FldName.String() + param.FldName.String()
+							fldName = jen.Id(param.Parent.FldName.LowerCamel()).Dot(param.FldName.String())
 						}
 						g.Dot("Set" + methodSetName).Call(fldName)
 					}
@@ -170,7 +170,7 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 						s.Var().Id("body").StructFunc(func(g *jen.Group) {
 							for _, param := range b.ep.BodyParams {
 								jsonTag := param.Name
-								fld := g.Id(param.FldName)
+								fld := g.Id(param.FldName.String())
 								if !param.Required {
 									jsonTag += ",omitempty"
 									if !isNamedType(param.Type) {
@@ -207,14 +207,14 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 					g.Id("req").Dot("Header").Dot("Add").Call(jen.Lit("Content-Type"), jen.Lit("application/json"))
 
 					if len(b.ep.BodyParams) == 1 && b.ep.NoWrapRequest {
-						g.Id("body").Op("=").Id(recvName).Dot("params").Dot(b.ep.BodyParams[0].FldNameUnExport)
+						g.Id("body").Op("=").Id(recvName).Dot("params").Dot(b.ep.BodyParams[0].FldName.LowerCamel())
 					} else {
 						for _, param := range b.ep.BodyParams {
-							fldName := param.FldNameUnExport
+							fldName := param.FldName.LowerCamel()
 							if param.Parent != nil {
-								fldName = param.Parent.FldNameUnExport + param.FldName
+								fldName = param.Parent.FldName.LowerCamel() + param.FldName.String()
 							}
-							g.Id("body").Dot(param.FldName).Op("=").Id(recvName).Dot("params").Dot(fldName)
+							g.Id("body").Dot(param.FldName.String()).Op("=").Id(recvName).Dot("params").Dot(fldName)
 						}
 					}
 
@@ -231,9 +231,9 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 			jen.CustomFunc(jen.Options{Multi: true}, func(g *jen.Group) {
 
 				makeParam := func(p *options.EndpointParam, f func(v jen.Code) jen.Code) jen.Code {
-					fldName := p.FldNameUnExport
+					fldName := p.FldName.LowerCamel()
 					if p.Parent != nil {
-						fldName = p.Parent.FldNameUnExport + p.FldName
+						fldName = p.Parent.FldName.LowerCamel() + p.FldName.String()
 					}
 
 					paramID := jen.Id(recvName).Dot("params").Dot(fldName)
@@ -337,7 +337,13 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 				if len(b.ep.BodyResults) > 0 {
 					s.Var().Id("respBody")
 					if !b.ep.NoWrapResponse {
-						s.StructFunc(gen.WrapResponse(b.ep.WrapResponse, b.ep.BodyResults, b.qualifier.Qual))
+						s.StructFunc(func(g *jen.Group) {
+							gen.WrapResponse(b.ep.WrapResponse, b.qualifier.Qual)(g)
+
+							for _, result := range b.ep.BodyResults {
+								g.Id(result.FldName.Camel()).Add(types.Convert(result.Type, b.qualifier.Qual)).Tag(map[string]string{"json": result.Name})
+							}
+						})
 					} else if len(b.ep.BodyResults) == 1 {
 						s.Add(types.Convert(b.ep.BodyResults[0].Type, b.qualifier.Qual))
 					}
@@ -389,11 +395,11 @@ func (b *clientEndpointBuilder) buildSetter(parentParam, param *options.Endpoint
 	methodRequestName := b.methodRequestName()
 	recvName := b.recvName()
 
-	fldName := param.FldNameUnExport
-	fnName := param.FldName
+	fldName := param.FldName.LowerCamel()
+	fnName := param.FldName.String()
 	if parentParam != nil {
-		fldName = parentParam.FldNameUnExport + param.FldName
-		fnName = parentParam.FldName + param.FldName
+		fldName = parentParam.FldName.LowerCamel() + param.FldName.String()
+		fnName = parentParam.FldName.String() + param.FldName.String()
 	}
 	b.codes = append(b.codes,
 		jen.Func().Params(
@@ -429,9 +435,9 @@ func (b *clientEndpointBuilder) methodReqName() string {
 }
 
 func (b *clientEndpointBuilder) makeRequestStructParam(parentParam, param *options.EndpointParam, importFn types.QualFunc) jen.Code {
-	fldName := param.FldNameUnExport
+	fldName := param.FldName.LowerCamel()
 	if parentParam != nil {
-		fldName = parentParam.FldNameUnExport + param.FldName
+		fldName = parentParam.FldName.LowerCamel() + param.FldName.String()
 	}
 	paramID := jen.Id(fldName)
 	if !param.Required && !isNamedType(param.Type) {

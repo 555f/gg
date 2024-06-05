@@ -85,7 +85,7 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 						if len(ep.BodyParams) > 0 {
 							bodyParams := jen.Id(reqName)
 							if len(ep.BodyParams) == 1 && ep.NoWrapRequest {
-								bodyParams = bodyParams.Dot(ep.BodyParams[0].FldName)
+								bodyParams = bodyParams.Dot(ep.BodyParams[0].FldName.String())
 							}
 
 							var stRequests []jen.Code
@@ -93,7 +93,7 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 								stRequests = append(stRequests, jen.Id("XMLName").Qual("encoding/xml", "Name").Tag(map[string]string{"xml": ep.ReqRootXMLName}))
 							}
 							for _, p := range ep.BodyParams {
-								st := jen.Id(p.FldName).Add(types.Convert(p.Type, b.qualifier.Qual))
+								st := jen.Id(p.FldName.String()).Add(types.Convert(p.Type, b.qualifier.Qual))
 								if p.Name != "" && p.HTTPType == "body" {
 									st.Tag(map[string]string{"json": p.Name})
 								} else {
@@ -157,7 +157,7 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 													for _, p := range ep.BodyParams {
 														_, typ := b.handlerStrategy.FormParam(p.Name)
 
-														g.Add(gen.ParseValue(typ, jen.Add(bodyParams).Dot(p.FldName), "=", p.Type, b.qualifier.Qual, func() jen.Code {
+														g.Add(gen.ParseValue(typ, jen.Add(bodyParams).Dot(p.FldName.String()), "=", p.Type, b.qualifier.Qual, func() jen.Code {
 															return jen.Do(gen.CheckErr(
 																jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.RespArgName()), jen.Err()),
 																jen.Return(),
@@ -178,7 +178,7 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 													for _, p := range ep.BodyParams {
 														_, typ := b.handlerStrategy.MultipartFormParam(p.Name)
 
-														g.Add(gen.ParseValue(typ, jen.Add(bodyParams).Dot(p.FldName), "=", p.Type, b.qualifier.Qual, func() jen.Code {
+														g.Add(gen.ParseValue(typ, jen.Add(bodyParams).Dot(p.FldName.String()), "=", p.Type, b.qualifier.Qual, func() jen.Code {
 															return jen.Do(gen.CheckErr(
 																jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.RespArgName()), jen.Err()),
 																jen.Return(),
@@ -203,7 +203,7 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 						buildParams := func(g *jen.Group, params options.EndpointParams, f func(pathName string) (name string, typ jen.Code)) {
 							for _, p := range params {
 								paramName, typ := f(p.Name)
-								paramVarName := "param" + p.FldName
+								paramVarName := "param" + p.FldName.String()
 
 								g.Add(typ)
 
@@ -234,7 +234,7 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 					g.Do(func(s *jen.Statement) {
 						s.ListFunc(func(g *jen.Group) {
 							for _, r := range ep.Results {
-								g.Id(r.FldName)
+								g.Id(r.FldName.String())
 							}
 							if ep.Error != nil {
 								g.Id(ep.Error.Name)
@@ -253,9 +253,9 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 						for _, p := range ep.Params {
 							switch p.HTTPType {
 							default:
-								g.Id("req").Dot(p.FldName)
+								g.Id("req").Dot(p.FldName.String())
 							case options.PathHTTPType, options.CookieHTTPType, options.QueryHTTPType:
-								g.Id("param" + p.FldName)
+								g.Id("param" + p.FldName.String())
 							}
 						}
 					})
@@ -268,16 +268,23 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 
 					if len(ep.BodyResults) > 0 {
 						if !ep.NoWrapResponse {
-							g.Var().Id(respName).StructFunc(gen.WrapResponse(ep.WrapResponse, ep.BodyResults, b.qualifier.Qual))
+							g.Var().Id(respName).StructFunc(func(g *jen.Group) {
+								gen.WrapResponse(ep.WrapResponse, b.qualifier.Qual)(g)
+
+								for _, result := range ep.BodyResults {
+									g.Id(result.FldName.Camel()).Add(types.Convert(result.Type, b.qualifier.Qual)).Tag(map[string]string{"json": result.Name})
+								}
+							})
+
 							for _, p := range ep.BodyResults {
 								g.Id(respName).Do(func(s *jen.Statement) {
 									for _, name := range ep.WrapResponse {
 										s.Dot(strcase.ToCamel(name))
 									}
-								}).Dot(p.FldNameExport).Op("=").Id(p.FldName)
+								}).Dot(p.FldName.Camel()).Op("=").Id(p.FldName.String())
 							}
 						} else if len(ep.BodyResults) == 1 {
-							g.Id(respName).Op(":=").Id(ep.BodyResults[0].FldName)
+							g.Id(respName).Op(":=").Id(ep.BodyResults[0].FldName.String())
 						}
 
 						g.Var().Id("respData").Index().Byte()

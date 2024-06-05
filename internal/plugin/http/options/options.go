@@ -23,6 +23,28 @@ var (
 	fnRegex = regexp.MustCompile(`^([A-Za-z0-9_]+)\(\).+$`)
 )
 
+type String struct {
+	origin     string
+	camel      string
+	lowerCamel string
+}
+
+func (s String) Camel() string {
+	return s.camel
+}
+
+func (s String) LowerCamel() string {
+	return s.lowerCamel
+}
+
+func (s String) String() string {
+	return s.origin
+}
+
+func NewString(s string) String {
+	return String{origin: s, camel: strcase.ToCamel(s), lowerCamel: strcase.ToLowerCamel(s)}
+}
+
 type ErrorWrapperField struct {
 	FldName    string
 	FldType    any
@@ -160,6 +182,7 @@ type Endpoint struct {
 	CookieResults      []*EndpointResult
 	Errors             []string
 	WrapResponse       []string
+	WrapRequest        []string
 	NoWrapRequest      bool
 	NoWrapResponse     bool
 	TimeFormat         string
@@ -210,33 +233,34 @@ const (
 	BodyHTTPType   HTTPType = "body"
 )
 
+type EndpointParamBase struct {
+	Title   string
+	Name    string
+	FldName String
+	//FldNameExport   string
+	//FldNameUnExport string
+	Type     any
+	HTTPType HTTPType
+	Format   string
+}
+
 type EndpointParam struct {
-	Parent          *EndpointParam
-	Type            any
-	HTTPType        HTTPType
-	Title           string
-	Name            string
-	FldName         string
-	FldNameUnExport string
-	Format          string
-	Omitempty       bool
-	IsVariadic      bool
-	Required        bool
-	Zero            string
-	Flat            bool
-	Params          EndpointParams
+	EndpointParamBase
+
+	Parent *EndpointParam
+
+	Omitempty  bool
+	IsVariadic bool
+	Required   bool
+	Zero       string
+	Flat       bool
+	Params     EndpointParams
 }
 
 type EndpointResult struct {
-	Type            any
-	HTTPType        string
-	Title           string
-	Name            string
-	FldName         string
-	FldNameExport   string
-	FldNameUnExport string
-	Format          string
-	Omitempty       bool
+	EndpointParamBase
+
+	Omitempty bool
 }
 
 type OpenapiHeader struct {
@@ -486,6 +510,9 @@ func endpointDecode(ifaceOpts Iface, method *types.Func, isCheckStrict bool) (op
 	if t, ok := method.Tags.Get("http-wrap-response"); ok {
 		opts.WrapResponse = strings.Split(t.Value, ".")
 	}
+	if t, ok := method.Tags.Get("http-wrap-request"); ok {
+		opts.WrapRequest = strings.Split(t.Value, ".")
+	}
 	if _, ok := method.Tags.Get("http-nowrap-request"); ok {
 		opts.NoWrapRequest = true
 	}
@@ -652,9 +679,7 @@ func resultDecode(result *types.Var) (opts EndpointResult, err error) {
 	opts.HTTPType = "body"
 	opts.Type = result.Type
 	opts.Format = "lowerCamel"
-	opts.FldName = result.Name
-	opts.FldNameExport = strcase.ToCamel(result.Name)
-	opts.FldNameUnExport = strcase.ToLowerCamel(result.Name)
+	opts.FldName = NewString(result.Name)
 	if t, ok := result.Tags.Get("http-name"); ok {
 		opts.Name = t.Value
 		for _, option := range t.Options {
@@ -674,7 +699,7 @@ func resultDecode(result *types.Var) (opts EndpointResult, err error) {
 		opts.Name = formatName(result.Name, tagFmt)
 	}
 	if t, ok := result.Tags.Get("http-type"); ok {
-		opts.HTTPType = t.Value
+		opts.HTTPType = HTTPType(t.Value)
 	}
 	return
 }
