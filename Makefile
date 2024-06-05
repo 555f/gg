@@ -35,6 +35,9 @@ gen-examples-rest-service-chi:
 gen-examples-grpc:
 	 go run cmd/gg/main.go run --config examples/grpc-service/gg.yaml
 
+gen-examples-jsonrpc:
+	 go run cmd/gg/main.go run --config examples/jsonrpc-service/gg.yaml	 
+
 gen-examples-pwa:
 	 go run cmd/gg/main.go run --config examples/pwa/gg.yaml
 

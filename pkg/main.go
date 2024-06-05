@@ -10,6 +10,7 @@ import (
 	_ "github.com/555f/gg/internal/plugin/middleware"
 	_ "github.com/555f/gg/internal/plugin/pwa"
 	_ "github.com/555f/gg/internal/plugin/slog"
+	_ "github.com/555f/gg/internal/plugin/webview"
 )
 
 func Main(version string) {

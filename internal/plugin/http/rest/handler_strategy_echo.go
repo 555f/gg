@@ -14,9 +14,14 @@ func (s *HandlerStrategyEcho) ID() string {
 	return "echo"
 }
 
+func (s *HandlerStrategyEcho) QueryParams() (typ jen.Code) {
+	typ = jen.Id("q").Op(":=").Id(s.ReqArgName()).Dot("QueryParams").Call()
+	return
+}
+
 func (s *HandlerStrategyEcho) QueryParam(queryName string) (name string, typ jen.Code) {
 	name = normalizeVarName(queryName) + "QueryParam"
-	typ = jen.Id(name).Op(":=").Id(s.ReqArgName()).Dot("QueryParam").Call(jen.Lit(queryName))
+	typ = jen.Id(name).Op(":=").Id("q").Dot("Get").Call(jen.Lit(queryName))
 	return
 }
 

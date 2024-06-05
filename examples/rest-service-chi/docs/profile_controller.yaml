@@ -66,7 +66,7 @@ paths:
                 name: profile
         required: true
       responses:
-        200:
+        "200":
           description: OK
           content:
             application/json:
@@ -100,7 +100,7 @@ paths:
           type: string
           example: abc
       responses:
-        200:
+        "200":
           description: OK
   /profiles/:id/file:
     get:
@@ -108,18 +108,29 @@ paths:
       - profile
       summary: DownloadFile
       parameters:
-      - in: path
-        name: id
+      - in: query
+        name: onlyCloud
         description: |2+
 
-        required: true
         schema:
           description: |2+
 
+          type: boolean
+          example: "true"
+      - in: path
+        name: id
+        description: |2
+
+          идентификатор
+        required: true
+        schema:
+          description: |2
+
+            идентификатор
           type: string
           example: abc
       responses:
-        200:
+        "200":
           description: OK
 components:
   schemas:

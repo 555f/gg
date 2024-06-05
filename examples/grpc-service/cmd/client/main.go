@@ -39,7 +39,7 @@ func main() {
 	}
 	defer conn.Close()
 
-	cc := client.NewProfileControllerCient(conn)
+	cc := client.NewProfileControllerClient(conn)
 
 	profileCh := make(chan *dto.Profile)
 

@@ -13,6 +13,12 @@ func (s *HandlerStrategyChi) ID() string {
 	return "chi"
 }
 
+// QueryParams implements HandlerStrategy.
+func (s *HandlerStrategyChi) QueryParams() (typ jen.Code) {
+	typ = jen.Id("q").Op(":=").Id(s.ReqArgName()).Dot("URL").Dot("Query").Call()
+	return
+}
+
 func (s *HandlerStrategyChi) QueryParam(queryName string) (name string, typ jen.Code) {
 	name = normalizeVarName(queryName) + "QueryParam"
 	typ = jen.Id(name).Op(":=").Id("q").Dot("Get").Call(jen.Lit(queryName))

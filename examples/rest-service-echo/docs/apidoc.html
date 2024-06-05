@@ -2461,28 +2461,6 @@ video {
                                     </ul>
                                 </li>
                                 
-                                
-                                <li class="relative">
-                                    <a aria-current="page" class="flex justify-between gap-2 py-1 pr-3 text-sm transition pl-4 text-zinc-900 dark:text-white" href="#AddressController">
-                                        <span class="truncate">Адреса пользователя</span>
-                                    </a>
-                                    <ul role="list">
-<!--                                        <li>-->
-<!--                                            <a class="flex justify-between gap-2 py-1 pr-3 text-sm transition pl-7 text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white" href="#">-->
-<!--                                                <span class="truncate">The conversation model</span>-->
-<!--                                            </a>-->
-<!--                                        </li>-->
-                                        
-                                        <li>
-                                            <a class="flex justify-between gap-2 py-1 pr-3 text-sm transition pl-7 text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white" href="#AddressController-Addres">
-                                                <span class="truncate"></span>
-                                                <span class="font-mono text-[0.625rem] font-semibold leading-6 text-zinc-400 dark:text-zinc-500">GET</span>
-                                            </a>
-                                        </li>
-                                        
-                                    </ul>
-                                </li>
-                                
                             </ul>
                         </div>
                     </li>
@@ -2906,6 +2884,36 @@ video {
                                 </li>
                             </ul>
                         </div>
+                        <h3>Необязательные атрибуты</h3>
+                        <div class="my-6">
+                            <ul role="list" class="m-0 max-w-[calc(theme(maxWidth.lg)-theme(spacing.8))] list-none divide-y divide-zinc-900/5 p-0 dark:divide-white/5">
+                                <li class="m-0 px-0 py-4 first:pt-0 last:pb-0">
+                                    <dl class="m-0 flex flex-wrap items-center gap-x-3 gap-y-2">
+                                        <dt class="sr-only"></dt>
+                                        <dd>
+                                            <a href="#">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-3 w-3 text-gray-500">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+                                                </svg>
+                                            </a>
+                                        </dd>
+                                        <dt class="sr-only">Имя</dt>
+                                        <dd>
+                                            <code>onlyCloud</code>
+                                        </dd>
+                                        <dt class="sr-only">Тип</dt>
+                                        <dd class="font-mono text-xs text-zinc-400 dark:text-zinc-500">bool
+                                            <span class="relative top-0 font-mono text-[0.625rem] font-semibold leading-6 rounded-lg px-1.5 py-1 ring-1 ring-inset ring-orange-300 dark:ring-orange-400/30 bg-orange-400/10 text-orange-500 dark:text-orange-400">query</span>
+                                        </dd>
+                                        <dt class="sr-only">Описание</dt>
+                                        <dd class="w-full flex-none [&amp;>:first-child]:mt-0 [&amp;>:last-child]:mb-0">
+                                            <p>
+</p>
+                                        </dd>
+                                    </dl>
+                                </li>
+                            </ul>
+                        </div>
                         <h3>Атрибуты ответа</h3>
                         <div class="my-6">
                             <ul role="list" class="m-0 max-w-[calc(theme(maxWidth.lg)-theme(spacing.8))] list-none divide-y divide-zinc-900/5 p-0 dark:divide-white/5">
@@ -3134,206 +3142,6 @@ video {
                                             </button>
                                         </div>
                                     </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <hr>
-            </article>
-            
-            <article id="AddressController" class="py-16 prose dark:prose-invert">
-                <h1>
-                    <a class="group text-inherit no-underline hover:text-inherit" href="#AddressController">
-                        <div class="absolute mt-1 ml-[calc(-1*var(--width))] hidden w-[var(--width)] opacity-0 transition [--width:calc(2.625rem+0.5px+50%-min(50%,calc(theme(maxWidth.lg)+theme(spacing.8))))] group-hover:opacity-100 group-focus:opacity-100 md:block lg:z-50 2xl:[--width:theme(spacing.10)]">
-                            <div class="group/anchor block h-5 w-5 rounded-lg bg-zinc-50 ring-1 ring-inset ring-zinc-300 transition hover:ring-zinc-500 dark:bg-zinc-800 dark:ring-zinc-700 dark:hover:bg-zinc-700 dark:hover:ring-zinc-600">
-                                <svg viewBox="0 0 20 20" fill="none" stroke-linecap="round" aria-hidden="true" class="h-5 w-5 stroke-zinc-500 transition dark:stroke-zinc-400 dark:group-hover/anchor:stroke-white">
-                                    <path d="m6.5 11.5-.964-.964a3.535 3.535 0 1 1 5-5l.964.964m2 2 .964.964a3.536 3.536 0 0 1-5 5L8.5 13.5m0-5 3 3"></path>
-                                </svg>
-                            </div>
-                        </div>Адреса пользователя
-                    </a>
-                </h1>
-                <p class="lead">Методы для получения адреса
-
-                </p>
-                <hr>
-
-                
-                
-                
-                
-
-                <div class="flex items-center gap-x-3">
-
-                    <tag name="GET"></tag>
-                    <span class="h-0.5 w-0.5 rounded-full bg-zinc-300 dark:bg-zinc-600"></span>
-                    <span class="font-mono text-xs text-zinc-400">/addresses</span>
-                </div>
-                <h2 id="AddressController-Addres" class="mt-2 scroll-mt-32">
-                    <a class="group text-inherit no-underline hover:text-inherit" href="#AddressController-Addres">
-                        
-                    </a>
-                </h2>
-                <div class="grid grid-cols-1 items-start gap-x-16 gap-y-10 xl:max-w-none xl:grid-cols-2">
-                    <div class="[&>:first-child]:mt-0 [&>:last-child]:mb-0">
-                        <p>TestSpaceParamName
-</p>
-                        <h3>Необязательные атрибуты</h3>
-                        <div class="my-6">
-                            <ul role="list" class="m-0 max-w-[calc(theme(maxWidth.lg)-theme(spacing.8))] list-none divide-y divide-zinc-900/5 p-0 dark:divide-white/5">
-                                <li class="m-0 px-0 py-4 first:pt-0 last:pb-0">
-                                    <dl class="m-0 flex flex-wrap items-center gap-x-3 gap-y-2">
-                                        <dt class="sr-only"></dt>
-                                        <dd>
-                                            <a href="#">
-                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-3 w-3 text-gray-500">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
-                                                </svg>
-                                            </a>
-                                        </dd>
-                                        <dt class="sr-only">Имя</dt>
-                                        <dd>
-                                            <code>id_2 </code>
-                                        </dd>
-                                        <dt class="sr-only">Тип</dt>
-                                        <dd class="font-mono text-xs text-zinc-400 dark:text-zinc-500">string
-                                            <span class="relative top-0 font-mono text-[0.625rem] font-semibold leading-6 rounded-lg px-1.5 py-1 ring-1 ring-inset ring-orange-300 dark:ring-orange-400/30 bg-orange-400/10 text-orange-500 dark:text-orange-400">body</span>
-                                        </dd>
-                                        <dt class="sr-only">Описание</dt>
-                                        <dd class="w-full flex-none [&amp;>:first-child]:mt-0 [&amp;>:last-child]:mb-0">
-                                            <p>
-</p>
-                                        </dd>
-                                    </dl>
-                                </li>
-                            </ul>
-                        </div>
-                        <h3>Атрибуты ответа</h3>
-                        <div class="my-6">
-                            <ul role="list" class="m-0 max-w-[calc(theme(maxWidth.lg)-theme(spacing.8))] list-none divide-y divide-zinc-900/5 p-0 dark:divide-white/5">
-                                <li class="m-0 px-0 py-4 first:pt-0 last:pb-0">
-                                    <dl class="m-0 flex flex-wrap items-center gap-x-3 gap-y-2">
-                                        <dt class="sr-only"></dt>
-                                        <dd>
-                                            <a href="#">
-                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-3 w-3 text-gray-500">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
-                                                </svg>
-                                            </a>
-                                        </dd>
-                                        <dt class="sr-only">Имя</dt>
-                                        <dd>
-                                            <code>addr</code>
-                                        </dd>
-                                        <dt class="sr-only">Тип</dt>
-                                        <dd class="font-mono text-xs text-zinc-400 dark:text-zinc-500">string
-                                            <span class="relative top-0 font-mono text-[0.625rem] font-semibold leading-6 rounded-lg px-1.5 py-1 ring-1 ring-inset ring-orange-300 dark:ring-orange-400/30 bg-orange-400/10 text-orange-500 dark:text-orange-400">body</span>
-                                        </dd>
-                                        <dt class="sr-only">Описание</dt>
-                                        <dd class="w-full flex-none [&amp;>:first-child]:mt-0 [&amp;>:last-child]:mb-0">
-                                            <p></p>
-                                        </dd>
-                                    </dl>
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-                    <div class="[&>:first-child]:mt-0 [&>:last-child]:mb-0 xl:sticky xl:top-24">
-                        <div class="not-prose my-6 overflow-hidden rounded-2xl bg-zinc-900 shadow-md dark:ring-1 dark:ring-white/10">
-                            <div class="flex min-h-[calc(theme(spacing.12)+1px)] flex-wrap items-start gap-x-4 border-b border-zinc-700 bg-zinc-800 px-4 dark:border-zinc-800 dark:bg-transparent">
-                                <h3 class="mr-auto pt-3 text-xs font-semibold text-white">Request</h3>
-                                <div class="-mb-px flex gap-4 text-xs font-medium" role="tablist"
-                                     aria-orientation="horizontal">
-                                    <button class="border-b py-3 transition focus:[&amp;:not(:focus-visible)]:outline-none border-emerald-500 text-emerald-400"
-                                            id="headlessui-tabs-tab-:r73:"
-                                            role="tab" type="button" aria-selected="true"
-                                            tabindex="0" data-headlessui-state="selected"
-                                            aria-controls="headlessui-tabs-panel-:r7b:">
-                                        cURL
-                                    </button>
-<!--                                    <button class="border-b py-3 transition focus:[&amp;:not(:focus-visible)]:outline-none border-transparent text-zinc-400 hover:text-zinc-300"-->
-<!--                                            id="headlessui-tabs-tab-:r75:"-->
-<!--                                            role="tab" type="button" aria-selected="false"-->
-<!--                                            tabindex="-1" data-headlessui-state=""-->
-<!--                                            aria-controls="headlessui-tabs-panel-:r7d:">-->
-<!--                                        JavaScript-->
-<!--                                    </button>-->
-                                </div>
-                            </div>
-                            <div>
-                                <div id="headlessui-tabs-panel-:r7b:" role="tabpanel"
-                                     aria-labelledby="headlessui-tabs-tab-:r73:" tabindex="0"
-                                     data-headlessui-state="selected">
-                                    <div class="group dark:bg-white/2.5">
-                                        <div class="flex h-9 items-center gap-2 border-y border-t-transparent border-b-white/7.5 bg-zinc-900 bg-white/2.5 px-4 dark:border-b-white/5 dark:bg-white/1">
-                                            <div class="dark flex">
-                                                <tag-small name="GET" />
-                                            </div>
-                                            <span class="h-0.5 w-0.5 rounded-full bg-zinc-500"></span>
-                                            <span class="font-mono text-xs text-zinc-400">/addresses</span>
-                                        </div>
-                                        <div class="relative">
-                                            <pre tabindex="0" class="chroma"><code><span class="line"><span class="cl"><span class="k">curl </span><span class="py">-X </span><span class="kt">GET</span> <span class="s">http://127.0.0.1/addresses</span></span></span></code></pre>
-                                            <button type="button"
-                                                    class="group/button absolute top-3.5 right-4 overflow-hidden rounded-full py-1 pl-2 pr-3 text-2xs font-medium opacity-0 backdrop-blur transition focus:opacity-100 group-hover:opacity-100 bg-white/5 hover:bg-white/7.5 dark:bg-white/2.5 dark:hover:bg-white/5">
-                                                <span aria-hidden="false"
-                                                      class="pointer-events-none flex items-center gap-0.5 text-zinc-400 transition duration-300">
-                                                    <svg viewBox="0 0 20 20" aria-hidden="true"
-                                                         class="h-5 w-5 fill-zinc-500/20 stroke-zinc-500 transition-colors group-hover/button:stroke-zinc-400">
-                                                        <path stroke-width="0"
-                                                              d="M5.5 13.5v-5a2 2 0 0 1 2-2l.447-.894A2 2 0 0 1 9.737 4.5h.527a2 2 0 0 1 1.789 1.106l.447.894a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-5a2 2 0 0 1-2-2Z"></path>
-                                                        <path fill="none" stroke-linejoin="round"
-                                                              d="M12.5 6.5a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-5a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2m5 0-.447-.894a2 2 0 0 0-1.79-1.106h-.527a2 2 0 0 0-1.789 1.106L7.5 6.5m5 0-1 1h-3l-1-1"></path>
-                                                    </svg>
-                                                    Copy
-                                                </span>
-                                                <span aria-hidden="true"
-                                                      class="pointer-events-none absolute inset-0 flex items-center justify-center text-emerald-400 transition duration-300 translate-y-1.5 opacity-0">Copied!</span>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="not-prose my-6 overflow-hidden rounded-2xl bg-zinc-900 shadow-md dark:ring-1 dark:ring-white/10">
-                            <div class="flex min-h-[calc(theme(spacing.12)+1px)] flex-wrap items-start gap-x-4 border-b border-zinc-700 bg-zinc-800 px-4 dark:border-zinc-800 dark:bg-transparent">
-                                <h3 class="mr-auto pt-3 text-xs font-semibold text-white">Response</h3>
-                                <div class="-mb-px flex gap-4 text-xs font-medium" role="tablist"
-                                     aria-orientation="horizontal">
-                                    <button class="border-b py-3 transition focus:[&amp;:not(:focus-visible)]:outline-none border-emerald-500 text-emerald-400"
-                                            id="headlessui-tabs-tab-:r73:"
-                                            role="tab" type="button" aria-selected="true"
-                                            tabindex="0" data-headlessui-state="selected"
-                                            aria-controls="headlessui-tabs-panel-:r7b:">
-                                        JSON
-                                    </button>
-<!--                                    <button class="border-b py-3 transition focus:[&amp;:not(:focus-visible)]:outline-none border-transparent text-zinc-400 hover:text-zinc-300"-->
-<!--                                            id="headlessui-tabs-tab-:r75:"-->
-<!--                                            role="tab" type="button" aria-selected="false"-->
-<!--                                            tabindex="-1" data-headlessui-state=""-->
-<!--                                            aria-controls="headlessui-tabs-panel-:r7d:">-->
-<!--                                        XML-->
-<!--                                    </button>-->
-                                </div>
-                            </div>
-                            <div class="group dark:bg-white/2.5">
-                                <div class="relative"><pre tabindex="0" class="chroma"><code><span class="line"><span class="cl"><span class="p">{</span>
-</span></span><span class="line"><span class="cl">  <span class="nt">&#34;addr&#34;</span><span class="p">:</span> <span class="s2">&#34;abc&#34;</span>
-</span></span><span class="line"><span class="cl"><span class="p">}</span>
-</span></span></code></pre>
-                                    <button type="button" class="group/button absolute top-3.5 right-4 overflow-hidden rounded-full py-1 pl-2 pr-3 text-2xs font-medium opacity-0 backdrop-blur transition focus:opacity-100 group-hover:opacity-100 bg-white/5 hover:bg-white/7.5 dark:bg-white/2.5 dark:hover:bg-white/5">
-                                        <span aria-hidden="false" class="pointer-events-none flex items-center gap-0.5 text-zinc-400 transition duration-300">
-                                            <svg viewBox="0 0 20 20" aria-hidden="true" class="h-5 w-5 fill-zinc-500/20 stroke-zinc-500 transition-colors group-hover/button:stroke-zinc-400">
-                                                <path stroke-width="0" d="M5.5 13.5v-5a2 2 0 0 1 2-2l.447-.894A2 2 0 0 1 9.737 4.5h.527a2 2 0 0 1 1.789 1.106l.447.894a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-5a2 2 0 0 1-2-2Z"></path>
-                                                <path fill="none" stroke-linejoin="round" d="M12.5 6.5a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-5a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2m5 0-.447-.894a2 2 0 0 0-1.79-1.106h-.527a2 2 0 0 0-1.789 1.106L7.5 6.5m5 0-1 1h-3l-1-1"></path>
-                                            </svg>
-                                            Copy
-                                        </span>
-                                        <span aria-hidden="true" class="pointer-events-none absolute inset-0 flex items-center justify-center text-emerald-400 transition duration-300 translate-y-1.5 opacity-0">
-                                        Copied!
-                                        </span>
-                                    </button>
                                 </div>
                             </div>
                         </div>

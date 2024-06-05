@@ -1,6 +1,8 @@
 package options
 
 import (
+	"fmt"
+
 	"github.com/555f/gg/pkg/errors"
 	"github.com/555f/gg/pkg/gg"
 	"github.com/555f/gg/pkg/strcase"
@@ -61,6 +63,11 @@ type OutStream struct {
 	Chan  *types.Chan
 }
 
+type MetaContext struct {
+	Name    string
+	PkgPath string
+}
+
 type Endpoint struct {
 	MethodName    string
 	RPCMethodName string
@@ -74,6 +81,7 @@ type Endpoint struct {
 	Context       *types.Var
 	Error         *types.Var
 	Sig           *types.Sign
+	MetaContexts  []MetaContext
 }
 
 type EndpointParam struct {
@@ -107,7 +115,7 @@ type EndpointResult struct {
 	Version         string
 }
 
-func Decode(iface *gg.Interface) (opts Iface, errs error) {
+func Decode(module *types.Module, iface *gg.Interface) (opts Iface, errs error) {
 	opts.Name = iface.Named.Name
 	opts.Title = iface.Named.Title
 	opts.Description = iface.Named.Description
@@ -131,7 +139,7 @@ func Decode(iface *gg.Interface) (opts Iface, errs error) {
 		opts.HTTPReq = t.Value
 	}
 	for _, method := range iface.Named.Interface().Methods {
-		epOpts, err := endpointDecode(opts, method)
+		epOpts, err := endpointDecode(module, method)
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		}
@@ -140,7 +148,7 @@ func Decode(iface *gg.Interface) (opts Iface, errs error) {
 	return
 }
 
-func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs error) {
+func endpointDecode(module *types.Module, method *types.Func) (opts Endpoint, errs error) {
 	opts.MethodName = method.Name
 	opts.Title = method.Title
 	opts.Description = method.Description
@@ -153,6 +161,24 @@ func endpointDecode(ifaceOpts Iface, method *types.Func) (opts Endpoint, errs er
 	if t, ok := method.Tags.Get("grpc-name"); ok {
 		opts.RPCMethodName = t.Value
 	}
+
+	tags := method.Tags.GetSlice("grpc-meta-context")
+	for _, t := range tags {
+		if t.Value == "" {
+			errs = multierror.Append(errs, errors.Error("the path to the context key is required", t.Position))
+			return
+		}
+		pkgPath, name, err := module.ParseImportPath(t.Value)
+		if err != nil {
+			errs = multierror.Append(errs, err)
+			return
+		}
+		opts.MetaContexts = append(opts.MetaContexts, MetaContext{
+			Name:    name,
+			PkgPath: pkgPath,
+		})
+	}
+	fmt.Println(opts.MetaContexts)
 
 	for _, param := range method.Sig.Params {
 		if param.IsContext {

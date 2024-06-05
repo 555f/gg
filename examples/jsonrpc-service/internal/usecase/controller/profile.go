@@ -11,6 +11,8 @@ import (
 // @gg:"jsonrpc"
 // @gg:"middleware"
 // @gg:"klog"
+// @jsonrpc-openapi
+// @jsonrpc-apidoc
 // @jsonrpc-client
 // @jsonrpc-server
 type ProfileController interface {

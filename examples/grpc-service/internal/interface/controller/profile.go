@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -45,7 +46,7 @@ func (*ProfileController) Stream(profile chan *dto.Profile) (statistics chan *dt
 }
 
 // Create implements controller.ProfileController.
-func (*ProfileController) Create(token string, firstName string, lastName string, address string, old int, age time.Time, sleep time.Duration) (profile *dto.Profile, err error) {
+func (*ProfileController) Create(ctx context.Context, token string, firstName string, lastName string, address string, old int, age time.Time, sleep time.Duration) (profile *dto.Profile, err error) {
 	return &dto.Profile{
 		FistName: "Vitaly",
 		LastName: "Lobchuk",

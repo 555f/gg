@@ -36,8 +36,8 @@ func makeEndpointParam(
 		FldNameUnExport: strcase.ToLowerCamel(param.Name),
 		IsVariadic:      param.IsVariadic,
 		Type:            param.Type,
-		Zero:            param.Zero,
-		Required:        opts.Required,
+		//Zero:            param.Zero,
+		Required: opts.Required,
 	}
 	tagFmt := "lowerCamel"
 	if opts.Format != "" {

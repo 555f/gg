@@ -227,6 +227,8 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 							buildParams(g, ep.HeaderParams, b.handlerStrategy.HeaderParam)
 						}
 						if len(ep.QueryParams) > 0 {
+							g.Add(b.handlerStrategy.QueryParams())
+
 							buildParams(g, ep.QueryParams, b.handlerStrategy.QueryParam)
 						}
 					}
