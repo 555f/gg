@@ -167,10 +167,10 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 					if len(b.ep.BodyParams) == 1 && b.ep.NoWrapRequest {
 						s.Var().Id("body").Add(types.Convert(b.ep.BodyParams[0].Type, b.qualifier.Qual))
 					} else {
-						s.Var().Id("body").StructFunc(func(g *jen.Group) {
+						s.Var().Id("body").StructFunc(gen.WrapResponse(b.ep.WrapRequest, func(g *jen.Group) {
 							for _, param := range b.ep.BodyParams {
 								jsonTag := param.Name
-								fld := g.Id(param.FldName.String())
+								fld := g.Id(param.FldName.Camel())
 								if !param.Required {
 									jsonTag += ",omitempty"
 									if !isNamedType(param.Type) {
@@ -179,7 +179,7 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 								}
 								fld.Add(types.Convert(param.Type, b.qualifier.Qual)).Tag(map[string]string{"json": jsonTag})
 							}
-						})
+						}, b.qualifier.Qual))
 					}
 				}
 			}),
@@ -214,7 +214,15 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 							if param.Parent != nil {
 								fldName = param.Parent.FldName.LowerCamel() + param.FldName.String()
 							}
-							g.Id("body").Dot(param.FldName.String()).Op("=").Id(recvName).Dot("params").Dot(fldName)
+
+							g.Do(func(s *jen.Statement) {
+								s.Id("body")
+								for _, name := range b.ep.WrapRequest {
+									s.Dot(strcase.ToCamel(name))
+								}
+								s.Dot(param.FldName.Camel()).Op("=").Id(recvName).Dot("params").Dot(fldName)
+							})
+
 						}
 					}
 
@@ -337,13 +345,11 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 				if len(b.ep.BodyResults) > 0 {
 					s.Var().Id("respBody")
 					if !b.ep.NoWrapResponse {
-						s.StructFunc(func(g *jen.Group) {
-							gen.WrapResponse(b.ep.WrapResponse, b.qualifier.Qual)(g)
-
+						s.StructFunc(gen.WrapResponse(b.ep.WrapResponse, func(g *jen.Group) {
 							for _, result := range b.ep.BodyResults {
 								g.Id(result.FldName.Camel()).Add(types.Convert(result.Type, b.qualifier.Qual)).Tag(map[string]string{"json": result.Name})
 							}
-						})
+						}, b.qualifier.Qual))
 					} else if len(b.ep.BodyResults) == 1 {
 						s.Add(types.Convert(b.ep.BodyResults[0].Type, b.qualifier.Qual))
 					}

@@ -241,10 +241,12 @@ func ExtractFields(v any) []*types.StructFieldType {
 	}
 }
 
-func WrapResponse(names []string, qualFunc types.QualFunc) func(g *Group) {
+func WrapResponse(names []string, completeFn func(g *Group), qualFunc types.QualFunc) func(g *Group) {
 	return func(g *Group) {
 		if len(names) > 0 {
-			g.Id(strcase.ToCamel(names[0])).StructFunc(WrapResponse(names[1:], qualFunc)).Tag(map[string]string{"json": names[0]})
+			g.Id(strcase.ToCamel(names[0])).StructFunc(WrapResponse(names[1:], completeFn, qualFunc)).Tag(map[string]string{"json": names[0]})
+		} else {
+			completeFn(g)
 		}
 	}
 }

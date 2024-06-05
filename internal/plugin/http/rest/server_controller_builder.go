@@ -270,13 +270,11 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 
 					if len(ep.BodyResults) > 0 {
 						if !ep.NoWrapResponse {
-							g.Var().Id(respName).StructFunc(func(g *jen.Group) {
-								gen.WrapResponse(ep.WrapResponse, b.qualifier.Qual)(g)
-
+							g.Var().Id(respName).StructFunc(gen.WrapResponse(ep.WrapResponse, func(g *jen.Group) {
 								for _, result := range ep.BodyResults {
 									g.Id(result.FldName.Camel()).Add(types.Convert(result.Type, b.qualifier.Qual)).Tag(map[string]string{"json": result.Name})
 								}
-							})
+							}, b.qualifier.Qual))
 
 							for _, p := range ep.BodyResults {
 								g.Id(respName).Do(func(s *jen.Statement) {
