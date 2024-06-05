@@ -1,55 +1,61 @@
 package apidoc
 
 import (
-	"bytes"
-	"text/template"
+	_ "embed"
+	"strings"
 
-	"github.com/alecthomas/chroma"
-	"github.com/alecthomas/chroma/formatters/html"
-	"github.com/alecthomas/chroma/lexers"
-	"github.com/alecthomas/chroma/styles"
-
-	"github.com/555f/gg/internal/plugin/http/httperror"
+	"github.com/555f/gg/internal/apidoc"
 	"github.com/555f/gg/internal/plugin/http/options"
 	"github.com/555f/gg/pkg/file"
 )
 
-type templateValues struct {
-	Title      string
-	Services   []options.Iface
-	HTTPErrors []httperror.Error
-	Style      string
-	VueJS      string
-}
-
-func Gen(apiDocTemplate, styleCSS, vueJS string, services []options.Iface, httpErrors []httperror.Error) func(f *file.TxtFile) error {
+func Gen(title string, services []options.Iface) func(f *file.TxtFile) error {
 	return func(f *file.TxtFile) error {
-		t := template.Must(template.New("apidoc").
-			Funcs(template.FuncMap{
-				"requestJSON":      requestJSON,
-				"responseJSON":     responseJSON,
-				"requestCURL":      requestCURL,
-				"paramsByRequired": paramsByRequired,
-				"paramType":        paramType,
-				"structTypes":      structTypes,
-				"highlight": func(source []byte, lexer string) string {
-					var result bytes.Buffer
-					l := lexers.Get(lexer)
-					l = chroma.Coalesce(l)
-					f := html.New(
-						html.WithClasses(true),
-						html.Standalone(false),
-					)
-					it, _ := l.Tokenise(nil, string(source))
-					_ = f.Format(&result, styles.Fallback, it)
-					return result.String()
-				},
-			}).Parse(apiDocTemplate))
-		return t.Execute(f, &templateValues{
-			Services:   services,
-			HTTPErrors: httpErrors,
-			Style:      styleCSS,
-			VueJS:      vueJS,
-		})
+		api := apidoc.API{
+			Schemas: map[string]*apidoc.Schema{},
+		}
+		for _, service := range services {
+			schemasNames := make(map[string]struct{})
+
+			apiService := apidoc.Service{
+				Name:        service.Name,
+				Title:       service.Title,
+				Description: service.Description,
+			}
+			for _, ep := range service.Endpoints {
+				apiEndpoint := apidoc.Endpoint{
+					Title:  ep.Title,
+					Path:   ep.Path,
+					Method: ep.HTTPMethod,
+				}
+				for _, p := range ep.Params {
+					apidoc.SchemaTypes(p.Type, api.Schemas, schemasNames)
+					paramType, isArray := apidoc.ParamType(p.Type)
+					apiEndpoint.Params = append(apiEndpoint.Params, apidoc.Param{
+						Name:     p.Name,
+						Title:    strings.TrimSpace(p.Title),
+						Type:     paramType,
+						Array:    isArray,
+						Required: p.Required,
+						In:       string(p.HTTPType),
+						Example:  p.Zero,
+					})
+				}
+				for _, r := range ep.Results {
+					apidoc.SchemaTypes(r.Type, api.Schemas, schemasNames)
+					paramType, isArray := apidoc.ParamType(r.Type)
+					apiEndpoint.Results = append(apiEndpoint.Results, apidoc.Param{
+						Name:  r.Name,
+						Title: strings.TrimSpace(r.Title),
+						Type:  paramType,
+						Array: isArray,
+						In:    string(r.HTTPType),
+					})
+				}
+				apiService.Endpoints = append(apiService.Endpoints, apiEndpoint)
+			}
+			api.Services = append(api.Services, apiService)
+		}
+		return apidoc.Gen(title, api)(f)
 	}
 }

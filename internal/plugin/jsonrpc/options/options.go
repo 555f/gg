@@ -21,6 +21,7 @@ type Iface struct {
 	Server      Server
 	Client      Client
 	Openapi     OpenAPI
+	APIDoc      APIDoc
 	Endpoints   []Endpoint
 	HTTPReq     string
 }
@@ -150,6 +151,9 @@ func Decode(iface *gg.Interface) (opts Iface, errs error) {
 	}
 	if _, ok := iface.Named.Tags.Get("jsonrpc-openapi"); ok {
 		opts.Openapi.Enable = true
+	}
+	if _, ok := iface.Named.Tags.Get("jsonrpc-apidoc"); ok {
+		opts.APIDoc.Enable = true
 	}
 	if t, ok := iface.Named.Tags.Get("jsonrpc-openapi-tags"); ok {
 		opts.Openapi.Tags = []string{t.Value}

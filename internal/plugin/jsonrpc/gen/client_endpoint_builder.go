@@ -98,6 +98,16 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 					g.Id(result.Name).Add(types.Convert(result.Type, b.qualifier.Qual))
 				}
 			}).
+			Block(jen.Return(jen.Id(recvName)).Dot("ExecuteWithContext").Call(jen.Qual("context", "TODO").Call())),
+
+		jen.Func().Params(jen.Id(recvName).Op("*").Id(methodRequestName)).Id("ExecuteWithContext").Params(
+			jen.Id("ctx").Qual("context", "Context"),
+		).
+			ParamsFunc(func(g *jen.Group) {
+				for _, result := range b.ep.Sig.Results {
+					g.Id(result.Name).Add(types.Convert(result.Type, b.qualifier.Qual))
+				}
+			}).
 			BlockFunc(func(g *jen.Group) {
 				batchResultID := jen.Id("batchResult")
 				resultAssignOp := ":="
@@ -106,7 +116,10 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 					batchResultID = jen.Id("_")
 					resultAssignOp = "="
 				}
-				g.List(batchResultID, jen.Err()).Op(resultAssignOp).Id(recvName).Dot("c").Dot("Client").Dot("Execute").Call(jen.Id(recvName))
+				g.List(batchResultID, jen.Err()).Op(resultAssignOp).Id(recvName).Dot("c").Dot("Client").Dot("ExecuteWithContext").Call(
+					jen.Id("ctx"),
+					jen.Id(recvName),
+				)
 				g.Do(gen.CheckErr(jen.Return()))
 
 				if b.ep.Error != nil {

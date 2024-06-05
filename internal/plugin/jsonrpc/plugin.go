@@ -1,13 +1,22 @@
 package jsonrpc
 
 import (
+	"go/token"
+	"os"
+	"path"
 	"path/filepath"
 
+	"github.com/555f/gg/internal/openapi"
+	"github.com/555f/gg/internal/plugin/jsonrpc/apidoc"
 	"github.com/555f/gg/internal/plugin/jsonrpc/gen"
+	"github.com/555f/gg/internal/plugin/jsonrpc/openapidoc"
 	"github.com/555f/gg/internal/plugin/jsonrpc/options"
+	"github.com/555f/gg/pkg/errors"
 	"github.com/555f/gg/pkg/file"
 	"github.com/555f/gg/pkg/gg"
+	"github.com/555f/gg/pkg/strcase"
 	"github.com/hashicorp/go-multierror"
+	"gopkg.in/yaml.v2"
 )
 
 type Plugin struct {
@@ -27,21 +36,26 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 	clientOutput := filepath.Join(
 		p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("client-output", "internal/server/client.go"),
 	)
-	// openapiOutput := filepath.Join(
-	// 	p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("openapi-output", "docs/openapi.yaml"),
-	// )
-	// apiDocOutput := filepath.Join(
-	// 	p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("apidoc-output", "docs/apidoc.html"),
-	// )
+	apiDocOutput := filepath.Join(
+		p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("apidoc-output", "docs/api.html"),
+	)
+	apiDocTitle := p.ctx.Options.GetStringWithDefault("apidoc-title", "APIDoc")
+	openapiOutput := filepath.Join(
+		p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("openapi-output", "docs"),
+	)
 	var (
 		serverServices  []options.Iface
 		clientServices  []options.Iface
 		openapiServices []options.Iface
+		apidocServices  []options.Iface
 	)
 	for _, iface := range p.ctx.Interfaces {
 		s, err := options.Decode(iface)
 		if err != nil {
 			errs = multierror.Append(errs, err)
+		}
+		if s.APIDoc.Enable {
+			apidocServices = append(apidocServices, s)
 		}
 		if s.Openapi.Enable {
 			openapiServices = append(openapiServices, s)
@@ -51,6 +65,35 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 		}
 		if s.Server.Enable {
 			serverServices = append(serverServices, s)
+		}
+	}
+
+	if len(apidocServices) > 0 {
+		adFile := file.NewTxtFile(apiDocOutput)
+		files = append(files, adFile)
+		err := apidoc.Gen(apiDocTitle, apidocServices)(adFile)
+		if err != nil {
+			errs = multierror.Append(errs, errors.Error(err.Error(), token.Position{}))
+		}
+	}
+
+	if len(openapiServices) > 0 {
+		openapiTmpl := p.ctx.Options.GetString("openapi-tpl")
+		for _, s := range openapiServices {
+			var openAPI openapi.OpenAPI
+			if openapiTmpl != "" {
+				openapiTmplPath := path.Join(p.ctx.Workdir, openapiTmpl, strcase.ToSnake(s.Name)+"_openapi.tpl.yaml")
+				data, err := os.ReadFile(openapiTmplPath)
+				if err != nil {
+					errs = multierror.Append(errs, errors.Error(err.Error(), token.Position{}))
+				}
+				if err := yaml.Unmarshal(data, &openAPI); err != nil {
+					errs = multierror.Append(errs, errors.Error(err.Error(), token.Position{}))
+				}
+			}
+			opFile := file.NewTxtFile(filepath.Join(openapiOutput, strcase.ToSnake(s.Name)+".yaml"))
+			files = append(files, opFile)
+			openapidoc.Gen(openAPI, s)(opFile)
 		}
 	}
 

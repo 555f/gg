@@ -17,19 +17,10 @@ import (
 	"github.com/555f/gg/pkg/file"
 	"github.com/555f/gg/pkg/gg"
 	"github.com/555f/gg/pkg/strcase"
+	"gopkg.in/yaml.v2"
 
 	"github.com/hashicorp/go-multierror"
-	"gopkg.in/yaml.v3"
 )
-
-//go:embed files/apidoc.html
-var apiDocTemplate string
-
-//go:embed files/style.css
-var styleCSS string
-
-//go:embed files/vue.min.js
-var vueJS string
 
 type Plugin struct {
 	ctx *gg.Context
@@ -45,11 +36,14 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 		p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("client-output", "internal/server/client.go"),
 	)
 	openapiOutput := filepath.Join(
-		p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("openapi-output", "docs/openapi.yaml"),
+		p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("openapi-output", "docs"),
 	)
 	apiDocOutput := filepath.Join(
-		p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("apidoc-output", "docs/apidoc.html"),
+		p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("apidoc-output", "docs/api.html"),
 	)
+
+	apiDocTitle := p.ctx.Options.GetStringWithDefault("apidoc-title", "APIDoc")
+
 	httpReqOutput := filepath.Join(
 		p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("httpreq-output", ".http"),
 	)
@@ -94,22 +88,24 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 		}
 	}
 
-	if len(apidocServices) > 0 || len(openapiServices) > 0 {
+	if len(apidocServices) > 0 {
+
+		adFile := file.NewTxtFile(apiDocOutput)
+		files = append(files, adFile)
+		err := apidoc.Gen(apiDocTitle, openapiServices)(adFile)
+		if err != nil {
+			errs = multierror.Append(errs, errors.Error(err.Error(), token.Position{}))
+		}
+	}
+
+	if len(openapiServices) > 0 {
 		httpErrors := httperror.Load(p.ctx.Structs, errorWrapper)
 
-		if len(apidocServices) > 0 {
-			adFile := file.NewTxtFile(apiDocOutput)
-			files = append(files, adFile)
-			err := apidoc.Gen(apiDocTemplate, styleCSS, vueJS, openapiServices, httpErrors)(adFile)
-			if err != nil {
-				errs = multierror.Append(errs, errors.Error(err.Error(), token.Position{}))
-			}
-		}
-		if len(openapiServices) > 0 {
+		openapiTmpl := p.ctx.Options.GetString("openapi-tpl")
+		for _, s := range openapiServices {
 			var openAPI openapi.OpenAPI
-			openapiTmpl := p.ctx.Options.GetString("openapi-tpl")
 			if openapiTmpl != "" {
-				openapiTmplPath := path.Join(p.ctx.Workdir, openapiTmpl)
+				openapiTmplPath := path.Join(p.ctx.Workdir, openapiTmpl, strcase.ToSnake(s.Name)+"_openapi.tpl.yaml")
 				data, err := os.ReadFile(openapiTmplPath)
 				if err != nil {
 					errs = multierror.Append(errs, errors.Error(err.Error(), token.Position{}))
@@ -118,10 +114,9 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 					errs = multierror.Append(errs, errors.Error(err.Error(), token.Position{}))
 				}
 			}
-
-			opFile := file.NewTxtFile(openapiOutput)
+			opFile := file.NewTxtFile(filepath.Join(openapiOutput, strcase.ToSnake(s.Name)+".yaml"))
 			files = append(files, opFile)
-			openapidoc.Gen(openAPI, openapiServices, httpErrors)(opFile)
+			openapidoc.Gen(openAPI, s, httpErrors)(opFile)
 		}
 	}
 

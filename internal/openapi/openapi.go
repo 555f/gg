@@ -14,6 +14,10 @@ type Builder struct {
 	openAPI OpenAPI
 }
 
+func (b *Builder) OpenAPI() OpenAPI {
+	return b.openAPI
+}
+
 func (b *Builder) AddServer(url, description string, variables map[string]Variable) *Builder {
 	b.openAPI.Servers = append(b.openAPI.Servers, Server{
 		URL:         url,

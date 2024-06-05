@@ -5,6 +5,7 @@ import (
 	"go/token"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	pgen "github.com/555f/gg/internal/plugin/grpc/ggen"
 	"github.com/555f/gg/internal/plugin/grpc/options"
@@ -19,7 +20,9 @@ import (
 )
 
 const (
-	pkgGRPC = "google.golang.org/grpc"
+	pkgGRPC     = "google.golang.org/grpc"
+	pkgMetadata = "google.golang.org/grpc/metadata"
+	pkgStrconv  = "strconv"
 )
 
 type Plugin struct {
@@ -58,13 +61,77 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 	clientFile := file.NewGoFile(p.ctx.Module, clientAbsOutput)
 	clientFile.SetVersion(p.ctx.Version)
 
+	clientFile.Func().Id("toString").Params(jen.Id("v").Any()).String().Block(
+		jen.Switch(jen.Id("t").Op(":=").Id("v").Assert(jen.Id("type"))).Block(
+			jen.Case(jen.String()).Block(
+				jen.Return(jen.Id("t")),
+			),
+			jen.Case(jen.Int()).Block(
+				jen.Return(jen.Qual(pkgStrconv, "FormatInt").Call(jen.Int64().Call(jen.Id("t")), jen.Lit(10))),
+			),
+			jen.Case(jen.Int64()).Block(
+				jen.Return(jen.Qual(pkgStrconv, "FormatInt").Call(jen.Id("t"), jen.Lit(10))),
+			),
+			jen.Case(jen.Float32()).Block(
+				jen.Return(jen.Qual(pkgStrconv, "FormatFloat").Call(jen.Float64().Call(jen.Id("t")), jen.Id("'f'"), jen.Lit(10), jen.Lit(32))),
+			),
+			jen.Case(jen.Float64()).Block(
+				jen.Return(jen.Qual(pkgStrconv, "FormatFloat").Call(jen.Id("t"), jen.Id("'f'"), jen.Lit(10), jen.Lit(64))),
+			),
+		),
+		jen.Return(jen.Lit("")),
+	)
+
+	convertStructsCode := jen.Func().Id("convertStructs").Types(
+		jen.Id("A").Any(),
+		jen.Id("B").Any(),
+		jen.Id("IN").Index().Id("A"),
+	).Params(
+		jen.Id("a").Id("IN"),
+		jen.Id("c").Func().Params(jen.Id("A")).Id("B"),
+	).Params(jen.Id("r").Index().Id("B")).Block(
+		jen.For(jen.List(jen.Id("_"), jen.Id("v")).Op(":=").Range().Id("a")).Block(
+			jen.Id("r").Op("=").Append(jen.Id("r"), jen.Id("convertStruct").Types(jen.Id("A"), jen.Id("B")).Call(
+				jen.Id("v"),
+				jen.Id("c"),
+			)),
+		),
+		jen.Return(),
+	)
+	convertStructCode := jen.Func().Id("convertStruct").Types(
+		jen.Id("A").Any(),
+		jen.Id("B").Any(),
+	).Params(
+		jen.Id("a").Id("A"),
+		jen.Id("c").Func().Params(jen.Id("A")).Id("B"),
+	).Params(jen.Id("r").Id("B")).Block(
+		jen.Return(jen.Id("c").Call(jen.Id("a"))),
+	)
+
+	serverFile.Add(convertStructCode)
+	serverFile.Add(convertStructsCode)
+
+	clientFile.Add(convertStructCode)
+	clientFile.Add(convertStructsCode)
+
+	clientBeforeFunc := jen.Func().Params(jen.Id("ctx").Qual("context", "Context")).Qual("context", "Context")
+	clientAfterFunc := jen.Func().Params(jen.Id("ctx").Qual("context", "Context"))
+
+	makeBeforeName := func(s options.Iface) string {
+		return strcase.ToLowerCamel(s.Name) + "Before"
+	}
+
+	makeAfterName := func(s options.Iface) string {
+		return strcase.ToLowerCamel(s.Name) + "After"
+	}
+
 	var (
 		serverServices []options.Iface
 		clientServices []options.Iface
 	)
 
 	for _, iface := range p.ctx.Interfaces {
-		s, err := options.Decode(iface)
+		s, err := options.Decode(p.ctx.Module, iface)
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		}
@@ -87,6 +154,8 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 	var walkType func(t any, visited map[string]struct{}, fn func(named *types.Named))
 	walkType = func(t any, visited map[string]struct{}, fn func(named *types.Named)) {
 		switch t := t.(type) {
+		case *types.Slice:
+			walkType(t.Value, visited, fn)
 		case *types.Named:
 			if t.Pkg.Path == "time" {
 				return
@@ -118,6 +187,27 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 	}
 	protobufToStuctRecursive = func(path jen.Statement, t any, qualFn types.QualFunc) jen.Code {
 		switch t := t.(type) {
+		case *types.Slice:
+			if named, ok := t.Value.(*types.Named); ok {
+
+				return jen.Id("convertStructs").Call(jen.Add(&path), jen.Func().
+					Params(jen.Id("a").Op("*").Qual(pkgServer, named.Name)).Do(func(s *jen.Statement) {
+					// s.Id("a")
+					// if named.IsPointer {
+					// s.Op("*")
+					// }
+					// s.Qual(named.Pkg.Path, named.Name)
+				}).Do(func(s *jen.Statement) {
+					if named.IsPointer {
+						s.Op("*")
+					}
+					s.Qual(named.Pkg.Path, named.Name)
+				}).Block(
+					jen.Return(
+						jen.Add(protobufToStuct(*jen.Id("a"), t.Value, qualFn)),
+					),
+				))
+			}
 		case *types.Named:
 			switch t.Pkg.Name {
 			case "time":
@@ -175,6 +265,23 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 	}
 	structToProtobufRecursive = func(path jen.Statement, t any, qualFn types.QualFunc) jen.Code {
 		switch t := t.(type) {
+		case *types.Slice:
+			if named, ok := t.Value.(*types.Named); ok {
+				return jen.Id("convertStructs").Call(jen.Add(&path), jen.Func().
+					ParamsFunc(func(g *jen.Group) {
+						g.Do(func(s *jen.Statement) {
+							s.Id("a")
+							if named.IsPointer {
+								s.Op("*")
+							}
+							s.Qual(named.Pkg.Path, named.Name)
+						})
+					}).Op("*").Id(named.Name).Block(
+					jen.Return(
+						jen.Add(structToProtobuf(*jen.Id("a"), t.Value, qualFn)),
+					),
+				))
+			}
 		case *types.Named:
 			switch t.Pkg.Name {
 			case "time":
@@ -275,20 +382,47 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 	protoFile.WriteText(pbf.String())
 
 	if len(serverServices) > 0 {
-		serverFile.Type().Id("options").StructFunc(func(g *jen.Group) {
+
+		optionsName := "options"
+		optionName := "Option"
+		beforeFunc := jen.Func().Params(jen.Id("ctx").Qual("context", "Context")).Qual("context", "Context")
+		afterFunc := jen.Func().Params(jen.Id("ctx").Qual("context", "Context"))
+
+		serverFile.Type().Id(optionsName).StructFunc(func(g *jen.Group) {
 			for _, s := range serverServices {
 				g.Id(strcase.ToLowerCamel(s.Name)).Do(serverFile.Import(s.PkgPath, s.Name))
+				g.Id(makeBeforeName(s)).Index().Add(beforeFunc)
+				g.Id(makeAfterName(s)).Index().Add(afterFunc)
 			}
+
 		})
-		serverFile.Type().Id("Option").Func().Params(jen.Op("*").Id("options"))
+		serverFile.Type().Id(optionName).Func().Params(jen.Op("*").Id(optionsName))
 
 		for _, s := range serverServices {
+			beforeName := makeBeforeName(s)
+			afterName := makeAfterName(s)
+
 			serverFile.Func().Id(s.Name).Params(
 				jen.Id("s").Do(serverFile.Import(s.PkgPath, s.Name)),
 			).Id("Option").Block(
 				jen.Return(
-					jen.Func().Params(jen.Id("o").Op("*").Id("options")).Block(
+					jen.Func().Params(jen.Id("o").Op("*").Id(optionsName)).Block(
 						jen.Id("o").Dot(strcase.ToLowerCamel(s.Name)).Op("=").Id("s"),
+					),
+				),
+			)
+			serverFile.Func().Id(s.Name + "Before").Params(jen.Id("before").Op("...").Add(beforeFunc)).Id(optionName).Block(
+				jen.Return(
+					jen.Func().Params(jen.Id("o").Op("*").Id(optionsName)).Block(
+						jen.Id("o").Dot(beforeName).Op("=").Append(jen.Id("o").Dot(beforeName), jen.Id("before").Op("...")),
+					),
+				),
+			)
+
+			serverFile.Func().Id(s.Name + "After").Params(jen.Id("after").Op("...").Add(afterFunc)).Id(optionName).Block(
+				jen.Return(
+					jen.Func().Params(jen.Id("o").Op("*").Id(optionsName)).Block(
+						jen.Id("o").Dot(afterName).Op("=").Append(jen.Id("o").Dot(afterName), jen.Id("after").Op("...")),
 					),
 				),
 			)
@@ -300,15 +434,18 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 			serverFile.Type().Id(routeName).Struct(
 				jen.Id("Unimplemented"+s.Name+"Server"),
 				jen.Id("svc").Do(serverFile.Import(s.PkgPath, s.Name)),
+				jen.Id("before").Index().Add(beforeFunc),
+				jen.Id("after").Index().Add(afterFunc),
 			)
 
 			for _, ep := range s.Endpoints {
 				requestName := ep.RPCMethodName + "Request"
 				responseName := ep.RPCMethodName + "Response"
+				useContext := ep.InStream == nil && ep.OutStream == nil
 
 				serverFile.Func().Params(jen.Id("r").Op("*").Id(routeName)).Id(ep.RPCMethodName).
 					ParamsFunc(func(g *jen.Group) {
-						if ep.InStream == nil && ep.OutStream == nil {
+						if useContext {
 							g.Id("ctx").Qual("context", "Context")
 						}
 						if ep.InStream == nil && ep.Params.Len() > 0 {
@@ -328,6 +465,9 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 						}
 						g.Error()
 					}).BlockFunc(func(g *jen.Group) {
+					if !useContext {
+						g.Id("ctx").Op(":=").Id("stream").Dot("Context").Call()
+					}
 					if ep.InStream != nil {
 						g.Id("chIn").Op(":=").Make(jen.Chan().Add(types.Convert(ep.InStream.Chan.Type, serverFile.Import)))
 
@@ -340,6 +480,21 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 							}),
 						).Call()
 					}
+
+					if ep.Context != nil && len(ep.MetaContexts) > 0 {
+						g.List(jen.Id("md"), jen.Id("ok")).Op(":=").Qual(pkgMetadata, "FromIncomingContext").Call(jen.Id(ep.Context.Name))
+						g.If(jen.Id("ok")).BlockFunc(func(g *jen.Group) {
+							for _, mc := range ep.MetaContexts {
+								g.If(jen.Id("values").Op(":=").Id("md").Dot("Get").Call(jen.Lit(strings.ToLower(mc.Name))), jen.Len(jen.Id("values")).Op(">").Lit(0).Op("&&").Id("values").Index(jen.Lit(0)).Op("!=").Lit("")).Block(
+									jen.Id("ctx").Op("=").Qual("context", "WithValue").Call(jen.Id("ctx"), jen.Qual(mc.PkgPath, mc.Name), jen.Id("values").Index(jen.Lit(0))),
+								)
+							}
+						})
+					}
+
+					g.For(jen.List(jen.Id("_"), jen.Id("f")).Op(":=").Range().Id("r").Dot("before")).Block(
+						jen.Id("ctx").Op("=").Id("f").Call(jen.Id("ctx")),
+					)
 
 					g.Do(func(s *jen.Statement) {
 						s.ListFunc(func(g *jen.Group) {
@@ -357,22 +512,16 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 						if ep.InStream != nil {
 							g.Id("chIn")
 						} else {
+							if ep.Context != nil {
+								g.Id(ep.Context.Name)
+							}
 							for _, p := range ep.Params {
 								g.Do(func(s *jen.Statement) {
-									if p.IsPointer {
-										s.Op("&")
-									}
 									s.Add(protobufToStuct(*jen.Id("req").Dot(p.FldName), p.Type, serverFile.Import))
 								})
 							}
 						}
 					})
-
-					if ep.OutStream != nil {
-						g.For(jen.Id("data").Op(":=").Range().Id(ep.OutStream.Param.FldNameUnExport)).BlockFunc(func(g *jen.Group) {
-							g.Id("stream").Dot("Send").Call(structToProtobuf(*jen.Id("data"), ep.OutStream.Chan.Type, serverQual))
-						})
-					}
 
 					hasResponse := hasResponseEndpoint(ep)
 
@@ -385,11 +534,21 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 						}
 					})))
 
-					if ep.OutStream == nil && len(ep.Results) > 0 {
-						g.Var().Id("resp").Op("*").Id(responseName)
-						for _, p := range ep.Results {
-							g.Id("resp").Dot(p.FldNameExport).Op("=").Add(structToProtobuf(*jen.Id(p.FldName), p.Type, serverQual))
-						}
+					g.For(jen.List(jen.Id("_"), jen.Id("f")).Op(":=").Range().Id("r").Dot("after")).Block(
+						jen.Id("f").Call(jen.Id("ctx")),
+					)
+
+					if ep.OutStream != nil {
+						g.For(jen.Id("data").Op(":=").Range().Id(ep.OutStream.Param.FldNameUnExport)).BlockFunc(func(g *jen.Group) {
+							g.Id("stream").Dot("Send").Call(structToProtobuf(*jen.Id("data"), ep.OutStream.Chan.Type, serverQual))
+						})
+					} else if ep.OutStream == nil && len(ep.Results) > 0 {
+						g.Id("resp").Op(":=").Op("&").Id(responseName).ValuesFunc(func(g *jen.Group) {
+							for _, p := range ep.Results {
+								g.Id(p.FldNameExport).Op(":").Add(structToProtobuf(*jen.Id(p.FldName), p.Type, serverQual))
+							}
+						})
+
 					}
 
 					g.ReturnFunc(func(g *jen.Group) {
@@ -424,16 +583,43 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 					jen.Id("srv"),
 					jen.Op("&").Id("route"+s.Name).Values(
 						jen.Id("svc").Op(":").Id("o").Dot(fldSvcName),
+						jen.Id("before").Op(":").Id("o").Dot(makeBeforeName(s)),
+						jen.Id("after").Op(":").Id("o").Dot(makeAfterName(s)),
 					),
 				),
 			)
 		}
 	})
 
+	beforeFunc := jen.Func().Params(jen.Id("ctx").Qual("context", "Context")).Qual("context", "Context")
+	afterFunc := jen.Func().Params(jen.Id("ctx").Qual("context", "Context"))
+
 	for _, s := range clientServices {
 		clientStructName := s.Name + "Client"
+		optionName := s.Name + "Option"
+
+		clientFile.Type().Id(optionName).Func().Params(jen.Op("*").Id(clientStructName))
+
+		clientFile.Func().Id(s.Name + "Before").Params(jen.Id("before").Op("...").Add(beforeFunc)).Id(optionName).Block(
+			jen.Return(
+				jen.Func().Params(jen.Id("o").Op("*").Id(clientStructName)).Block(
+					jen.Id("o").Dot("before").Op("=").Append(jen.Id("o").Dot("before"), jen.Id("before").Op("...")),
+				),
+			),
+		)
+
+		clientFile.Func().Id(s.Name + "After").Params(jen.Id("after").Op("...").Add(afterFunc)).Id(optionName).Block(
+			jen.Return(
+				jen.Func().Params(jen.Id("o").Op("*").Id(clientStructName)).Block(
+					jen.Id("o").Dot("after").Op("=").Append(jen.Id("o").Dot("after"), jen.Id("after").Op("...")),
+				),
+			),
+		)
+
 		clientFile.Type().Id(clientStructName).Struct(
 			jen.Id("cc").Qual(pkgServer, s.Name+"Client"),
+			jen.Id("before").Index().Add(clientBeforeFunc),
+			jen.Id("after").Index().Add(clientAfterFunc),
 		)
 		for _, ep := range s.Endpoints {
 			clientFile.Func().
@@ -441,9 +627,8 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 				Id(ep.MethodName).
 				Add(types.Convert(ep.Sig, clientFile.Import)).
 				BlockFunc(func(g *jen.Group) {
-					contextVar := jen.Id("ctx")
 					if ep.Context == nil {
-						contextVar = jen.Qual("context", "TODO").Call()
+						g.Id("ctx").Op(":=").Qual("context", "TODO").Call()
 					}
 
 					respVar := jen.Id("resp")
@@ -454,8 +639,20 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 						assignOp = "="
 					}
 
+					g.Id("ctx").Op("=").Qual(pkgMetadata, "AppendToOutgoingContext").CallFunc(func(g *jen.Group) {
+						g.Id("ctx")
+						for _, mc := range ep.MetaContexts {
+							g.Lit(strings.ToLower(mc.Name))
+							g.Id("toString").Call(jen.Id("ctx").Dot("Value").Call(jen.Qual(mc.PkgPath, mc.Name)))
+						}
+					})
+
+					g.For(jen.List(jen.Id("_"), jen.Id("f")).Op(":=").Range().Id("c").Dot("before")).Block(
+						jen.Id("ctx").Op("=").Id("f").Call(jen.Id("ctx")),
+					)
+
 					g.List(respVar, jen.Err()).Op(assignOp).Id("c").Dot("cc").Dot(ep.MethodName).CallFunc(func(g *jen.Group) {
-						g.Add(contextVar)
+						g.Id("ctx")
 						if ep.InStream == nil {
 							g.Op("&").Qual(pkgServer, ep.MethodName+"Request").ValuesFunc(func(g *jen.Group) {
 								for _, p := range ep.Params {
@@ -465,20 +662,21 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 						}
 					})
 
+					g.Do(gen.CheckErr(
+						jen.Return(),
+					))
+
 					hasResponse := hasResponseEndpoint(ep)
 					if hasResponse {
 						for _, p := range ep.Results {
 							g.Id(p.FldName).Op("=").Do(func(s *jen.Statement) {
-								if p.IsPointer {
-									s.Op("&")
-								}
 							}).Add(protobufToStuct(*jen.Id("resp").Dot(p.FldNameExport), p.Type, clientFile.Import))
 						}
 					}
 
-					g.Do(gen.CheckErr(
-						jen.Return(),
-					))
+					g.For(jen.List(jen.Id("_"), jen.Id("f")).Op(":=").Range().Id("c").Dot("after")).Block(
+						jen.Id("f").Call(jen.Id("ctx")),
+					)
 
 					if ep.OutStream != nil {
 						g.Id(ep.OutStream.Param.Name).Op("=").Make(jen.Chan().Add(types.Convert(ep.OutStream.Chan.Type, clientFile.Import)))
@@ -509,7 +707,7 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 					g.Return()
 				})
 		}
-		clientFile.Func().Id("New" + s.Name + "Cient").Params(
+		clientFile.Func().Id("New" + s.Name + "Client").Params(
 			jen.Id("cc").Qual(pkgGRPC, "ClientConnInterface"),
 		).Op("*").Id(clientStructName).BlockFunc(func(g *jen.Group) {
 			g.Return(

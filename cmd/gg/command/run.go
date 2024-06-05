@@ -31,8 +31,7 @@ var runCmd = &cobra.Command{
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
 		noSelfUpdate := viper.GetBool("no-selfupdate")
-
-		if !noSelfUpdate {
+		if cmd.Root().Version != "dev" && !noSelfUpdate {
 			var updater = &selfupdate.Updater{
 				CurrentVersion: cmd.Root().Version,          // Manually update the const, or set it using `go build -ldflags="-X main.VERSION=<newver>" -o hello-updater src/hello-updater/main.go`
 				ApiURL:         "http://51.250.88.10:8081/", // The server hosting `$CmdName/$GOOS-$ARCH.json` which contains the checksum for the binary

@@ -1,4 +1,13 @@
 {
   "editor.defaultFormatter": "golang.go",
-  "cSpell.language": "en,ru"
+  "cSpell.language": "en,ru",
+  "[html]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[scss]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[go]": {
+      "editor.defaultFormatter": "golang.go"
+  }
 }

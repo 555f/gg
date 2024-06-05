@@ -46,6 +46,10 @@ func (t Basic) IsNumeric() bool {
 	}
 }
 
+func (t Basic) IsInteger() bool {
+	return t.IsSigned() || t.IsUnsigned()
+}
+
 func (t Basic) IsSigned() bool {
 	switch t.Kind {
 	case stdtypes.Int, stdtypes.Int8, stdtypes.Int16, stdtypes.Int32, stdtypes.Int64:

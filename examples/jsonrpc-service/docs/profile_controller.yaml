@@ -1,0 +1,334 @@
+# OpenAPI docs
+openapi: 3.0.0
+info:
+  title: Example
+  contact:
+    name: Vitaly Lobchuk
+    email: vitaly@lobchuk.ru
+  version: v1.0.0
+paths:
+  /Create:
+    post:
+      summary: Создать профиль
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  oneOf:
+                  - type: string
+                  - type: number
+                jsonrpc:
+                  type: string
+                  example: "2.0"
+                method:
+                  type: string
+                  example: profile.create
+                params:
+                  type: object
+                  properties:
+                    address:
+                      description: |2+
+
+                      type: string
+                      example: abc
+                    firstName:
+                      description: |2+
+
+                      type: string
+                      example: abc
+                    lastName:
+                      description: |2+
+
+                      type: string
+                      example: abc
+                    token:
+                      description: |2+
+
+                      type: string
+                      example: abc
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    oneOf:
+                    - type: string
+                    - type: number
+                  jsonrpc:
+                    type: string
+                    example: "2.0"
+                  result:
+                    $ref: '#/components/schemas/Profile'
+        x-32600:
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: integer
+                        example: -32600
+                      data:
+                        type: object
+                      message:
+                        type: string
+                        example: Invalid Request
+                  id:
+                    oneOf:
+                    - type: string
+                    - type: number
+                  jsonrpc:
+                    type: string
+                    example: "2.0"
+        x-32601:
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: integer
+                        example: -32601
+                      data:
+                        type: object
+                      message:
+                        type: string
+                        example: Method not found
+                  id:
+                    oneOf:
+                    - type: string
+                    - type: number
+                  jsonrpc:
+                    type: string
+                    example: "2.0"
+        x-32602:
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: integer
+                        example: -32602
+                      data:
+                        type: object
+                      message:
+                        type: string
+                        example: Invalid params
+                  id:
+                    oneOf:
+                    - type: string
+                    - type: number
+                  jsonrpc:
+                    type: string
+                    example: "2.0"
+        x-32603:
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: integer
+                        example: -32603
+                      data:
+                        type: object
+                      message:
+                        type: string
+                        example: Internal error
+                  id:
+                    oneOf:
+                    - type: string
+                    - type: number
+                  jsonrpc:
+                    type: string
+                    example: "2.0"
+  /Remove:
+    post:
+      summary: Удалить профиль
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  oneOf:
+                  - type: string
+                  - type: number
+                jsonrpc:
+                  type: string
+                  example: "2.0"
+                method:
+                  type: string
+                  example: profile.delete
+                params:
+                  type: object
+                  properties:
+                    id:
+                      description: |2+
+
+                      type: string
+                      example: abc
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    oneOf:
+                    - type: string
+                    - type: number
+                  jsonrpc:
+                    type: string
+                    example: "2.0"
+                  result:
+                    type: object
+        x-32600:
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: integer
+                        example: -32600
+                      data:
+                        type: object
+                      message:
+                        type: string
+                        example: Invalid Request
+                  id:
+                    oneOf:
+                    - type: string
+                    - type: number
+                  jsonrpc:
+                    type: string
+                    example: "2.0"
+        x-32601:
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: integer
+                        example: -32601
+                      data:
+                        type: object
+                      message:
+                        type: string
+                        example: Method not found
+                  id:
+                    oneOf:
+                    - type: string
+                    - type: number
+                  jsonrpc:
+                    type: string
+                    example: "2.0"
+        x-32602:
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: integer
+                        example: -32602
+                      data:
+                        type: object
+                      message:
+                        type: string
+                        example: Invalid params
+                  id:
+                    oneOf:
+                    - type: string
+                    - type: number
+                  jsonrpc:
+                    type: string
+                    example: "2.0"
+        x-32603:
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: integer
+                        example: -32603
+                      data:
+                        type: object
+                      message:
+                        type: string
+                        example: Internal error
+                  id:
+                    oneOf:
+                    - type: string
+                    - type: number
+                  jsonrpc:
+                    type: string
+                    example: "2.0"
+components:
+  schemas:
+    Address:
+      properties:
+        apt:
+          description: |
+            Apartment
+          type: integer
+          example: 1
+        street:
+          description: |
+            Street
+          type: string
+          example: abc
+    Profile:
+      properties:
+        address:
+          $ref: '#/components/schemas/Address'
+        fistName:
+          description: |
+            Surname
+          type: string
+          example: abc
+        lastName:
+          description: |
+            Name
+          type: string
+          example: abc

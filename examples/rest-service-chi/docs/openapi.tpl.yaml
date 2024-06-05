@@ -1,8 +1,0 @@
-# OpenAPI docs
-openapi: 3.0.0
-info:
-  title: Example
-  version: v1.0.0
-  contact:
-    name: Vitaly Lobchuk
-    email: vitaly@lobchuk.ru

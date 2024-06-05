@@ -66,6 +66,7 @@ type HandlerStrategy interface {
 	LibType() (typ jen.Code)
 	LibArgName() string
 	Context() jen.Code
+	QueryParams() (typ jen.Code)
 	QueryParam(queryName string) (name string, typ jen.Code)
 	PathParam(pathName string) (name string, typ jen.Code)
 	HeaderParam(headerName string) (name string, typ jen.Code)

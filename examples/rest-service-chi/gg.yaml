@@ -7,5 +7,5 @@ plugins:
   http:
     error-wrapper: pkg/errors/ErrorWrapper
     error-default: pkg/errors/DefaultError
-    openapi-tpl: ./docs/openapi.tpl.yaml
+    openapi-tpl: ./docs
     client-output: ./pkg/client/client.go

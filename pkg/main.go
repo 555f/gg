@@ -6,9 +6,11 @@ import (
 	_ "github.com/555f/gg/internal/plugin/grpc"
 	_ "github.com/555f/gg/internal/plugin/http"
 	_ "github.com/555f/gg/internal/plugin/jsonrpc"
-	_ "github.com/555f/gg/internal/plugin/logging"
+	_ "github.com/555f/gg/internal/plugin/klog"
 	_ "github.com/555f/gg/internal/plugin/middleware"
+	_ "github.com/555f/gg/internal/plugin/pwa"
 	_ "github.com/555f/gg/internal/plugin/slog"
+	_ "github.com/555f/gg/internal/plugin/webview"
 )
 
 func Main(version string) {

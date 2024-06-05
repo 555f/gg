@@ -7,15 +7,6 @@ info:
     email: vitaly@lobchuk.ru
   version: v1.0.0
 paths:
-  /addresses:
-    get:
-      tags:
-      - address
-      description: |
-        TestSpaceParamName
-      responses:
-        200:
-          description: OK
   /profiles:
     post:
       tags:
@@ -117,6 +108,15 @@ paths:
       - profile
       summary: DownloadFile
       parameters:
+      - in: query
+        name: onlyCloud
+        description: |2+
+
+        schema:
+          description: |2+
+
+          type: boolean
+          example: "true"
       - in: path
         name: id
         description: |2+

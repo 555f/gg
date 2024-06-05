@@ -9,7 +9,7 @@ var _ controller.ProfileController = &ProfileController{}
 
 type ProfileController struct{}
 
-func (c *ProfileController) DownloadFile(id string) (data string, err error) {
+func (c *ProfileController) DownloadFile(id string, onlyCloud bool) (data string, err error) {
 	return "data", nil
 }
 

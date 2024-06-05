@@ -49,8 +49,11 @@ type ProfileController interface {
 	// @http-path:"/profiles/:id/file"
 	// @http-method:"GET"
 	DownloadFile(
+		// идентификатор
 		// @http-required
 		id string,
+		// @http-type:"query"
+		onlyCloud bool,
 	) (
 		data string,
 		err error,

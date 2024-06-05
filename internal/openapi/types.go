@@ -42,6 +42,7 @@ type Schema struct {
 	Properties  Properties  `yaml:"properties,omitempty" json:"properties,omitempty"`
 	Items       *Schema     `yaml:"items,omitempty" json:"items,omitempty"`
 	AnyOf       []Schema    `yaml:"anyOf,omitempty" json:"anyOf,omitempty"`
+	OneOf       []Schema    `yaml:"oneOf,omitempty" json:"oneOf,omitempty"`
 	Enum        []string    `yaml:"enum,omitempty" json:"enum,omitempty"`
 	Example     interface{} `yaml:"example,omitempty" json:"example,omitempty"`
 	XML         *XML        `yaml:"xml,omitempty" json:"xml,omitempty"`
@@ -75,7 +76,7 @@ type Response struct {
 	Content     Content `yaml:"content,omitempty" json:"content,omitempty"`
 }
 
-type Responses map[int64]*Response
+type Responses map[string]*Response
 
 type RequestBody struct {
 	Description string  `yaml:"description,omitempty" json:"description,omitempty"`

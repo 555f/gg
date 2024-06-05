@@ -3,9 +3,16 @@
 package controller
 
 import (
+	"context"
 	"time"
 
 	"github.com/555f/gg/examples/grpc-service/pkg/dto"
+)
+
+type ContextKey int
+
+const (
+	TestMetaContextKey ContextKey = iota + 1
 )
 
 // ProfileController Профиль пользователя
@@ -17,7 +24,9 @@ import (
 // @grpc-client
 type ProfileController interface {
 	// Create Создать профиль
+	// @grpc-meta-context:"~/examples/grpc-service/internal/usecase/controller.TestMetaContextKey"
 	Create(
+		ctx context.Context,
 		// @grpc-version:"1"
 		token string,
 		// @grpc-version:"2"
