@@ -85,7 +85,7 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 						if len(ep.BodyParams) > 0 {
 							bodyParams := jen.Id(reqName)
 							if len(ep.BodyParams) == 1 && ep.NoWrapRequest {
-								bodyParams = bodyParams.Dot(ep.BodyParams[0].FldName.String())
+								bodyParams = bodyParams.Dot(ep.BodyParams[0].FldName.Camel())
 							}
 
 							var stRequests []jen.Code
@@ -93,7 +93,7 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 								stRequests = append(stRequests, jen.Id("XMLName").Qual("encoding/xml", "Name").Tag(map[string]string{"xml": ep.ReqRootXMLName}))
 							}
 							for _, p := range ep.BodyParams {
-								st := jen.Id(p.FldName.String()).Add(types.Convert(p.Type, b.qualifier.Qual))
+								st := jen.Id(p.FldName.Camel()).Add(types.Convert(p.Type, b.qualifier.Qual))
 								if p.Name != "" && p.HTTPType == "body" {
 									st.Tag(map[string]string{"json": p.Name})
 								} else {
@@ -157,7 +157,7 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 													for _, p := range ep.BodyParams {
 														_, typ := b.handlerStrategy.FormParam(p.Name)
 
-														g.Add(gen.ParseValue(typ, jen.Add(bodyParams).Dot(p.FldName.String()), "=", p.Type, b.qualifier.Qual, func() jen.Code {
+														g.Add(gen.ParseValue(typ, jen.Add(bodyParams).Dot(p.FldName.Camel()), "=", p.Type, b.qualifier.Qual, func() jen.Code {
 															return jen.Do(gen.CheckErr(
 																jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.RespArgName()), jen.Err()),
 																jen.Return(),
@@ -178,7 +178,7 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 													for _, p := range ep.BodyParams {
 														_, typ := b.handlerStrategy.MultipartFormParam(p.Name)
 
-														g.Add(gen.ParseValue(typ, jen.Add(bodyParams).Dot(p.FldName.String()), "=", p.Type, b.qualifier.Qual, func() jen.Code {
+														g.Add(gen.ParseValue(typ, jen.Add(bodyParams).Dot(p.FldName.Camel()), "=", p.Type, b.qualifier.Qual, func() jen.Code {
 															return jen.Do(gen.CheckErr(
 																jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.RespArgName()), jen.Err()),
 																jen.Return(),
@@ -255,7 +255,7 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 						for _, p := range ep.Params {
 							switch p.HTTPType {
 							default:
-								g.Id("req").Dot(p.FldName.String())
+								g.Id("req").Dot(p.FldName.Camel())
 							case options.PathHTTPType, options.CookieHTTPType, options.QueryHTTPType:
 								g.Id("param" + p.FldName.String())
 							}

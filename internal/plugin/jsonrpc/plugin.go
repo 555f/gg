@@ -43,6 +43,10 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 	openapiOutput := filepath.Join(
 		p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("openapi-output", "docs"),
 	)
+	httpReqOutput := filepath.Join(
+		p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("httpreq-output", "docs"),
+	)
+
 	var (
 		serverServices  []options.Iface
 		clientServices  []options.Iface
@@ -107,6 +111,18 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 	clientBuilder := gen.NewBaseClientBuilder(clientFile)
 
 	if len(serverServices) > 0 {
+		for _, iface := range serverServices {
+			if iface.HTTPReq != "" {
+				hrf := file.NewTxtFile(filepath.Join(httpReqOutput, strcase.ToSnake(iface.Name)+".http"))
+				hrf.WriteBytes(
+					gen.NewHTTPExampleBuilder(iface).Build(),
+				)
+				files = append(files, hrf)
+			}
+		}
+		serverFile.Add(serverBuilder.Build())
+		files = append(files, serverFile)
+
 		serverBuilder.RegisterHandlerStrategy("default", func() gen.HandlerStrategy {
 			return gen.NewHandlerStrategyJSONRPC()
 		})

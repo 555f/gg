@@ -1,4 +1,4 @@
-package middleware
+package webview
 
 import "github.com/555f/gg/pkg/gg"
 

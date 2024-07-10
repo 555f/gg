@@ -1,8 +1,6 @@
 package options
 
 import (
-	"fmt"
-
 	"github.com/555f/gg/pkg/errors"
 	"github.com/555f/gg/pkg/gg"
 	"github.com/555f/gg/pkg/strcase"
@@ -178,7 +176,6 @@ func endpointDecode(module *types.Module, method *types.Func) (opts Endpoint, er
 			PkgPath: pkgPath,
 		})
 	}
-	fmt.Println(opts.MetaContexts)
 
 	for _, param := range method.Sig.Params {
 		if param.IsContext {

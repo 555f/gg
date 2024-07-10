@@ -55,9 +55,10 @@ func (b *BaseServerBuilder) Build() jen.Code {
 							jen.Id(errorWrapperName).Dot(field.FldName).Op("=").Id("e").Op(".").Id(field.MethodName).Call(),
 						)
 					}
+					g.Add(handleStrategy.WriteError(jen.Id("statusCode"), jen.Id(errorWrapperName)))
+				} else {
+					g.Add(handleStrategy.WriteError(jen.Id("statusCode"), jen.Id("err")))
 				}
-
-				g.Add(handleStrategy.WriteError(jen.Id("statusCode"), jen.Id("err")))
 			}),
 
 			jen.Func().Id("encodeBody").Params(

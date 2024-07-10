@@ -48,7 +48,7 @@ type EndpointParams []*EndpointParam
 func paramJSONFromType(name string, t any) string {
 	var buf bytes.Buffer
 
-	buf.WriteString("  " + strconv.Quote(name) + ":")
+	buf.WriteString(strconv.Quote(name) + ":")
 
 	switch v := t.(type) {
 	case *types.Named:
@@ -56,15 +56,18 @@ func paramJSONFromType(name string, t any) string {
 		switch name {
 		default:
 			if st := v.Struct(); st != nil {
-				buf.WriteString("{\n")
-				for _, f := range v.Struct().Fields {
+				buf.WriteString("{")
+				for i, f := range v.Struct().Fields {
 					name := f.Var.Name
 					if t, err := f.SysTags.Get("json"); err == nil {
 						name = t.Value()
 					}
+					if i > 0 {
+						buf.WriteString(",")
+					}
 					buf.WriteString("  " + paramJSONFromType(name, f.Var.Type))
 				}
-				buf.WriteString("  }")
+				buf.WriteString("}")
 			} else {
 				buf.WriteString("\"\"")
 			}
@@ -86,14 +89,14 @@ func paramJSONFromType(name string, t any) string {
 
 func (params EndpointParams) ToJSON() string {
 	var buf bytes.Buffer
-	buf.WriteString("{\n")
+	buf.WriteString("{")
 	for i, p := range params {
 		if i > 0 {
-			buf.WriteString(",\n")
+			buf.WriteString(",")
 		}
 		buf.WriteString(paramJSONFromType(p.Name, p.Type))
 	}
-	buf.WriteString("}\n")
+	buf.WriteString("}")
 	return buf.String()
 }
 

@@ -79,22 +79,22 @@ func ParseValue(id, assignID Code, op string, t any, qualFunc types.QualFunc, er
 			})
 		}
 	case *types.Named:
-		if basic, ok := t.Type.(*types.Basic); ok {
-			if basic.IsString() {
-				s.Add(assignID).Op(op).Do(qualFunc(t.Pkg.Path, t.Name)).Call(id)
-			} else {
-				s.CustomFunc(Options{Multi: true}, func(g *Group) {
-					g.List(Id("v"), Err()).Op(":=").Do(parseFunc(id, basic, qualFunc))
-					g.Do(CheckErr(
-						Return(Nil(), Err()),
-					))
-					g.Add(assignID).Op(op).Qual(t.Pkg.Path, t.Name).Call(Id("v"))
-				})
-			}
-			return
-		}
-
 		switch t.Pkg.Path {
+		default:
+			if basic, ok := t.Type.(*types.Basic); ok {
+				if basic.IsString() {
+					s.Add(assignID).Op(op).Do(qualFunc(t.Pkg.Path, t.Name)).Call(id)
+				} else {
+					s.CustomFunc(Options{Multi: true}, func(g *Group) {
+						g.List(Id("v"), Err()).Op(":=").Do(parseFunc(id, basic, qualFunc))
+						g.Do(CheckErr(
+							Return(Nil(), Err()),
+						))
+						g.Add(assignID).Op(op).Qual(t.Pkg.Path, t.Name).Call(Id("v"))
+					})
+				}
+				return
+			}
 		case "net/url":
 			switch t.Name {
 			case "URL":

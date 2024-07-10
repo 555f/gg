@@ -1,13 +1,15 @@
-package middleware
+package webview
 
 import (
 	"path/filepath"
 
+	"github.com/555f/gg/pkg/errors"
 	"github.com/555f/gg/pkg/file"
 	"github.com/555f/gg/pkg/gg"
 	"github.com/555f/gg/pkg/strcase"
 	"github.com/555f/gg/pkg/types"
 	"github.com/dave/jennifer/jen"
+	"github.com/hashicorp/go-multierror"
 )
 
 var (
@@ -20,23 +22,32 @@ type Plugin struct {
 
 func (p *Plugin) Name() string { return "webview" }
 
-func (p *Plugin) Exec() ([]file.File, error) {
+func (p *Plugin) Exec() (files []file.File, errs error) {
 	f := file.NewGoFile(p.ctx.Module, p.Output())
+
+	/*	type Context map[string]any
+		type contextKey string
+
+		func (c Context) ToGoContext() context.Context {
+			ctx := context.TODO()
+			for k,v  := range c {
+				ctx=context.WithValue(ctx, contextKey(k), v)
+			}
+			return ctx
+		}*/
+
+	f.Type().Id("Context").Map(jen.String()).Any()
+
+	f.Func().Params(jen.Id("c").Id("Context")).Id("Get").Params(jen.Id("key").String()).Any().Block(
+		jen.List(jen.Id("v"), jen.Id("_")).Op(":=").Id("c").Index(jen.Id("key")),
+		jen.Return(jen.Id("v")),
+	)
 
 	for _, iface := range p.ctx.Interfaces {
 		optionsName := iface.Named.Name + "Options"
 		optionName := iface.Named.Name + "Option"
-
 		f.Type().Id(optionName).Func().Params(jen.Op("*").Id(optionsName))
-		f.Type().Id(optionsName).StructFunc(func(g *jen.Group) {
-		})
-
-		/*for _, m := range iface.Type.Methods {
-			bindName := strcase.ToLowerCamel(iface.Named.Name) + "_" + m.Name
-			resultName := bindName + "Result"
-
-			f.Type().Id(resultName).StructFunc(func(g *jen.Group) {})
-		}*/
+		f.Type().Id(optionsName).StructFunc(func(g *jen.Group) {})
 	}
 
 	for _, iface := range p.ctx.Interfaces {
@@ -50,45 +61,72 @@ func (p *Plugin) Exec() ([]file.File, error) {
 
 				g.Id("w").Dot("Bind").Call(
 					jen.Lit(bindName), jen.Func().ParamsFunc(func(g *jen.Group) {
+						g.Id("wvCtx").Id("Context")
 						for _, p := range m.Sig.Params {
 							if p.IsContext {
 								continue
 							}
 							g.Id(p.Name).Add(types.Convert(p.Type, f.Qual))
 						}
-					}).Params(jen.Id("_").Any(), jen.Err().Error()).BlockFunc(func(g *jen.Group) {
-						g.Id("result").Op(":=").StructFunc(func(g *jen.Group) {
-							for _, r := range m.Sig.Results {
-								if r.IsError {
-									continue
-								}
-								g.Id(strcase.ToCamel(r.Name)).Add(types.Convert(r.Type, f.Qual)).Tag(map[string]string{"json": strcase.ToLowerCamel(r.Name)})
-							}
-						}).Values()
+					}).Params(jen.Chan().Qual(webviewPkg, "BindCallbackResult")).BlockFunc(func(g *jen.Group) {
+						g.Id("ch").Op(":=").Make(jen.Chan().Qual(webviewPkg, "BindCallbackResult"))
 
-						g.Id("ctx").Op(":=").Qual("context", "TODO").Call()
+						g.Go().Func().Params().BlockFunc(func(g *jen.Group) {
+							g.Id("result").Op(":=").StructFunc(func(g *jen.Group) {
+								for _, r := range m.Sig.Results {
+									if r.IsError {
+										continue
+									}
+									g.Id(strcase.ToCamel(r.Name)).Add(types.Convert(r.Type, f.Qual)).Tag(map[string]string{"json": strcase.ToLowerCamel(r.Name)})
+								}
+							}).Values()
 
-						g.ListFunc(func(g *jen.Group) {
-							for _, r := range m.Sig.Results {
-								if r.IsError {
-									g.Err()
-									continue
+							g.Id("ctx").Op(":=").Qual("context", "TODO").Call()
+
+							tags := m.Tags.GetSlice("webview-context")
+							for _, t := range tags {
+								if t.Value == "" {
+									errs = multierror.Append(errs, errors.Error("the path to the context key is required", t.Position))
+									return
 								}
-								g.Id("result").Dot(strcase.ToCamel(r.Name))
-							}
-						}).Op("=").Id("svc").Dot(m.Name).CallFunc(func(g *jen.Group) {
-							for _, p := range m.Sig.Params {
-								if p.IsContext {
-									g.Id("ctx")
-									continue
+								pkgPath, name, err := p.ctx.Module.ParseImportPath(t.Value)
+								if err != nil {
+									errs = multierror.Append(errs, err)
+									return
 								}
-								g.Id(p.Name)
+								g.Id("ctx").Op("=").Qual("context", "WithValue").Call(
+									jen.Id("ctx"),
+									jen.Qual(pkgPath, name),
+									jen.Id("wvCtx").Dot("Get").Call(jen.Lit(name)),
+								)
 							}
-						})
-						g.Return(
-							jen.Id("result"),
-							jen.Err(),
-						)
+
+							g.Var().Err().Error()
+
+							g.ListFunc(func(g *jen.Group) {
+								for _, r := range m.Sig.Results {
+									if r.IsError {
+										g.Err()
+										continue
+									}
+									g.Id("result").Dot(strcase.ToCamel(r.Name))
+								}
+							}).Op("=").Id("svc").Dot(m.Name).CallFunc(func(g *jen.Group) {
+								for _, p := range m.Sig.Params {
+									if p.IsContext {
+										g.Id("ctx")
+										continue
+									}
+									g.Id(p.Name)
+								}
+							})
+
+							g.Id("ch").Op("<-").Qual(webviewPkg, "BindCallbackResult").Values(
+								jen.Id("Value").Op(":").Id("result"),
+								jen.Id("Error").Op(":").Id("err"),
+							)
+						}).Call()
+						g.Return(jen.Id("ch"))
 					}),
 				)
 			}
