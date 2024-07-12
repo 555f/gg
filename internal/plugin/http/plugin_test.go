@@ -41,7 +41,7 @@ func Test(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			results, err := gg.Run("dev", wd, []string{"./" + tc.fileName}, map[string]any{}, false)
+			results, err := gg.Run("dev", wd, []string{"./" + tc.fileName}, map[string]string{}, false)
 			if err != nil {
 				t.Error(err)
 			}

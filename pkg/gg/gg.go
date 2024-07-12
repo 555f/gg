@@ -23,7 +23,7 @@ type Result struct {
 	File file.File
 }
 
-func Run(version, wd string, packageNames []string, pluginOpts map[string]any, isSaveFile bool) (result []*Result, errs error) {
+func Run(version, wd string, packageNames []string, pluginOpts map[string]string, isSaveFile bool) (result []*Result, errs error) {
 	cfg := &stdpackages.Config{
 		ParseFile: func(fSet *token.FileSet, filename string, src []byte) (*ast.File, error) {
 			return parser.ParseFile(fSet, filename, src, parser.AllErrors|parser.ParseComments)
@@ -132,7 +132,7 @@ func Run(version, wd string, packageNames []string, pluginOpts map[string]any, i
 
 	for name, f := range pluginFactories {
 		if len(interfaceSet[name]) > 0 || len(structSet[name]) > 0 {
-			options, _ := pluginOpts[name].(map[string]any)
+
 			ctx := &Context{
 				Version:     version,
 				pluginGraph: pluginGraph,
@@ -142,7 +142,7 @@ func Run(version, wd string, packageNames []string, pluginOpts map[string]any, i
 				Interfaces:  interfaceSet[name],
 				// OthersInterfaces: othersInterfaces,
 				Structs: structSet[name],
-				Options: Options{m: options},
+				Options: Options{m: pluginOpts, prefix: name},
 			}
 			plugin := f(ctx)
 			if err := pluginGraph.add(plugin); err != nil {
@@ -167,6 +167,10 @@ func Run(version, wd string, packageNames []string, pluginOpts map[string]any, i
 				}
 			}
 		}
+	}
+
+	if errs != nil {
+		return nil, errs
 	}
 
 	for i := len(sortedPlugins) - 1; i >= 0; i-- {

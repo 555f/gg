@@ -1,6 +1,8 @@
 package gg
 
 import (
+	"strconv"
+
 	"github.com/555f/gg/pkg/file"
 	"github.com/555f/gg/pkg/types"
 )
@@ -45,36 +47,41 @@ func (pt *Tags) Tag(name string) (*types.Tag, bool) {
 }
 
 type Options struct {
-	m map[string]any
+	prefix string
+	m      map[string]string
+}
+
+func (o Options) wrapPrefix(name string) string {
+	return o.prefix + "-" + name
 }
 
 func (o Options) GetString(name string) string {
-	v, _ := o.m[name].(string)
-	return v
+	return o.m[o.wrapPrefix(name)]
 }
 
 func (o Options) GetStringWithDefault(name, defaultValue string) string {
-	if v, ok := o.m[name].(string); ok {
+	if v, ok := o.m[o.wrapPrefix(name)]; ok {
 		return v
 	}
 	return defaultValue
 }
 
 func (o Options) GetBool(name string) bool {
-	v, _ := o.m[name].(bool)
+	v, _ := strconv.ParseBool(o.m[o.wrapPrefix(name)])
 	return v
 }
 
 func (o Options) GetBoolWithDefault(name string, defaultValue bool) bool {
-	if v, ok := o.m[name].(bool); ok {
+	if s, ok := o.m[o.wrapPrefix(name)]; ok {
+		v, _ := strconv.ParseBool(s)
 		return v
 	}
 	return defaultValue
 }
 
 func (o Options) GetInt(name string) int {
-	v, _ := o.m[name].(int)
-	return v
+	v, _ := strconv.ParseInt(o.m[o.wrapPrefix(name)], 10, 64)
+	return int(v)
 }
 
 type Context struct {

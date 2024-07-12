@@ -68,14 +68,23 @@ var runCmd = &cobra.Command{
 		configFile := viper.ConfigFileUsed()
 		configFile = filepath.FromSlash(configFile)
 
-		wd := filepath.Dir(configFile)
-		wdAbs, _ := filepath.Abs(wd)
+		var (
+			wdAbs string
+		)
 
-		pluginOpts := viper.GetStringMap("plugins")
+		if configFile != "" {
+			wdAbs, _ = filepath.Abs(filepath.Dir(configFile))
+		} else {
+			wdAbs, _ = filepath.Abs(viper.GetString("wd"))
+		}
+
+		pluginOpts := viper.GetStringMapString("plugins")
 
 		cmd.Printf(yellow("Version: %s\n"), cmd.Root().Version)
 		cmd.Printf(yellow("Workdir: %s\n"), wdAbs)
-		cmd.Printf(yellow("Config file: %s\n"), configFile)
+		if configFile != "" {
+			cmd.Printf(yellow("Config file: %s\n"), configFile)
+		}
 
 		var isExitApp bool
 
@@ -126,6 +135,9 @@ var runCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(runCmd)
 
+	runCmd.Flags().StringP("wd", "w", "", "Work dir")
+	_ = viper.BindPFlag("wd", runCmd.Flags().Lookup("wd"))
+
 	runCmd.Flags().StringSliceP("packages", "p", nil, "Scan packages")
 	_ = viper.BindPFlag("packages", runCmd.Flags().Lookup("packages"))
 
@@ -134,4 +146,7 @@ func init() {
 
 	runCmd.Flags().BoolP("no-selfupdate", "s", false, "Disable self-update")
 	_ = viper.BindPFlag("no-selfupdate", runCmd.Flags().Lookup("no-selfupdate"))
+
+	runCmd.Flags().StringToStringP("plugins", "l", map[string]string{}, "")
+	_ = viper.BindPFlag("plugins", runCmd.Flags().Lookup("plugins"))
 }

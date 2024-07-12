@@ -4,8 +4,7 @@ packages:
   - ./pkg/dto/...
   - ./pkg/errors/...
 plugins:
-  http:
-    error-wrapper: pkg/errors/ErrorWrapper
-    error-default: pkg/errors/DefaultError
-    openapi-tpl: ./docs
-    client-output: ./pkg/client/client.go
+  http-error-wrapper: pkg/errors/ErrorWrapper
+  http-error-default: pkg/errors/DefaultError
+  http-openapi-tpl: ./docs
+  http-client-output: ./pkg/client/client.go

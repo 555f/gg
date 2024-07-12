@@ -2,6 +2,5 @@ packages:
   - ./internal/usecase/controller/...
   - ./pkg/dto/...
 plugins:
-  jsonrpc:
-    client-output: ./pkg/client/client.go
-    openapi-tpl: ./docs
+  jsonrpc-client-output: ./pkg/client/client.go
+  jsonrpc-openapi-tpl: ./docs
