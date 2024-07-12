@@ -56,7 +56,7 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 		pkgMiddleware := middlewarePlugin.PkgPath(iface.Named)
 
 		f.Type().Id(nameStruct).StructFunc(func(g *jen.Group) {
-			g.Id("next").Qual(iface.Named.Pkg.Path, iface.Named.Name)
+			g.Id("next").Do(f.Qual(iface.Named.Pkg.Path, iface.Named.Name))
 			g.Id("inRequests").Op("*").Qual(prometheusPkg, "CounterVec")
 			g.Id("requests").Op("*").Qual(prometheusPkg, "CounterVec")
 			g.Id("errRequests").Op("*").Qual(prometheusPkg, "CounterVec")
@@ -159,7 +159,7 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 			Do(f.Import(pkgMiddleware, nameMiddleware)).
 			Block(
 				jen.Return(
-					jen.Func().Params(jen.Id("next").Qual(iface.Named.Pkg.Path, iface.Named.Name)).Qual(iface.Named.Pkg.Path, iface.Named.Name).Block(
+					jen.Func().Params(jen.Id("next").Do(f.Qual(iface.Named.Pkg.Path, iface.Named.Name))).Do(f.Qual(iface.Named.Pkg.Path, iface.Named.Name)).Block(
 						jen.Return(jen.Op("&").Id(nameStruct).Values(
 							jen.Id("next").Op(":").Id("next"),
 							jen.Id("inRequests").Op(":").Qual(prometheusPkg, "NewCounterVec").CallFunc(func(g *jen.Group) {

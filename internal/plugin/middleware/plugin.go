@@ -10,7 +10,7 @@ import (
 	"github.com/555f/gg/pkg/strcase"
 	"github.com/555f/gg/pkg/types"
 
-	. "github.com/dave/jennifer/jen"
+	"github.com/dave/jennifer/jen"
 )
 
 type Plugin struct {
@@ -26,44 +26,43 @@ func (p *Plugin) Exec() ([]file.File, error) {
 		nameMiddlewareChain := p.NameMiddlewareChain(iface.Named)
 		nameBaseMiddleware := p.NameBaseMiddleware(iface.Named)
 
-		f.Type().Id(nameMiddleware).Func().Params(Qual(iface.Named.Pkg.Path, iface.Named.Name)).Qual(iface.Named.Pkg.Path, iface.Named.Name)
+		f.Type().Id(nameMiddleware).Func().Params(jen.Do(f.Qual(iface.Named.Pkg.Path, iface.Named.Name))).Do(f.Qual(iface.Named.Pkg.Path, iface.Named.Name))
 
 		f.Func().
 			Id(nameMiddlewareChain).
 			Params(
-				Id("outer").Id(nameMiddleware),
-				Id("others").Op("...").Id(nameMiddleware),
+				jen.Id("outer").Id(nameMiddleware),
+				jen.Id("others").Op("...").Id(nameMiddleware),
 			).
 			Id(nameMiddleware).
-			BlockFunc(func(group *Group) {
-				group.ReturnFunc(func(group *Group) {
+			BlockFunc(func(group *jen.Group) {
+				group.ReturnFunc(func(group *jen.Group) {
 					group.Func().
 						Params(
-							Id("next").Qual(iface.Named.Pkg.Path, iface.Named.Name),
-						).
-						Qual(iface.Named.Pkg.Path, iface.Named.Name).
-						BlockFunc(func(group *Group) {
+							jen.Id("next").Do(f.Qual(iface.Named.Pkg.Path, iface.Named.Name)),
+						).Do(f.Qual(iface.Named.Pkg.Path, iface.Named.Name)).
+						BlockFunc(func(group *jen.Group) {
 							group.For(
-								Id("i").Op(":=").Len(Id("others")).Op("-1"),
-								Id("i").Op(">=").Lit(0),
-								Id("i").Op("--"),
-							).BlockFunc(func(group *Group) {
-								group.Id("next").Op("=").Id("others").Index(Id("i")).Call(Id("next"))
+								jen.Id("i").Op(":=").Len(jen.Id("others")).Op("-1"),
+								jen.Id("i").Op(">=").Lit(0),
+								jen.Id("i").Op("--"),
+							).BlockFunc(func(group *jen.Group) {
+								group.Id("next").Op("=").Id("others").Index(jen.Id("i")).Call(jen.Id("next"))
 							})
-							group.Return(Id("outer").Call(Id("next")))
+							group.Return(jen.Id("outer").Call(jen.Id("next")))
 						})
 				})
 			})
 
 		f.Type().Id(nameBaseMiddleware).Struct(
-			Id("next").Qual(iface.Named.Pkg.Path, iface.Named.Name),
-			Id("mediator").Any(),
+			jen.Id("next").Do(f.Qual(iface.Named.Pkg.Path, iface.Named.Name)),
+			jen.Id("mediator").Any(),
 		)
 
 		for _, method := range iface.Type.Methods {
-			var callParams []Code
+			var callParams []jen.Code
 			for _, param := range method.Sig.Params {
-				callParam := Id(param.Name)
+				callParam := jen.Id(param.Name)
 				if param.IsVariadic {
 					callParam.Op("...")
 				}
@@ -72,17 +71,17 @@ func (p *Plugin) Exec() ([]file.File, error) {
 
 			f.Func().
 				Params(
-					Id("m").Op("*").Id(nameBaseMiddleware),
+					jen.Id("m").Op("*").Id(nameBaseMiddleware),
 				).
 				Id(method.Name).Add(types.Convert(method.Sig, f.Import)).
-				BlockFunc(func(g *Group) {
-					g.Defer().Func().Params().BlockFunc(func(g *Group) {
-						g.If(List(Id("s"), Id("ok")).Op(":=").Id("m").Dot("mediator").Assert(Id(p.NameBaseMiddlewareMethodIface(iface.Named, method))), Id("ok")).Block(
-							Id("s").Dot(method.Name).Call(callParams...),
+				BlockFunc(func(g *jen.Group) {
+					g.Defer().Func().Params().BlockFunc(func(g *jen.Group) {
+						g.If(jen.List(jen.Id("s"), jen.Id("ok")).Op(":=").Id("m").Dot("mediator").Assert(jen.Id(p.NameBaseMiddlewareMethodIface(iface.Named, method))), jen.Id("ok")).Block(
+							jen.Id("s").Dot(method.Name).Call(callParams...),
 						)
 					}).Call()
 
-					callMethodCode := Id("m").Dot("next").Dot(method.Name).Call(callParams...)
+					callMethodCode := jen.Id("m").Dot("next").Dot(method.Name).Call(callParams...)
 
 					if method.Sig.Results.HasError() {
 						g.Return(
@@ -96,22 +95,21 @@ func (p *Plugin) Exec() ([]file.File, error) {
 
 		for _, method := range iface.Type.Methods {
 			f.Type().Id(p.NameBaseMiddlewareMethodIface(iface.Named, method)).Interface(
-				Id(method.Name).Add(types.Convert(method.Sig.Params, f.Import)),
+				jen.Id(method.Name).Add(types.Convert(method.Sig.Params, f.Import)),
 			)
 		}
 
 		f.Func().Id(strcase.ToCamel(nameBaseMiddleware)).Params(
-			Id("mediator").Any(),
+			jen.Id("mediator").Any(),
 		).Id(nameMiddleware).Block(
-			Return(Func().Params(Id("next").Qual(iface.Named.Pkg.Path, iface.Named.Name)).Params(Qual(iface.Named.Pkg.Path, iface.Named.Name))).Block(
-				Return(Op("&").Id(nameBaseMiddleware).Values(
-					Id("next").Op(":").Id("next"),
-					Id("mediator").Op(":").Id("mediator"),
+			jen.Return(jen.Func().Params(jen.Id("next").Do(f.Qual(iface.Named.Pkg.Path, iface.Named.Name))).Params(jen.Do(f.Qual(iface.Named.Pkg.Path, iface.Named.Name)))).Block(
+				jen.Return(jen.Op("&").Id(nameBaseMiddleware).Values(
+					jen.Id("next").Op(":").Id("next"),
+					jen.Id("mediator").Op(":").Id("mediator"),
 				)),
 			),
 		)
 	}
-
 	return []file.File{f}, nil
 }
 
