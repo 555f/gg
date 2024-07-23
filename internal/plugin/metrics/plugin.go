@@ -160,7 +160,7 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 			Block(
 				jen.Return(
 					jen.Func().Params(jen.Id("next").Do(f.Qual(iface.Named.Pkg.Path, iface.Named.Name))).Do(f.Qual(iface.Named.Pkg.Path, iface.Named.Name)).Block(
-						jen.Return(jen.Op("&").Id(nameStruct).Values(
+						jen.Id("m").Op(":=").Op("&").Id(nameStruct).Values(
 							jen.Id("next").Op(":").Id("next"),
 							jen.Id("inRequests").Op(":").Qual(prometheusPkg, "NewCounterVec").CallFunc(func(g *jen.Group) {
 								g.Qual(prometheusPkg, "CounterOpts").Values(
@@ -198,7 +198,14 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 								)
 								g.Index().String().Values(jen.Lit("method"), jen.Lit("shortMethod"))
 							}),
-						)),
+						),
+						jen.Qual(prometheusPkg, "MustRegister").Call(
+							jen.Id("m").Dot("inRequests"),
+							jen.Id("m").Dot("requests"),
+							jen.Id("m").Dot("errRequests"),
+							jen.Id("m").Dot("duration"),
+						),
+						jen.Return(jen.Id("m")),
 					),
 				),
 			)
