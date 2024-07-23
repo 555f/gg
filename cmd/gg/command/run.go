@@ -78,6 +78,10 @@ var runCmd = &cobra.Command{
 			wdAbs, _ = filepath.Abs(viper.GetString("wd"))
 		}
 
+		for i, pkgPath := range packageNames {
+			packageNames[i] = filepath.Join(wdAbs, pkgPath)
+		}
+
 		pluginOpts := viper.GetStringMapString("plugins")
 
 		cmd.Printf(yellow("Version: %s\n"), cmd.Root().Version)

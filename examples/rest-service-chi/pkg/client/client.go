@@ -136,12 +136,12 @@ type ProfileControllerCreateRequest struct {
 	}
 }
 
-func (r *ProfileControllerCreateRequest) SetAddress(address string) *ProfileControllerCreateRequest {
+func (r *ProfileControllerCreateRequest) Setaddress(address string) *ProfileControllerCreateRequest {
 	r.params.address = &address
 	return r
 }
 func (r *ProfileControllerClient) Create(firstName string, lastName string, address string, zip int) (profile *dto.Profile, err error) {
-	profile, err = r.CreateRequest(firstName, lastName, zip).SetAddress(address).Execute()
+	profile, err = r.CreateRequest(firstName, lastName, zip).Setaddress(address).Execute()
 	return
 }
 func (r *ProfileControllerClient) CreateRequest(firstName string, lastName string, zip int) *ProfileControllerCreateRequest {
@@ -201,15 +201,20 @@ func (r *ProfileControllerCreateRequest) Execute(opts ...ClientOption) (profile 
 	defer resp.Body.Close()
 	defer cancel()
 	if resp.StatusCode > 399 {
+		if resp.Body == http.NoBody {
+			err = fmt.Errorf("http error %d", resp.StatusCode)
+			return
+		}
 		var errorWrapper errors.ErrorWrapper
 		var bytes []byte
 		bytes, err = io.ReadAll(resp.Body)
 		if err != nil {
+			err = fmt.Errorf("http error %d: %w", resp.StatusCode, err)
 			return
 		}
 		err = json.Unmarshal(bytes, &errorWrapper)
 		if err != nil {
-			err = fmt.Errorf("unmarshal error (%s): %w", bytes, err)
+			err = fmt.Errorf("http error %d unmarshal data %s: %w", resp.StatusCode, bytes, err)
 			return
 		}
 		err = &errors.DefaultError{Data: errorWrapper.Data, ErrorText: errorWrapper.ErrorText, Code: errorWrapper.Code}
@@ -247,12 +252,12 @@ type ProfileControllerDownloadFileRequest struct {
 	}
 }
 
-func (r *ProfileControllerDownloadFileRequest) SetOnlyCloud(onlyCloud bool) *ProfileControllerDownloadFileRequest {
+func (r *ProfileControllerDownloadFileRequest) SetonlyCloud(onlyCloud bool) *ProfileControllerDownloadFileRequest {
 	r.params.onlyCloud = &onlyCloud
 	return r
 }
 func (r *ProfileControllerClient) DownloadFile(id string, onlyCloud bool) (data string, err error) {
-	data, err = r.DownloadFileRequest(id).SetOnlyCloud(onlyCloud).Execute()
+	data, err = r.DownloadFileRequest(id).SetonlyCloud(onlyCloud).Execute()
 	return
 }
 func (r *ProfileControllerClient) DownloadFileRequest(id string) *ProfileControllerDownloadFileRequest {
@@ -297,15 +302,20 @@ func (r *ProfileControllerDownloadFileRequest) Execute(opts ...ClientOption) (da
 	defer resp.Body.Close()
 	defer cancel()
 	if resp.StatusCode > 399 {
+		if resp.Body == http.NoBody {
+			err = fmt.Errorf("http error %d", resp.StatusCode)
+			return
+		}
 		var errorWrapper errors.ErrorWrapper
 		var bytes []byte
 		bytes, err = io.ReadAll(resp.Body)
 		if err != nil {
+			err = fmt.Errorf("http error %d: %w", resp.StatusCode, err)
 			return
 		}
 		err = json.Unmarshal(bytes, &errorWrapper)
 		if err != nil {
-			err = fmt.Errorf("unmarshal error (%s): %w", bytes, err)
+			err = fmt.Errorf("http error %d unmarshal data %s: %w", resp.StatusCode, bytes, err)
 			return
 		}
 		err = &errors.DefaultError{Data: errorWrapper.Data, ErrorText: errorWrapper.ErrorText, Code: errorWrapper.Code}
@@ -382,15 +392,20 @@ func (r *ProfileControllerRemoveRequest) Execute(opts ...ClientOption) (err erro
 	defer resp.Body.Close()
 	defer cancel()
 	if resp.StatusCode > 399 {
+		if resp.Body == http.NoBody {
+			err = fmt.Errorf("http error %d", resp.StatusCode)
+			return
+		}
 		var errorWrapper errors.ErrorWrapper
 		var bytes []byte
 		bytes, err = io.ReadAll(resp.Body)
 		if err != nil {
+			err = fmt.Errorf("http error %d: %w", resp.StatusCode, err)
 			return
 		}
 		err = json.Unmarshal(bytes, &errorWrapper)
 		if err != nil {
-			err = fmt.Errorf("unmarshal error (%s): %w", bytes, err)
+			err = fmt.Errorf("http error %d unmarshal data %s: %w", resp.StatusCode, bytes, err)
 			return
 		}
 		err = &errors.DefaultError{Data: errorWrapper.Data, ErrorText: errorWrapper.ErrorText, Code: errorWrapper.Code}

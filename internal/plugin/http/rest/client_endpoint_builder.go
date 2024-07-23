@@ -315,16 +315,21 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 			jen.Defer().Id("cancel").Call(),
 
 			jen.If(jen.Id("resp").Dot("StatusCode").Op(">").Lit(399)).BlockFunc(func(g *jen.Group) {
+				g.If(jen.Id("resp").Dot("Body").Op("==").Qual(httpPkg, "NoBody")).Block(
+					jen.Id("err").Op("=").Do(b.qualifier.Qual(fmtPkg, "Errorf")).Call(jen.Lit("http error %d"), jen.Id("resp").Dot("StatusCode")),
+					jen.Return(),
+				)
 				if b.errorWrapper != nil {
 					g.Var().Id("errorWrapper").Do(b.qualifier.Qual(b.errorWrapper.Struct.Named.Pkg.Path, b.errorWrapper.Struct.Named.Name))
 					g.Var().Id("bytes").Index().Byte()
 					g.List(jen.Id("bytes"), jen.Id("err")).Op("=").Qual(ioPkg, "ReadAll").Call(jen.Id("resp").Dot("Body"))
 					g.Do(gen.CheckErr(
+						jen.Id("err").Op("=").Do(b.qualifier.Qual(fmtPkg, "Errorf")).Call(jen.Lit("http error %d: %w"), jen.Id("resp").Dot("StatusCode"), jen.Id("err")),
 						jen.Return(),
 					))
 					g.Id("err").Op("=").Qual(jsonPkg, "Unmarshal").Call(jen.Id("bytes"), jen.Op("&").Id("errorWrapper"))
 					g.Do(gen.CheckErr(
-						jen.Id("err").Op("=").Qual(fmtPkg, "Errorf").Call(jen.Lit("unmarshal error (%s): %w"), jen.Id("bytes"), jen.Id("err")),
+						jen.Id("err").Op("=").Qual(fmtPkg, "Errorf").Call(jen.Lit("http error %d unmarshal data %s: %w"), jen.Id("resp").Dot("StatusCode"), jen.Id("bytes"), jen.Id("err")),
 						jen.Return(),
 					))
 					g.Id("err").Op("=").Op("&").Do(b.qualifier.Qual(b.errorWrapper.Default.Named.Pkg.Path, b.errorWrapper.Default.Named.Name)).ValuesFunc(func(g *jen.Group) {
@@ -337,7 +342,7 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 					})
 					g.Return()
 				} else {
-					g.Err().Op("=").Do(b.qualifier.Qual(fmtPkg, "Errorf")).Call(jen.Lit("http error %d"), jen.Id("resp").Dot("StatusCode"))
+					g.Id("err").Op("=").Do(b.qualifier.Qual(fmtPkg, "Errorf")).Call(jen.Lit("http error %d"), jen.Id("resp").Dot("StatusCode"))
 					g.Return()
 				}
 			}),

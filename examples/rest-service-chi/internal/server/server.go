@@ -51,7 +51,7 @@ func chiDefaultErrorEncoder(w http.ResponseWriter, err error) {
 
 	w.Header().Set("content-type", "application/json")
 	w.WriteHeader(statusCode)
-	bytes, err := json.Marshal(err)
+	bytes, err := json.Marshal(errorWrapper)
 	if err != nil {
 		w.WriteHeader(500)
 		w.Write([]byte(err.Error()))
@@ -198,21 +198,21 @@ func SetupRoutesProfileController(svc controller.ProfileController, r v5.Router,
 	r.With(append(o.middleware, o.middlewareDownloadFile...)...).Method("GET", "/profiles/:id/file", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		idPathParam := v5.URLParam(r, "id")
-		var paramId string
+		var paramid string
 		if idPathParam != "" {
-			paramId = idPathParam
+			paramid = idPathParam
 		}
 		q := r.URL.Query()
 		onlyCloudQueryParam := q.Get("onlyCloud")
-		var paramOnlyCloud bool
+		var paramonlyCloud bool
 		if onlyCloudQueryParam != "" {
-			paramOnlyCloud, err = gostrings.ParseBool(onlyCloudQueryParam)
+			paramonlyCloud, err = gostrings.ParseBool(onlyCloudQueryParam)
 			if err != nil {
 				o.errorEncoder(w, err)
 				return
 			}
 		}
-		data, err := svc.DownloadFile(paramId, paramOnlyCloud)
+		data, err := svc.DownloadFile(paramid, paramonlyCloud)
 		if err != nil {
 			o.errorEncoder(w, err)
 			return
@@ -236,11 +236,11 @@ func SetupRoutesProfileController(svc controller.ProfileController, r v5.Router,
 	r.With(append(o.middleware, o.middlewareRemove...)...).Method("DELETE", "/profiles/:id", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var err error
 		idPathParam := v5.URLParam(r, "id")
-		var paramId string
+		var paramid string
 		if idPathParam != "" {
-			paramId = idPathParam
+			paramid = idPathParam
 		}
-		err = svc.Remove(paramId)
+		err = svc.Remove(paramid)
 		if err != nil {
 			o.errorEncoder(w, err)
 			return
