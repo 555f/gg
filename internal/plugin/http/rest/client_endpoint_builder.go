@@ -100,14 +100,14 @@ func (b *clientEndpointBuilder) BuildMethod() ClientEndpointBuilder {
 			}
 		}).
 		ParamsFunc(func(g *jen.Group) {
-			for _, result := range b.ep.BodyResults {
-				g.Id(result.Name).Add(types.Convert(result.Type, b.qualifier.Qual))
+			for _, result := range b.ep.Results {
+				g.Id(result.FldName.LowerCamel()).Add(types.Convert(result.Type, b.qualifier.Qual))
 			}
 			g.Err().Error()
 		}).
 		BlockFunc(func(g *jen.Group) {
 			g.ListFunc(func(g *jen.Group) {
-				for _, param := range b.ep.BodyResults {
+				for _, param := range b.ep.Results {
 					g.Id(param.FldName.LowerCamel())
 				}
 				g.Err()
@@ -138,7 +138,11 @@ func (b *clientEndpointBuilder) BuildMethod() ClientEndpointBuilder {
 				buildSetters(b.ep.HeaderParams)
 				buildSetters(b.ep.CookieParams)
 
-			}).Dot("Execute").Call()
+			}).Dot("Execute").CallFunc(func(g *jen.Group) {
+				if b.ep.Context != nil {
+					g.Id("WithContext").Call(jen.Id(b.ep.Context.Name))
+				}
+			})
 			g.Return()
 		}))
 	return b
@@ -148,13 +152,40 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 	methodRequestName := b.methodRequestName()
 	recvName := b.recvName()
 
+	makeParam := func(p *options.EndpointParam, f func(v jen.Code) jen.Code) jen.Code {
+		fldName := p.FldName.LowerCamel()
+		if p.Parent != nil {
+			fldName = p.Parent.FldName.LowerCamel() + p.FldName.String()
+		}
+
+		paramID := jen.Id(recvName).Dot("params").Dot(fldName)
+
+		named, isNamed := p.Type.(*types.Named)
+
+		var code jen.Code
+		if p.Required {
+			code = f(paramID)
+		} else {
+			if isNamed && named.Pkg.Path == "gopkg.in/guregu/null.v4" {
+				code = jen.If(jen.Add(paramID).Dot("Valid")).Block(f(paramID))
+			} else {
+				if isNamed {
+					code = jen.If(jen.Add(paramID).Op("!=").Nil()).Block(f(jen.Call(jen.Op("*").Add(paramID))))
+				} else {
+					code = jen.If(jen.Add(paramID).Op("!=").Nil()).Block(f(jen.Op("*").Add(paramID)))
+				}
+			}
+		}
+		return code
+	}
+
 	b.codes = append(b.codes, jen.Func().Params(jen.Id(recvName).Op("*").Id(methodRequestName)).Id("Execute").
 		Params(
 			jen.Id("opts").Op("...").Id("ClientOption"),
 		).
 		ParamsFunc(func(g *jen.Group) {
-			for _, result := range b.ep.BodyResults {
-				g.Id(result.Name).Add(types.Convert(result.Type, b.qualifier.Qual))
+			for _, result := range b.ep.Results {
+				g.Id(result.FldName.LowerCamel()).Add(types.Convert(result.Type, b.qualifier.Qual))
 			}
 			g.Err().Error()
 		}).
@@ -162,27 +193,6 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 			jen.For(jen.List(jen.Id("_"), jen.Id("o")).Op(":=").Range().Id("opts")).Block(
 				jen.Id("o").Call(jen.Id(recvName).Dot("opts")),
 			),
-			jen.Do(func(s *jen.Statement) {
-				if len(b.ep.BodyParams) > 0 {
-					if len(b.ep.BodyParams) == 1 && b.ep.NoWrapRequest {
-						s.Var().Id("body").Add(types.Convert(b.ep.BodyParams[0].Type, b.qualifier.Qual))
-					} else {
-						s.Var().Id("body").StructFunc(gen.WrapResponse(b.ep.WrapRequest, func(g *jen.Group) {
-							for _, param := range b.ep.BodyParams {
-								jsonTag := param.Name
-								fld := g.Id(param.FldName.Camel())
-								if !param.Required {
-									jsonTag += ",omitempty"
-									if !isNamedType(param.Type) {
-										fld.Op("*")
-									}
-								}
-								fld.Add(types.Convert(param.Type, b.qualifier.Qual)).Tag(map[string]string{"json": jsonTag})
-							}
-						}, b.qualifier.Qual))
-					}
-				}
-			}),
 			jen.List(jen.Id("ctx"), jen.Id("cancel")).Op(":=").Qual("context", "WithCancel").Call(jen.Id(recvName).Dot("opts").Dot("ctx")),
 			jen.Do(func(s *jen.Statement) {
 				if len(b.ep.PathParams) > 0 {
@@ -204,67 +214,71 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 			)),
 			jen.CustomFunc(jen.Options{Multi: true}, func(g *jen.Group) {
 				if len(b.ep.BodyParams) > 0 {
-					g.Id("req").Dot("Header").Dot("Add").Call(jen.Lit("Content-Type"), jen.Lit("application/json"))
+					switch b.ep.ClientContentType {
+					default:
+						g.Id("req").Dot("Header").Dot("Add").Call(jen.Lit("Content-Type"), jen.Lit("application/json"))
 
-					if len(b.ep.BodyParams) == 1 && b.ep.NoWrapRequest {
-						g.Id("body").Op("=").Id(recvName).Dot("params").Dot(b.ep.BodyParams[0].FldName.LowerCamel())
-					} else {
-						for _, param := range b.ep.BodyParams {
-							fldName := param.FldName.LowerCamel()
-							if param.Parent != nil {
-								fldName = param.Parent.FldName.LowerCamel() + param.FldName.String()
-							}
-
-							g.Do(func(s *jen.Statement) {
-								s.Id("body")
-								for _, name := range b.ep.WrapRequest {
-									s.Dot(strcase.ToCamel(name))
+						if len(b.ep.BodyParams) == 1 && b.ep.NoWrapRequest {
+							g.Var().Id("body").Add(types.Convert(b.ep.BodyParams[0].Type, b.qualifier.Qual))
+						} else {
+							g.Var().Id("body").StructFunc(gen.WrapResponse(b.ep.WrapRequest, func(g *jen.Group) {
+								for _, param := range b.ep.BodyParams {
+									jsonTag := param.Name
+									fld := g.Id(param.FldName.Camel())
+									if !param.Required {
+										jsonTag += ",omitempty"
+										if !isNamedType(param.Type) {
+											fld.Op("*")
+										}
+									}
+									fld.Add(types.Convert(param.Type, b.qualifier.Qual)).Tag(map[string]string{"json": jsonTag})
 								}
-								s.Dot(param.FldName.Camel()).Op("=").Id(recvName).Dot("params").Dot(fldName)
-							})
+							}, b.qualifier.Qual))
+						}
+
+						if len(b.ep.BodyParams) == 1 && b.ep.NoWrapRequest {
+							g.Id("body").Op("=").Id(recvName).Dot("params").Dot(b.ep.BodyParams[0].FldName.LowerCamel())
+						} else {
+							for _, param := range b.ep.BodyParams {
+								fldName := param.FldName.LowerCamel()
+								if param.Parent != nil {
+									fldName = param.Parent.FldName.LowerCamel() + param.FldName.String()
+								}
+
+								g.Do(func(s *jen.Statement) {
+									s.Id("body")
+									for _, name := range b.ep.WrapRequest {
+										s.Dot(strcase.ToCamel(name))
+									}
+									s.Dot(param.FldName.Camel()).Op("=").Id(recvName).Dot("params").Dot(fldName)
+								})
+
+							}
+						}
+						g.Var().Id("reqData").Qual("bytes", "Buffer")
+						g.Err().Op("=").Qual(jsonPkg, "NewEncoder").Call(jen.Op("&").Id("reqData")).Dot("Encode").Call(jen.Id("body"))
+						g.If(jen.Err().Op("!=").Nil()).Block(
+							jen.Id("cancel").Call(),
+							jen.Return(),
+						)
+						g.Id("req").Dot("Body").Op("=").Qual("io", "NopCloser").Call(jen.Op("&").Id("reqData"))
+					case "urlencoded":
+						g.Id("req").Dot("Header").Dot("Add").Call(jen.Lit("Content-Type"), jen.Lit("application/x-www-form-urlencoded"))
+						g.Id("body").Op(":=").Qual(urlPkg, "Values").Values()
+						for _, param := range b.ep.BodyParams {
+
+							g.Add(makeParam(param, func(v jen.Code) jen.Code {
+								return jen.Id("body").Dot("Add").Call(jen.Lit(param.Name), gen.FormatValue(v, param.Type, b.qualifier.Qual, b.ep.TimeFormat))
+							}))
 
 						}
+						g.Id("req").Dot("Body").Op("=").Qual("io", "NopCloser").Call(jen.Qual(stringsPkg, "NewReader").Call(
+							jen.Id("body").Dot("Encode").Call(),
+						))
 					}
-
-					g.Var().Id("reqData").Qual("bytes", "Buffer")
-					g.Err().Op("=").Qual(jsonPkg, "NewEncoder").Call(jen.Op("&").Id("reqData")).Dot("Encode").Call(jen.Id("body"))
-					g.If(jen.Err().Op("!=").Nil()).Block(
-						jen.Id("cancel").Call(),
-						jen.Return(),
-					)
-					g.Id("req").Dot("Body").Op("=").Qual("io", "NopCloser").Call(jen.Op("&").Id("reqData"))
 				}
 			}),
-
 			jen.CustomFunc(jen.Options{Multi: true}, func(g *jen.Group) {
-
-				makeParam := func(p *options.EndpointParam, f func(v jen.Code) jen.Code) jen.Code {
-					fldName := p.FldName.LowerCamel()
-					if p.Parent != nil {
-						fldName = p.Parent.FldName.LowerCamel() + p.FldName.String()
-					}
-
-					paramID := jen.Id(recvName).Dot("params").Dot(fldName)
-
-					named, isNamed := p.Type.(*types.Named)
-
-					var code jen.Code
-					if p.Required {
-						code = f(paramID)
-					} else {
-						if isNamed && named.Pkg.Path == "gopkg.in/guregu/null.v4" {
-							code = jen.If(jen.Add(paramID).Dot("Valid")).Block(f(paramID))
-						} else {
-							if isNamed {
-								code = jen.If(jen.Add(paramID).Op("!=").Nil()).Block(f(jen.Call(jen.Op("*").Add(paramID))))
-							} else {
-								code = jen.If(jen.Add(paramID).Op("!=").Nil()).Block(f(jen.Op("*").Add(paramID)))
-							}
-						}
-					}
-					return code
-				}
-
 				if len(b.ep.QueryParams) > 0 || len(b.ep.QueryValues) > 0 {
 					g.Id("q").Op(":=").Id("req").Dot("URL").Dot("Query").Call()
 					for _, param := range b.ep.QueryParams {
@@ -346,22 +360,19 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 					g.Return()
 				}
 			}),
-			jen.Do(func(s *jen.Statement) {
-				if len(b.ep.BodyResults) > 0 {
-					s.Var().Id("respBody")
+			jen.CustomFunc(jen.Options{Multi: true}, func(g *jen.Group) {
+				switch {
+				case len(b.ep.BodyResults) > 0:
+
 					if !b.ep.NoWrapResponse {
-						s.StructFunc(gen.WrapResponse(b.ep.WrapResponse, func(g *jen.Group) {
+						g.Var().Id("respBody").StructFunc(gen.WrapResponse(b.ep.WrapResponse, func(g *jen.Group) {
 							for _, result := range b.ep.BodyResults {
 								g.Id(result.FldName.Camel()).Add(types.Convert(result.Type, b.qualifier.Qual)).Tag(map[string]string{"json": result.Name})
 							}
 						}, b.qualifier.Qual))
 					} else if len(b.ep.BodyResults) == 1 {
-						s.Add(types.Convert(b.ep.BodyResults[0].Type, b.qualifier.Qual))
+						g.Var().Id("respBody").Add(types.Convert(b.ep.BodyResults[0].Type, b.qualifier.Qual))
 					}
-				}
-			}),
-			jen.CustomFunc(jen.Options{Multi: true}, func(g *jen.Group) {
-				if len(b.ep.BodyResults) > 0 {
 					g.Var().Id("reader").Qual("io", "ReadCloser")
 					g.Switch(jen.Id("resp").Dot("Header").Dot("Get").Call(jen.Lit("Content-Encoding"))).Block(
 						jen.Default().Block(jen.Id("reader").Op("=").Id("resp").Dot("Body")),
@@ -379,24 +390,28 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 					g.Do(gen.CheckErr(
 						jen.Return(),
 					))
-				}
-			}),
-
-			jen.ReturnFunc(func(g *jen.Group) {
-				if len(b.ep.BodyResults) > 0 {
-					if !b.ep.NoWrapResponse {
-						var ids []jen.Code
-						for _, name := range b.ep.WrapResponse {
-							ids = append(ids, jen.Dot(strcase.ToCamel(name)))
+					g.ReturnFunc(func(g *jen.Group) {
+						if len(b.ep.BodyResults) > 0 {
+							if !b.ep.NoWrapResponse {
+								var ids []jen.Code
+								for _, name := range b.ep.WrapResponse {
+									ids = append(ids, jen.Dot(strcase.ToCamel(name)))
+								}
+								for _, result := range b.ep.BodyResults {
+									g.Id("respBody").Add(ids...).Dot(strcase.ToCamel(result.Name))
+								}
+							} else {
+								g.Id("respBody")
+							}
 						}
-						for _, result := range b.ep.BodyResults {
-							g.Id("respBody").Add(ids...).Dot(strcase.ToCamel(result.Name))
-						}
-					} else {
-						g.Id("respBody")
+						g.Nil()
+					})
+				case len(b.ep.HeaderResults) > 0:
+					for _, r := range b.ep.HeaderResults {
+						g.Id(r.FldName.LowerCamel()).Op("=").Id("resp").Dot("Header").Dot("Get").Call(jen.Lit(r.Name))
 					}
+					g.Return()
 				}
-				g.Nil()
 			}),
 		))
 	return b

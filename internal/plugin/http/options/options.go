@@ -165,6 +165,7 @@ type Endpoint struct {
 	MultipartMaxMemory int64
 	ReqRootXMLName     string
 	RespRootXMLName    string
+	ClientContentType  string
 	ContentTypes       []string
 	AcceptTypes        []string
 	OpenapiTags        []string
@@ -450,6 +451,10 @@ func endpointDecode(ifaceOpts Iface, method *types.Func, isCheckStrict bool) (op
 			}
 		}
 		opts.OpenapiHeaders = append(opts.OpenapiHeaders, oh)
+	}
+
+	if t, ok := method.Tags.Get("http-client-content-type"); ok {
+		opts.ClientContentType = t.Value
 	}
 
 	for _, t := range method.Tags.GetSlice("http-content-type") {

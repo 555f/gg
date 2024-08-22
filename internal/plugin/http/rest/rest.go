@@ -8,6 +8,8 @@ import (
 const (
 	ctxPkg        = "context"
 	httpPkg       = "net/http"
+	urlPkg        = "net/url"
+	stringsPkg    = "strings"
 	jsonPkg       = "encoding/json"
 	contextPkg    = "context"
 	fmtPkg        = "fmt"
