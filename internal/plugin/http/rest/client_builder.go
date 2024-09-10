@@ -25,6 +25,23 @@ func (b *BaseClientBuilder) Build() jen.Code {
 
 func (b *BaseClientBuilder) BuildTypes() ClientBuilder {
 	b.codes = append(b.codes,
+		jen.Type().Id("contextKey").String(),
+		jen.Const().Id("methodContextKey").Id("contextKey").Op("=").Lit("method"),
+		jen.Const().Id("shortMethodContextKey").Id("contextKey").Op("=").Lit("shortMethod"),
+		jen.Func().Id("labelFromContext").Params(
+			jen.Id("lblName").String(),
+			jen.Id("ctxKey").Id("contextKey"),
+		).Qual(promhttpPkg, "Option").Block(
+			jen.Return(
+				jen.Qual(promhttpPkg, "WithLabelFromCtx").Call(
+					jen.Id("lblName"),
+					jen.Func().Params(jen.Id("ctx").Qual(ctxPkg, "Context")).String().Block(
+						jen.List(jen.Id("v"), jen.Id("_")).Op(":=").Id("ctx").Dot("Value").Call(jen.Id("ctxKey")).Assert(jen.String()),
+						jen.Return(jen.Id("v")),
+					),
+				),
+			),
+		),
 		jen.Func().Id("instrumentRoundTripperErrCounter").Params(
 			jen.Id("counter").Op("*").Qual(prometheusPkg, "CounterVec"),
 			jen.Id("next").Qual(httpPkg, "RoundTripper"),
@@ -44,6 +61,12 @@ func (b *BaseClientBuilder) BuildTypes() ClientBuilder {
 							jen.Id("labels").Op(":=").Qual(prometheusPkg, "Labels").Values(
 								jen.Lit("method").Op(":").Id("r").Dot("Method"),
 							),
+							jen.List(jen.Id("methodNameFull"), jen.Id("_")).Op(":=").Id("r").Dot("Context").Call().Dot("Value").Call(jen.Id("methodContextKey")).Assert(jen.String()),
+							jen.List(jen.Id("methodNameShort"), jen.Id("_")).Op(":=").Id("r").Dot("Context").Call().Dot("Value").Call(jen.Id("shortMethodContextKey")).Assert(jen.String()),
+
+							jen.Id("labels").Index(jen.Lit("methodNameFull")).Op("=").Id("methodNameFull"),
+							jen.Id("labels").Index(jen.Lit("methodNameShort")).Op("=").Id("methodNameShort"),
+
 							jen.Id("errType").Op(":=").Lit(""),
 							jen.Switch(jen.Id("e").Op(":=").Err().Assert(jen.Id("type"))).Block(
 								jen.Default().Block(
@@ -159,7 +182,7 @@ func (b *BaseClientBuilder) BuildTypes() ClientBuilder {
 							jen.Id("Help").Op(":").Lit("A counter for outgoing requests from the client."),
 							jen.Id("ConstLabels").Op(":").Id("constLabels"),
 						),
-						jen.Index().String().Values(jen.Lit("method"), jen.Lit("code")),
+						jen.Index().String().Values(jen.Lit("method"), jen.Lit("code"), jen.Lit("methodNameFull"), jen.Lit("methodNameShort")),
 					),
 					jen.Id("errRequests").Op(":").Qual(prometheusPkg, "NewCounterVec").Call(
 						jen.Qual(prometheusPkg, "CounterOpts").Values(
@@ -168,7 +191,7 @@ func (b *BaseClientBuilder) BuildTypes() ClientBuilder {
 							jen.Id("Name").Op(":").Lit("err_requests_total"),
 							jen.Id("Help").Op(":").Lit("A counter for outgoing error requests from the client."),
 						),
-						jen.Index().String().Values(jen.Lit("method"), jen.Lit("err")),
+						jen.Index().String().Values(jen.Lit("method"), jen.Lit("err"), jen.Lit("methodNameFull"), jen.Lit("methodNameShort")),
 					),
 					jen.Id("duration").Op(":").Qual(prometheusPkg, "NewHistogramVec").Call(
 						jen.Qual(prometheusPkg, "HistogramOpts").Values(
@@ -179,7 +202,7 @@ func (b *BaseClientBuilder) BuildTypes() ClientBuilder {
 							jen.Id("Buckets").Op(":").Qual(prometheusPkg, "DefBuckets"),
 							jen.Id("ConstLabels").Op(":").Id("constLabels"),
 						),
-						jen.Index().String().Values(jen.Lit("method"), jen.Lit("code")),
+						jen.Index().String().Values(jen.Lit("method"), jen.Lit("code"), jen.Lit("methodNameFull"), jen.Lit("methodNameShort")),
 					),
 					jen.Id("dnsDuration").Op(":").Qual(prometheusPkg, "NewHistogramVec").Call(
 						jen.Qual(prometheusPkg, "HistogramOpts").Values(
@@ -190,7 +213,7 @@ func (b *BaseClientBuilder) BuildTypes() ClientBuilder {
 							jen.Id("Buckets").Op(":").Qual(prometheusPkg, "DefBuckets"),
 							jen.Id("ConstLabels").Op(":").Id("constLabels"),
 						),
-						jen.Index().String().Values(jen.Lit("method"), jen.Lit("code")),
+						jen.Index().String().Values(jen.Lit("method"), jen.Lit("code"), jen.Lit("methodNameFull"), jen.Lit("methodNameShort")),
 					),
 					jen.Id("tlsDuration").Op(":").Qual(prometheusPkg, "NewHistogramVec").Call(
 						jen.Qual(prometheusPkg, "HistogramOpts").Values(
@@ -201,13 +224,12 @@ func (b *BaseClientBuilder) BuildTypes() ClientBuilder {
 							jen.Id("Buckets").Op(":").Qual(prometheusPkg, "DefBuckets"),
 							jen.Id("ConstLabels").Op(":").Id("constLabels"),
 						),
-						jen.Index().String().Values(jen.Lit("method"), jen.Lit("code")),
+						jen.Index().String().Values(jen.Lit("method"), jen.Lit("code"), jen.Lit("methodNameFull"), jen.Lit("methodNameShort")),
 					),
 				),
 				jen.Id("trace").Op(":=").Op("&").Qual(promhttpPkg, "InstrumentTrace").Values(),
 				jen.Id("o").Dot("client").Dot("Transport").Op("=").
 					Id("instrumentRoundTripperErrCounter").Call(jen.Id("i").Dot("errRequests"),
-
 					jen.Qual(promhttpPkg, "InstrumentRoundTripperInFlight").Call(
 						jen.Id("i").Dot("inflight"),
 						jen.Qual(promhttpPkg, "InstrumentRoundTripperCounter").Call(
@@ -217,8 +239,12 @@ func (b *BaseClientBuilder) BuildTypes() ClientBuilder {
 								jen.Qual(promhttpPkg, "InstrumentRoundTripperDuration").Call(
 									jen.Id("i").Dot("duration"),
 									jen.Id("o").Dot("client").Dot("Transport"),
+									jen.Id("labelFromContext").Call(jen.Lit("methodNameShort"), jen.Id("shortMethodContextKey")),
+									jen.Id("labelFromContext").Call(jen.Lit("methodNameFull"), jen.Id("methodContextKey")),
 								),
 							),
+							jen.Id("labelFromContext").Call(jen.Lit("methodNameShort"), jen.Id("shortMethodContextKey")),
+							jen.Id("labelFromContext").Call(jen.Lit("methodNameFull"), jen.Id("methodContextKey")),
 						),
 					),
 				),

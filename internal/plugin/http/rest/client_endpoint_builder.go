@@ -206,8 +206,24 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 					s.Id("path").Op(":=").Lit(b.ep.Path)
 				}
 			}),
-			jen.List(jen.Id("req"), jen.Err()).Op(":=").Qual(httpPkg, "NewRequest").
-				Call(jen.Lit(b.ep.HTTPMethod), jen.Id(recvName).Dot("c").Dot("target").Op("+").Id("path"), jen.Nil()),
+
+			jen.Id("r").Dot("opts").Dot("ctx").Op("=").Qual(ctxPkg, "WithValue").Call(
+				jen.Id("r").Dot("opts").Dot("ctx"),
+				jen.Id("methodContextKey"),
+				jen.Lit(b.ep.MethodFullName),
+			),
+			jen.Id("r").Dot("opts").Dot("ctx").Op("=").Qual(ctxPkg, "WithValue").Call(
+				jen.Id("r").Dot("opts").Dot("ctx"),
+				jen.Id("shortMethodContextKey"),
+				jen.Lit(b.ep.MethodShortName),
+			),
+
+			jen.List(jen.Id("req"), jen.Err()).Op(":=").Qual(httpPkg, "NewRequestWithContext").
+				Call(
+					jen.Id("r").Dot("opts").Dot("ctx"),
+					jen.Lit(b.ep.HTTPMethod),
+					jen.Id(recvName).Dot("c").Dot("target").Op("+").Id("path"), jen.Nil(),
+				),
 			jen.Do(gen.CheckErr(
 				jen.Id("cancel").Call(),
 				jen.Return(),
@@ -362,6 +378,8 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 			}),
 			jen.CustomFunc(jen.Options{Multi: true}, func(g *jen.Group) {
 				switch {
+				default:
+					g.Return()
 				case len(b.ep.BodyResults) > 0:
 
 					if !b.ep.NoWrapResponse {

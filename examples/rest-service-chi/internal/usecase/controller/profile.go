@@ -9,6 +9,7 @@ import (
 // @gg:"http"
 // @gg:"middleware"
 // @gg:"klog"
+// @gg:"cli"
 // @http-type:"chi"
 // @http-openapi
 // @http-api-doc

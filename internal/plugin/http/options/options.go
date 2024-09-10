@@ -156,6 +156,8 @@ func (params EndpointParams) ToJSON() string {
 type Endpoint struct {
 	Name               string
 	MethodName         string
+	MethodFullName     string
+	MethodShortName    string
 	Title              string
 	Description        string
 	HTTPMethod         string
@@ -397,6 +399,8 @@ func Decode(iface *gg.Interface, isCheckStrict bool) (opts Iface, errs error) {
 func endpointDecode(ifaceOpts Iface, method *types.Func, isCheckStrict bool) (opts Endpoint, errs error) {
 	opts.Name = strcase.ToLowerCamel(ifaceOpts.Name) + method.Name + "Endpoint"
 	opts.MethodName = method.Name
+	opts.MethodFullName = method.FullName
+	opts.MethodShortName = method.ShortName
 	opts.Title = method.Title
 	opts.Description = method.Description
 	opts.TimeFormat = time.RFC3339

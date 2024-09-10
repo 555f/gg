@@ -46,7 +46,7 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 		for _, m := range iface.Type.Methods {
 			constName := strcase.ToLowerCamel(iface.Named.Name + m.Name)
 			f.Const().Id(constName).Op("=").Lit(m.FullName)
-			f.Const().Id(constName + "Short").Op("=").Lit(shortMethodName(m))
+			f.Const().Id(constName + "Short").Op("=").Lit(m.ShortName)
 		}
 	}
 

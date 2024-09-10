@@ -5,6 +5,7 @@ import "go/token"
 type Func struct {
 	Pkg         *PackageType
 	FullName    string
+	ShortName   string
 	Name        string
 	Exported    bool
 	Sig         *Sign

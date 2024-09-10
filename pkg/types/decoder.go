@@ -331,9 +331,20 @@ func (d *Decoder) normalizeFunc(t *stdtypes.Func) (*Func, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	shortName := t.Name()
+	if named, ok := sig.Recv.(*Named); ok {
+		name := named.Name
+		if named.Pkg != nil {
+			name = named.Pkg.Name + "." + named.Name
+		}
+		shortName = "(" + name + ")." + t.Name()
+	}
+
 	fn := &Func{
 		Pkg:         pkg,
 		FullName:    t.FullName(),
+		ShortName:   shortName,
 		Name:        t.Name(),
 		Exported:    t.Exported(),
 		Sig:         sig,

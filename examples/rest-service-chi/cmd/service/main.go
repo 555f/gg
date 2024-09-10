@@ -1,3 +1,5 @@
+//go:build !gg
+
 package main
 
 import (
