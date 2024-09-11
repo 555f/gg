@@ -69,3 +69,23 @@ func IsChan(t any) (ok bool) {
 	_, ok = t.(*Chan)
 	return
 }
+
+func IsPointer(t any) (ok bool) {
+	switch t := t.(type) {
+	case *Named:
+		return t.IsPointer
+	case *Basic:
+		return t.IsPointer
+	case *Var:
+		return t.IsPointer
+	case *Struct:
+		return t.IsPointer
+	case *Map:
+		return t.IsPointer
+	case *Array:
+		return t.IsPointer
+	case *Slice:
+		return t.IsPointer
+	}
+	return false
+}

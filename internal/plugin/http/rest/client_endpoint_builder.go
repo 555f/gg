@@ -123,10 +123,10 @@ func (b *clientEndpointBuilder) BuildMethod() ClientEndpointBuilder {
 						if param.Required {
 							continue
 						}
-						methodSetName := param.FldName.String()
+						methodSetName := param.FldName.Camel()
 						fldName := jen.Id(param.FldName.LowerCamel())
 						if param.Parent != nil {
-							methodSetName = param.Parent.FldName.String() + param.FldName.String()
+							methodSetName = param.Parent.FldName.Camel() + param.FldName.Camel()
 							fldName = jen.Id(param.Parent.FldName.LowerCamel()).Dot(param.FldName.String())
 						}
 						g.Dot("Set" + methodSetName).Call(fldName)
@@ -440,10 +440,10 @@ func (b *clientEndpointBuilder) buildSetter(parentParam, param *options.Endpoint
 	recvName := b.recvName()
 
 	fldName := param.FldName.LowerCamel()
-	fnName := param.FldName.String()
+	fnName := param.FldName.Camel()
 	if parentParam != nil {
 		fldName = parentParam.FldName.LowerCamel() + param.FldName.String()
-		fnName = parentParam.FldName.String() + param.FldName.String()
+		fnName = parentParam.FldName.Camel() + param.FldName.Camel()
 	}
 	b.codes = append(b.codes,
 		jen.Func().Params(
@@ -453,7 +453,7 @@ func (b *clientEndpointBuilder) buildSetter(parentParam, param *options.Endpoint
 		).Op("*").Id(methodRequestName).BlockFunc(func(g *jen.Group) {
 			g.Add(jen.CustomFunc(jen.Options{}, func(g *jen.Group) {
 				g.Id(recvName).Dot("params").Dot(fldName).Op("=")
-				if !param.Required && !isNamedType(param.Type) {
+				if !param.Required && !types.IsPointer(param.Type) {
 					g.Op("&")
 				}
 				g.Id(fldName)
@@ -484,7 +484,7 @@ func (b *clientEndpointBuilder) makeRequestStructParam(parentParam, param *optio
 		fldName = parentParam.FldName.LowerCamel() + param.FldName.String()
 	}
 	paramID := jen.Id(fldName)
-	if !param.Required && !isNamedType(param.Type) {
+	if !param.Required && !types.IsPointer(param.Type) {
 		paramID.Op("*")
 	}
 	paramID.Add(types.Convert(param.Type, importFn))

@@ -237,11 +237,9 @@ const (
 )
 
 type EndpointParamBase struct {
-	Title   string
-	Name    string
-	FldName String
-	//FldNameExport   string
-	//FldNameUnExport string
+	Title    string
+	Name     string
+	FldName  String
 	Type     any
 	HTTPType HTTPType
 	Format   string
