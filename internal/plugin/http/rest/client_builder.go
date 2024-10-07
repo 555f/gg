@@ -59,18 +59,18 @@ func (b *BaseClientBuilder) BuildTypes() ClientBuilder {
 						jen.List(jen.Id("resp"), jen.Err()).Op(":=").Id("next").Dot("RoundTrip").Call(jen.Id("r")),
 						jen.If(jen.Id("err").Op("!=").Nil()).Block(
 							jen.Id("labels").Op(":=").Qual(prometheusPkg, "Labels").Values(
-								jen.Lit("method").Op(":").Id("r").Dot("Method"),
+								jen.Lit("method").Op(":").Qual(stringsPkg, "ToLower").Call(jen.Id("r").Dot("Method")),
 							),
-							jen.List(jen.Id("methodNameFull"), jen.Id("_")).Op(":=").Id("r").Dot("Context").Call().Dot("Value").Call(jen.Id("methodContextKey")).Assert(jen.String()),
-							jen.List(jen.Id("methodNameShort"), jen.Id("_")).Op(":=").Id("r").Dot("Context").Call().Dot("Value").Call(jen.Id("shortMethodContextKey")).Assert(jen.String()),
-
-							jen.Id("labels").Index(jen.Lit("methodNameFull")).Op("=").Id("methodNameFull"),
-							jen.Id("labels").Index(jen.Lit("methodNameShort")).Op("=").Id("methodNameShort"),
+							jen.List(jen.Id("labels").Index(jen.Lit("methodNameFull")), jen.Id("_")).Op("=").Id("r").Dot("Context").Call().Dot("Value").Call(jen.Id("methodContextKey")).Assert(jen.String()),
+							jen.List(jen.Id("labels").Index(jen.Lit("methodNameShort")), jen.Id("_")).Op("=").Id("r").Dot("Context").Call().Dot("Value").Call(jen.Id("shortMethodContextKey")).Assert(jen.String()),
 
 							jen.Id("errType").Op(":=").Lit(""),
 							jen.Switch(jen.Id("e").Op(":=").Err().Assert(jen.Id("type"))).Block(
 								jen.Default().Block(
 									jen.Id("errType").Op("=").Err().Dot("Error").Call(),
+								),
+								jen.Case(jen.Op("*").Qual(tlsPkg, "CertificateVerificationError")).Block(
+									jen.Id("errType").Op("=").Lit("failedVerifyCertificate"),
 								),
 								jen.Case(jen.Qual(netPkg, "Error")).Block(
 									jen.Id("errType").Op("+=").Lit("net."),
@@ -238,7 +238,7 @@ func (b *BaseClientBuilder) BuildTypes() ClientBuilder {
 								jen.Id("trace"),
 								jen.Qual(promhttpPkg, "InstrumentRoundTripperDuration").Call(
 									jen.Id("i").Dot("duration"),
-									jen.Id("o").Dot("client").Dot("Transport"),
+									jen.Qual(httpPkg, "DefaultTransport"),
 									jen.Id("labelFromContext").Call(jen.Lit("methodNameShort"), jen.Id("shortMethodContextKey")),
 									jen.Id("labelFromContext").Call(jen.Lit("methodNameFull"), jen.Id("methodContextKey")),
 								),

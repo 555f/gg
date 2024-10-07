@@ -15,6 +15,7 @@ const (
 	fmtPkg        = "fmt"
 	ioPkg         = "io"
 	netPkg        = "net"
+	tlsPkg        = "crypto/tls"
 	prometheusPkg = "github.com/prometheus/client_golang/prometheus"
 	promautoPkg   = "github.com/prometheus/client_golang/prometheus/promauto"
 	promhttpPkg   = "github.com/prometheus/client_golang/prometheus/promhttp"
