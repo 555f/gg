@@ -238,7 +238,7 @@ func (b *BaseClientBuilder) BuildTypes() ClientBuilder {
 								jen.Id("trace"),
 								jen.Qual(promhttpPkg, "InstrumentRoundTripperDuration").Call(
 									jen.Id("i").Dot("duration"),
-									jen.Id("o").Dot("client").Dot("Transport"),
+									jen.Qual(httpPkg, "DefaultTransport"),
 									jen.Id("labelFromContext").Call(jen.Lit("methodNameShort"), jen.Id("shortMethodContextKey")),
 									jen.Id("labelFromContext").Call(jen.Lit("methodNameFull"), jen.Id("methodContextKey")),
 								),
