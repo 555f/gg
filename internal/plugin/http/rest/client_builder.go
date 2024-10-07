@@ -69,6 +69,9 @@ func (b *BaseClientBuilder) BuildTypes() ClientBuilder {
 								jen.Default().Block(
 									jen.Id("errType").Op("=").Err().Dot("Error").Call(),
 								),
+								jen.Case(jen.Op("*").Qual(tlsPkg, "CertificateVerificationError")).Block(
+									jen.Id("errType").Op("=").Lit("failedVerifyCertificate"),
+								),
 								jen.Case(jen.Qual(netPkg, "Error")).Block(
 									jen.Id("errType").Op("+=").Lit("net."),
 									jen.If(jen.Id("e").Dot("Timeout").Call()).Block(
