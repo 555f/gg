@@ -46,7 +46,7 @@ var runCmd = &cobra.Command{
 				return
 			}
 			if version != "" {
-				cmd.Print(green("Update available!!!\n"))
+				cmd.Print(green("Update version ") + yellow(version) + green(" available!!!\n"))
 
 				prompt := promptui.Prompt{
 					Label:     "Do you have update",
