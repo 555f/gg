@@ -1,8 +1,10 @@
 package rest
 
 import (
+	"path/filepath"
+
 	"github.com/555f/gg/internal/plugin/http/options"
-	"github.com/555f/gg/pkg/gen"
+	"github.com/555f/gg/pkg/strcase"
 	"github.com/dave/jennifer/jen"
 )
 
@@ -24,10 +26,16 @@ func (b *BaseClientBuilder) Build() jen.Code {
 }
 
 func (b *BaseClientBuilder) BuildTypes() ClientBuilder {
+	labelContextMethodShortName := jen.Id("labelFromContext").Call(jen.Lit("methodNameShort"), jen.Id("shortMethodContextKey"))
+	labelContextMethodFullName := jen.Id("labelFromContext").Call(jen.Lit("methodNameFull"), jen.Id("methodContextKey"))
+	labelContextScopeName := jen.Id("labelFromContext").Call(jen.Lit("scopeName"), jen.Id("scopeNameContextKey"))
+
 	b.codes = append(b.codes,
 		jen.Type().Id("contextKey").String(),
 		jen.Const().Id("methodContextKey").Id("contextKey").Op("=").Lit("method"),
 		jen.Const().Id("shortMethodContextKey").Id("contextKey").Op("=").Lit("shortMethod"),
+		jen.Const().Id("scopeNameContextKey").Id("contextKey").Op("=").Lit("scopeName"),
+
 		jen.Func().Id("labelFromContext").Params(
 			jen.Id("lblName").String(),
 			jen.Id("ctxKey").Id("contextKey"),
@@ -63,6 +71,7 @@ func (b *BaseClientBuilder) BuildTypes() ClientBuilder {
 							),
 							jen.List(jen.Id("labels").Index(jen.Lit("methodNameFull")), jen.Id("_")).Op("=").Id("r").Dot("Context").Call().Dot("Value").Call(jen.Id("methodContextKey")).Assert(jen.String()),
 							jen.List(jen.Id("labels").Index(jen.Lit("methodNameShort")), jen.Id("_")).Op("=").Id("r").Dot("Context").Call().Dot("Value").Call(jen.Id("shortMethodContextKey")).Assert(jen.String()),
+							jen.List(jen.Id("labels").Index(jen.Lit("scopeName")), jen.Id("_")).Op("=").Id("r").Dot("Context").Call().Dot("Value").Call(jen.Id("scopeNameContextKey")).Assert(jen.String()),
 
 							jen.Id("errType").Op(":=").Lit(""),
 							jen.Switch(jen.Id("e").Op(":=").Err().Assert(jen.Id("type"))).Block(
@@ -104,30 +113,14 @@ func (b *BaseClientBuilder) BuildTypes() ClientBuilder {
 			),
 		),
 
-		jen.Type().Id("outgoingInstrumentation").Struct(
-			jen.Id("inflight").Qual(prometheusPkg, "Gauge"),
-			jen.Id("errRequests").Op("*").Qual(prometheusPkg, "CounterVec"),
-			jen.Id("requests").Op("*").Qual(prometheusPkg, "CounterVec"),
-			jen.Id("duration").Op("*").Qual(prometheusPkg, "HistogramVec"),
-			jen.Id("dnsDuration").Op("*").Qual(prometheusPkg, "HistogramVec"),
-			jen.Id("tlsDuration").Op("*").Qual(prometheusPkg, "HistogramVec"),
-		),
-		jen.Func().Params(jen.Id("i").Op("*").Id("outgoingInstrumentation")).Id("Describe").Params(jen.Id("in").Chan().Op("<-").Op("*").Qual(prometheusPkg, "Desc")).Block(
-			jen.Id("i").Dot("inflight").Dot("Describe").Call(jen.Id("in")),
-			jen.Id("i").Dot("requests").Dot("Describe").Call(jen.Id("in")),
-			jen.Id("i").Dot("errRequests").Dot("Describe").Call(jen.Id("in")),
-			jen.Id("i").Dot("duration").Dot("Describe").Call(jen.Id("in")),
-			jen.Id("i").Dot("dnsDuration").Dot("Describe").Call(jen.Id("in")),
-			jen.Id("i").Dot("tlsDuration").Dot("Describe").Call(jen.Id("in")),
-		),
-
-		jen.Func().Params(jen.Id("i").Op("*").Id("outgoingInstrumentation")).Id("Collect").Params(jen.Id("in").Chan().Op("<-").Qual(prometheusPkg, "Metric")).Block(
-			jen.Id("i").Dot("inflight").Dot("Collect").Call(jen.Id("in")),
-			jen.Id("i").Dot("requests").Dot("Collect").Call(jen.Id("in")),
-			jen.Id("i").Dot("errRequests").Dot("Collect").Call(jen.Id("in")),
-			jen.Id("i").Dot("duration").Dot("Collect").Call(jen.Id("in")),
-			jen.Id("i").Dot("dnsDuration").Dot("Collect").Call(jen.Id("in")),
-			jen.Id("i").Dot("tlsDuration").Dot("Collect").Call(jen.Id("in")),
+		jen.Type().Id("PrometheusCollector").Interface(
+			jen.Qual(prometheusPkg, "Collector"),
+			// jen.Id("Inflight").Params().Params(jen.Qual(prometheusPkg, "Gauge")),
+			jen.Id("Requests").Params().Params(jen.Op("*").Qual(prometheusPkg, "CounterVec")),
+			jen.Id("ErrRequests").Params().Params(jen.Op("*").Qual(prometheusPkg, "CounterVec")),
+			jen.Id("Duration").Params().Params(jen.Op("*").Qual(prometheusPkg, "HistogramVec")),
+			// jen.Id("DNSDuration").Params().Params(jen.Op("*").Qual(prometheusPkg, "HistogramVec")),
+			// jen.Id("TLSDuration").Params().Params(jen.Op("*").Qual(prometheusPkg, "HistogramVec")),
 		),
 
 		jen.Type().Id("ClientBeforeFunc").Func().Params(
@@ -156,101 +149,34 @@ func (b *BaseClientBuilder) BuildTypes() ClientBuilder {
 				jen.Id("o").Dot("client").Op("=").Id("client"),
 			)),
 		),
-		jen.Func().Id("WithProm").Params(
-			jen.Id("namespace").String(),
-			jen.Id("subsystem").String(),
-			jen.Id("reg").Qual(prometheusPkg, "Registerer"),
-			jen.Id("constLabels").Map(jen.String()).String(),
-		).Id("ClientOption").Block(
+		jen.Func().Id("WithPrometheusCollector").Params(jen.Id("c").Id("PrometheusCollector")).Id("ClientOption").Block(
 			jen.Return(jen.Func().Params(jen.Id("o").Op("*").Id(clientOptionName)).Block(
-
-				jen.Id("i").Op(":=").Op("&").Id("outgoingInstrumentation").Values(
-					jen.Id("inflight").Op(":").Qual(prometheusPkg, "NewGauge").Call(
-						jen.Qual(prometheusPkg, "GaugeOpts").Values(
-							jen.Id("Namespace").Op(":").Id("namespace"),
-							jen.Id("Subsystem").Op(":").Id("subsystem"),
-							jen.Id("Name").Op(":").Lit("in_flight_requests"),
-							jen.Id("Help").Op(":").Lit("A gauge of in-flight outgoing requests for the client."),
-							jen.Id("ConstLabels").Op(":").Id("constLabels"),
-						),
-					),
-					jen.Id("requests").Op(":").Qual(prometheusPkg, "NewCounterVec").Call(
-						jen.Qual(prometheusPkg, "CounterOpts").Values(
-							jen.Id("Namespace").Op(":").Id("namespace"),
-							jen.Id("Subsystem").Op(":").Id("subsystem"),
-							jen.Id("Name").Op(":").Lit("requests_total"),
-							jen.Id("Help").Op(":").Lit("A counter for outgoing requests from the client."),
-							jen.Id("ConstLabels").Op(":").Id("constLabels"),
-						),
-						jen.Index().String().Values(jen.Lit("method"), jen.Lit("code"), jen.Lit("methodNameFull"), jen.Lit("methodNameShort")),
-					),
-					jen.Id("errRequests").Op(":").Qual(prometheusPkg, "NewCounterVec").Call(
-						jen.Qual(prometheusPkg, "CounterOpts").Values(
-							jen.Id("Namespace").Op(":").Id("namespace"),
-							jen.Id("Subsystem").Op(":").Id("subsystem"),
-							jen.Id("Name").Op(":").Lit("err_requests_total"),
-							jen.Id("Help").Op(":").Lit("A counter for outgoing error requests from the client."),
-						),
-						jen.Index().String().Values(jen.Lit("method"), jen.Lit("err"), jen.Lit("methodNameFull"), jen.Lit("methodNameShort")),
-					),
-					jen.Id("duration").Op(":").Qual(prometheusPkg, "NewHistogramVec").Call(
-						jen.Qual(prometheusPkg, "HistogramOpts").Values(
-							jen.Id("Namespace").Op(":").Id("namespace"),
-							jen.Id("Subsystem").Op(":").Id("subsystem"),
-							jen.Id("Name").Op(":").Lit("request_duration_histogram_seconds"),
-							jen.Id("Help").Op(":").Lit("A histogram of outgoing request latencies."),
-							jen.Id("Buckets").Op(":").Qual(prometheusPkg, "DefBuckets"),
-							jen.Id("ConstLabels").Op(":").Id("constLabels"),
-						),
-						jen.Index().String().Values(jen.Lit("method"), jen.Lit("code"), jen.Lit("methodNameFull"), jen.Lit("methodNameShort")),
-					),
-					jen.Id("dnsDuration").Op(":").Qual(prometheusPkg, "NewHistogramVec").Call(
-						jen.Qual(prometheusPkg, "HistogramOpts").Values(
-							jen.Id("Namespace").Op(":").Id("namespace"),
-							jen.Id("Subsystem").Op(":").Id("subsystem"),
-							jen.Id("Name").Op(":").Lit("dns_duration_histogram_seconds"),
-							jen.Id("Help").Op(":").Lit("Trace dns latency histogram."),
-							jen.Id("Buckets").Op(":").Qual(prometheusPkg, "DefBuckets"),
-							jen.Id("ConstLabels").Op(":").Id("constLabels"),
-						),
-						jen.Index().String().Values(jen.Lit("method"), jen.Lit("code"), jen.Lit("methodNameFull"), jen.Lit("methodNameShort")),
-					),
-					jen.Id("tlsDuration").Op(":").Qual(prometheusPkg, "NewHistogramVec").Call(
-						jen.Qual(prometheusPkg, "HistogramOpts").Values(
-							jen.Id("Namespace").Op(":").Id("namespace"),
-							jen.Id("Subsystem").Op(":").Id("subsystem"),
-							jen.Id("Name").Op(":").Lit("tls_duration_histogram_seconds"),
-							jen.Id("Help").Op(":").Lit("Trace tls latency histogram."),
-							jen.Id("Buckets").Op(":").Qual(prometheusPkg, "DefBuckets"),
-							jen.Id("ConstLabels").Op(":").Id("constLabels"),
-						),
-						jen.Index().String().Values(jen.Lit("method"), jen.Lit("code"), jen.Lit("methodNameFull"), jen.Lit("methodNameShort")),
-					),
+				jen.If(jen.Id("o").Dot("client").Dot("Transport").Op("==").Nil()).Block(
+					jen.Panic(jen.Lit("no transport is set for the http client")),
 				),
-				jen.Id("trace").Op(":=").Op("&").Qual(promhttpPkg, "InstrumentTrace").Values(),
+				// jen.Id("trace").Op(":=").Op("&").Qual(promhttpPkg, "InstrumentTrace").Values(),
 				jen.Id("o").Dot("client").Dot("Transport").Op("=").
-					Id("instrumentRoundTripperErrCounter").Call(jen.Id("i").Dot("errRequests"),
-					jen.Qual(promhttpPkg, "InstrumentRoundTripperInFlight").Call(
-						jen.Id("i").Dot("inflight"),
-						jen.Qual(promhttpPkg, "InstrumentRoundTripperCounter").Call(
-							jen.Id("i").Dot("requests"),
-							jen.Qual(promhttpPkg, "InstrumentRoundTripperTrace").Call(
-								jen.Id("trace"),
-								jen.Qual(promhttpPkg, "InstrumentRoundTripperDuration").Call(
-									jen.Id("i").Dot("duration"),
-									jen.Qual(httpPkg, "DefaultTransport"),
-									jen.Id("labelFromContext").Call(jen.Lit("methodNameShort"), jen.Id("shortMethodContextKey")),
-									jen.Id("labelFromContext").Call(jen.Lit("methodNameFull"), jen.Id("methodContextKey")),
-								),
-							),
-							jen.Id("labelFromContext").Call(jen.Lit("methodNameShort"), jen.Id("shortMethodContextKey")),
-							jen.Id("labelFromContext").Call(jen.Lit("methodNameFull"), jen.Id("methodContextKey")),
+					Id("instrumentRoundTripperErrCounter").Call(jen.Id("c").Dot("ErrRequests").Call(),
+					// jen.Qual(promhttpPkg, "InstrumentRoundTripperInFlight").Call(
+					// jen.Id("c").Dot("Inflight").Call(),
+					jen.Qual(promhttpPkg, "InstrumentRoundTripperCounter").Call(
+						jen.Id("c").Dot("Requests").Call(),
+						// jen.Qual(promhttpPkg, "InstrumentRoundTripperTrace").Call(
+						// jen.Id("trace"),
+						jen.Qual(promhttpPkg, "InstrumentRoundTripperDuration").Call(
+							jen.Id("c").Dot("Duration").Call(),
+							jen.Id("o").Dot("client").Dot("Transport"),
+							labelContextMethodShortName,
+							labelContextMethodFullName,
+							labelContextScopeName,
 						),
+						// ),
+						labelContextMethodShortName,
+						labelContextMethodFullName,
+						labelContextScopeName,
 					),
+					// ),
 				),
-
-				jen.Err().Op(":=").Id("reg").Dot("Register").Call(jen.Id("i")),
-				jen.Do(gen.CheckErr(jen.Panic(jen.Err()))),
 			)),
 		),
 		jen.Func().Id("Before").Params(jen.Id("before").Op("...").Id("ClientBeforeFunc")).Id("ClientOption").Block(
@@ -269,10 +195,12 @@ func (b *BaseClientBuilder) BuildTypes() ClientBuilder {
 
 func (b *BaseClientBuilder) BuildStruct(iface options.Iface) ClientBuilder {
 	clientName := clientStructName(iface)
-	b.codes = append(b.codes, jen.Type().Id(clientName).StructFunc(func(g *jen.Group) {
-		g.Id("target").String()
-		g.Id("opts").Op("*").Id(clientOptionName)
-	}))
+	b.codes = append(b.codes,
+		jen.Const().Id(strcase.ToLowerCamel(iface.Name)+"ScopeName").Op("=").Lit(filepath.Base(iface.PkgPath)),
+		jen.Type().Id(clientName).StructFunc(func(g *jen.Group) {
+			g.Id("target").String()
+			g.Id("opts").Op("*").Id(clientOptionName)
+		}))
 	return b
 }
 
@@ -287,7 +215,7 @@ func (b *BaseClientBuilder) BuildConstruct(iface options.Iface) ClientBuilder {
 			g.Id("c").Op(":=").Op("&").Id(clientName).Values(
 				jen.Id("target").Op(":").Id("target"),
 				jen.Id("opts").Op(":").Op("&").Id(clientOptionName).Values(
-					jen.Id("client").Op(":").Qual("net/http", "DefaultClient"),
+					jen.Id("client").Op(":").Qual(cleanhttpPkg, "DefaultClient").Call(),
 				),
 			)
 			g.For(jen.List(jen.Id("_"), jen.Id("o")).Op(":=").Range().Id("opts")).Block(
@@ -300,6 +228,10 @@ func (b *BaseClientBuilder) BuildConstruct(iface options.Iface) ClientBuilder {
 }
 
 func (b *BaseClientBuilder) Endpoint(iface options.Iface, ep options.Endpoint) ClientEndpointBuilder {
+	b.codes = append(b.codes,
+		jen.Const().Id(strcase.ToLowerCamel(ep.MethodName)+"ShortName").Op("=").Lit(ep.MethodShortName),
+		jen.Const().Id(strcase.ToLowerCamel(ep.MethodName)+"FullName").Op("=").Lit(ep.MethodFullName),
+	)
 	return &clientEndpointBuilder{BaseClientBuilder: b, iface: iface, ep: ep, qualifier: b.qualifier}
 }
 

@@ -19,9 +19,11 @@ const (
 	prometheusPkg = "github.com/prometheus/client_golang/prometheus"
 	promautoPkg   = "github.com/prometheus/client_golang/prometheus/promauto"
 	promhttpPkg   = "github.com/prometheus/client_golang/prometheus/promhttp"
+	cleanhttpPkg  = "github.com/hashicorp/go-cleanhttp"
 	chiPkg        = "github.com/go-chi/chi/v5"
 	jsonrpcPkg    = "github.com/555f/jsonrpc"
 	echoPkg       = "github.com/labstack/echo/v4"
+	nullPkg       = "gopkg.in/guregu/null.v4"
 )
 
 type HandlerStrategyBuilderFactory func() HandlerStrategy

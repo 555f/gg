@@ -12,10 +12,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
-var (
-	webviewPkg = "github.com/webview/webview_go"
-)
-
 type Plugin struct {
 	ctx *gg.Context
 }
@@ -50,10 +46,27 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 		f.Type().Id(optionsName).StructFunc(func(g *jen.Group) {})
 	}
 
+	f.Type().Id("binder").Interface(
+		jen.Id("Bind").Params(jen.String(), jen.Any()).Error(),
+	)
+
+	f.Type().Id("bindCallbackResult").Struct(
+		jen.Id("value").Any(),
+		jen.Err().Error(),
+	)
+
+	f.Func().Params(jen.Id("r").Op("*").Id("bindCallbackResult")).Id("Error").Params().Error().Block(
+		jen.Return(jen.Id("r").Dot("err")),
+	)
+
+	f.Func().Params(jen.Id("r").Op("*").Id("bindCallbackResult")).Id("Value").Params().Any().Block(
+		jen.Return(jen.Id("r").Dot("value")),
+	)
+
 	for _, iface := range p.ctx.Interfaces {
 		f.Func().Id("SetupRoutes"+iface.Named.Name).Params(
 			jen.Id("svc").Do(f.Qual(iface.Named.Pkg.Path, iface.Named.Name)),
-			jen.Id("w").Qual(webviewPkg, "WebView"),
+			jen.Id("w").Id("binder"),
 			jen.Id("opts").Op("...").Id(iface.Named.Name+"Option"),
 		).BlockFunc(func(g *jen.Group) {
 			for _, m := range iface.Type.Methods {
@@ -68,8 +81,8 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 							}
 							g.Id(p.Name).Add(types.Convert(p.Type, f.Qual))
 						}
-					}).Params(jen.Chan().Qual(webviewPkg, "BindCallbackResult")).BlockFunc(func(g *jen.Group) {
-						g.Id("ch").Op(":=").Make(jen.Chan().Qual(webviewPkg, "BindCallbackResult"))
+					}).Params(jen.Chan().Op("*").Id("bindCallbackResult")).BlockFunc(func(g *jen.Group) {
+						g.Id("ch").Op(":=").Make(jen.Chan().Op("*").Id("bindCallbackResult"))
 
 						g.Go().Func().Params().BlockFunc(func(g *jen.Group) {
 							g.Id("result").Op(":=").StructFunc(func(g *jen.Group) {
@@ -120,10 +133,9 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 									g.Id(p.Name)
 								}
 							})
-
-							g.Id("ch").Op("<-").Qual(webviewPkg, "BindCallbackResult").Values(
-								jen.Id("Value").Op(":").Id("result"),
-								jen.Id("Error").Op(":").Id("err"),
+							g.Id("ch").Op("<-").Op("&").Id("bindCallbackResult").Values(
+								jen.Id("value").Op(":").Id("result"),
+								jen.Id("err").Op(":").Id("err"),
 							)
 						}).Call()
 						g.Return(jen.Id("ch"))

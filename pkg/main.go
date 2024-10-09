@@ -9,6 +9,7 @@ import (
 	_ "github.com/555f/gg/internal/plugin/klog"
 	_ "github.com/555f/gg/internal/plugin/metrics"
 	_ "github.com/555f/gg/internal/plugin/middleware"
+	_ "github.com/555f/gg/internal/plugin/prommetrics"
 	_ "github.com/555f/gg/internal/plugin/pwa"
 	_ "github.com/555f/gg/internal/plugin/slog"
 	_ "github.com/555f/gg/internal/plugin/webview"

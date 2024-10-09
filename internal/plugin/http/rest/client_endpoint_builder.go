@@ -166,7 +166,7 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 		if p.Required {
 			code = f(paramID)
 		} else {
-			if isNamed && named.Pkg.Path == "gopkg.in/guregu/null.v4" {
+			if isNamed && named.Pkg.Path == nullPkg {
 				code = jen.If(jen.Add(paramID).Dot("Valid")).Block(f(paramID))
 			} else {
 				if isNamed {
@@ -210,12 +210,17 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 			jen.Id("r").Dot("opts").Dot("ctx").Op("=").Qual(ctxPkg, "WithValue").Call(
 				jen.Id("r").Dot("opts").Dot("ctx"),
 				jen.Id("methodContextKey"),
-				jen.Lit(b.ep.MethodFullName),
+				jen.Id(strcase.ToLowerCamel(b.ep.MethodName)+"FullName"),
 			),
 			jen.Id("r").Dot("opts").Dot("ctx").Op("=").Qual(ctxPkg, "WithValue").Call(
 				jen.Id("r").Dot("opts").Dot("ctx"),
 				jen.Id("shortMethodContextKey"),
-				jen.Lit(b.ep.MethodShortName),
+				jen.Id(strcase.ToLowerCamel(b.ep.MethodName)+"ShortName"),
+			),
+			jen.Id("r").Dot("opts").Dot("ctx").Op("=").Qual(ctxPkg, "WithValue").Call(
+				jen.Id("r").Dot("opts").Dot("ctx"),
+				jen.Id("scopeNameContextKey"),
+				jen.Id(strcase.ToLowerCamel(b.iface.Name)+"ScopeName"),
 			),
 
 			jen.List(jen.Id("req"), jen.Err()).Op(":=").Qual(httpPkg, "NewRequestWithContext").
