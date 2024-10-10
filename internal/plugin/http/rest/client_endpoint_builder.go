@@ -1,6 +1,8 @@
 package rest
 
 import (
+	"fmt"
+
 	"github.com/555f/gg/internal/plugin/http/options"
 	"github.com/555f/gg/pkg/gen"
 	"github.com/555f/gg/pkg/strcase"
@@ -152,18 +154,13 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 	methodRequestName := b.methodRequestName()
 	recvName := b.recvName()
 
-	makeParam := func(p *options.EndpointParam, f func(v jen.Code) jen.Code) jen.Code {
-		fldName := p.FldName.LowerCamel()
-		if p.Parent != nil {
-			fldName = p.Parent.FldName.LowerCamel() + p.FldName.String()
-		}
+	makeParam := func(name jen.Code, t any, required bool, f func(v jen.Code) jen.Code) jen.Code {
+		paramID := jen.Id(recvName).Dot("params").Add(name)
 
-		paramID := jen.Id(recvName).Dot("params").Dot(fldName)
-
-		named, isNamed := p.Type.(*types.Named)
+		named, isNamed := t.(*types.Named)
 
 		var code jen.Code
-		if p.Required {
+		if required {
 			code = f(paramID)
 		} else {
 			if isNamed && named.Pkg.Path == nullPkg {
@@ -239,6 +236,8 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 					default:
 						g.Id("req").Dot("Header").Dot("Add").Call(jen.Lit("Content-Type"), jen.Lit("application/json"))
 
+						fmt.Println(len(b.ep.BodyParams), b.ep.NoWrapRequest)
+
 						if len(b.ep.BodyParams) == 1 && b.ep.NoWrapRequest {
 							g.Var().Id("body").Add(types.Convert(b.ep.BodyParams[0].Type, b.qualifier.Qual))
 						} else {
@@ -288,7 +287,7 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 						g.Id("body").Op(":=").Qual(urlPkg, "Values").Values()
 						for _, param := range b.ep.BodyParams {
 
-							g.Add(makeParam(param, func(v jen.Code) jen.Code {
+							g.Add(makeParam(jen.Dot(param.FldNameWithParent()), param.Type, param.Required, func(v jen.Code) jen.Code {
 								return jen.Id("body").Dot("Add").Call(jen.Lit(param.Name), gen.FormatValue(v, param.Type, b.qualifier.Qual, b.ep.TimeFormat))
 							}))
 
@@ -302,24 +301,37 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 			jen.CustomFunc(jen.Options{Multi: true}, func(g *jen.Group) {
 				if len(b.ep.QueryParams) > 0 || len(b.ep.QueryValues) > 0 {
 					g.Id("q").Op(":=").Id("req").Dot("URL").Dot("Query").Call()
+
 					for _, param := range b.ep.QueryParams {
-						g.Add(makeParam(param, func(v jen.Code) jen.Code {
-							return jen.Id("q").Dot("Add").Call(jen.Lit(param.Name), gen.FormatValue(v, param.Type, b.qualifier.Qual, b.ep.TimeFormat))
-						}))
+						if named, ok := param.Type.(*types.Named); ok {
+							for _, f := range named.Struct().Fields {
+								if tag, err := f.SysTags.Get("json"); err == nil {
+									g.Add(makeParam(jen.Dot(param.FldNameWithParent()), f.Var.Type, false, func(v jen.Code) jen.Code {
+										return jen.Id("q").Dot("Add").Call(jen.Lit(tag.Name), gen.FormatValue(jen.Add(v).Dot(f.Var.Name), f.Var.Type, b.qualifier.Qual, b.ep.TimeFormat))
+									}))
+								}
+							}
+						} else {
+							g.Add(makeParam(jen.Dot(param.FldNameWithParent()), param.Type, param.Required, func(v jen.Code) jen.Code {
+								return jen.Id("q").Dot("Add").Call(jen.Lit(param.Name), gen.FormatValue(v, param.Type, b.qualifier.Qual, b.ep.TimeFormat))
+							}))
+						}
 					}
+
 					for _, param := range b.ep.QueryValues {
 						g.Id("q").Dot("Add").Call(jen.Lit(param.Name), jen.Lit(param.Value))
 					}
+
 					g.Id("req").Dot("URL").Dot("RawQuery").Op("=").Id("q").Dot("Encode").Call()
 				}
 
 				for _, param := range b.ep.HeaderParams {
-					g.Add(makeParam(param, func(v jen.Code) jen.Code {
+					g.Add(makeParam(jen.Dot(param.FldNameWithParent()), param.Type, param.Required, func(v jen.Code) jen.Code {
 						return jen.Id("req").Dot("Header").Dot("Add").Call(jen.Lit(param.Name), gen.FormatValue(v, param.Type, b.qualifier.Qual, b.ep.TimeFormat))
 					}))
 				}
 				for _, param := range b.ep.CookieParams {
-					g.Add(makeParam(param, func(v jen.Code) jen.Code {
+					g.Add(makeParam(jen.Dot(param.FldNameWithParent()), param.Type, param.Required, func(v jen.Code) jen.Code {
 						return jen.Id("req").Dot("AddCookie").Call(jen.Op("&").Qual(httpPkg, "Cookie").Values(
 							jen.Id("Name").Op(":").Lit(param.Name),
 							jen.Id("Value").Op(":").Add(gen.FormatValue(v, param.Type, b.qualifier.Qual, b.ep.TimeFormat)),

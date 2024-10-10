@@ -7,12 +7,16 @@ import (
 type Vars []*Var
 
 func (v Vars) HasError() bool {
+	return v.Error() != nil
+}
+
+func (v Vars) Error() *Var {
 	for _, vv := range v {
 		if vv.IsError {
-			return true
+			return vv
 		}
 	}
-	return false
+	return nil
 }
 
 func (v Vars) Len() int {
@@ -39,6 +43,7 @@ type Var struct {
 	IsError    bool
 	IsChan     bool
 	IsPointer  bool
+	IsString   bool
 	Type       any
 	Title      string
 	Zero       string

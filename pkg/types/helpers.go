@@ -54,6 +54,13 @@ func IsError(v any) bool {
 	return false
 }
 
+func IsString(v any) bool {
+	if basic, ok := v.(*Basic); ok && basic.IsString() {
+		return true
+	}
+	return false
+}
+
 func IsContext(t any) bool {
 	if named, ok := t.(*Named); ok {
 		if _, ok := named.Type.(*Interface); ok {

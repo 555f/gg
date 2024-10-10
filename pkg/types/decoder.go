@@ -82,6 +82,7 @@ func (d *Decoder) normalizeStruct(t *stdtypes.Struct, isPointer bool) (*Struct, 
 	result := &Struct{
 		IsPointer: isPointer,
 		Graph:     make(map[string]*StructFieldType, 32),
+		Fields:    make([]*StructFieldType, 0, t.NumFields()),
 	}
 	for i := 0; i < t.NumFields(); i++ {
 		field := t.Field(i)
@@ -265,6 +266,7 @@ func (d *Decoder) normalizeVar(t *stdtypes.Var) (*Var, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &Var{
 		Name:      t.Name(),
 		Embedded:  t.Embedded(),
@@ -274,6 +276,7 @@ func (d *Decoder) normalizeVar(t *stdtypes.Var) (*Var, error) {
 		IsError:   IsError(varType),
 		IsChan:    IsChan(varType),
 		IsPointer: isPointer,
+		IsString:  IsString(varType),
 		Type:      varType,
 		Zero:      zeroValue(t.Type().Underlying()),
 		Title:     title + "\n" + description,

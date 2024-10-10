@@ -258,6 +258,14 @@ type EndpointParam struct {
 	Params     EndpointParams
 }
 
+func (p *EndpointParam) FldNameWithParent() string {
+	fldName := p.FldName.LowerCamel()
+	if p.Parent != nil {
+		fldName = p.Parent.FldName.LowerCamel() + p.FldName.String()
+	}
+	return fldName
+}
+
 type EndpointResult struct {
 	EndpointParamBase
 

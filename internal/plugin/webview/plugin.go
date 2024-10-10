@@ -21,17 +21,6 @@ func (p *Plugin) Name() string { return "webview" }
 func (p *Plugin) Exec() (files []file.File, errs error) {
 	f := file.NewGoFile(p.ctx.Module, p.Output())
 
-	/*	type Context map[string]any
-		type contextKey string
-
-		func (c Context) ToGoContext() context.Context {
-			ctx := context.TODO()
-			for k,v  := range c {
-				ctx=context.WithValue(ctx, contextKey(k), v)
-			}
-			return ctx
-		}*/
-
 	f.Type().Id("Context").Map(jen.String()).Any()
 
 	f.Func().Params(jen.Id("c").Id("Context")).Id("Get").Params(jen.Id("key").String()).Any().Block(
