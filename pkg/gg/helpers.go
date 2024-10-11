@@ -5,9 +5,40 @@ import (
 	stdtypes "go/types"
 
 	"github.com/555f/gg/pkg/types"
+	"github.com/dave/jennifer/jen"
 
 	"golang.org/x/tools/go/packages"
 )
+
+func ZeroValue(t any, qualFunc types.QualFunc) jen.Code {
+	switch t := t.(type) {
+	default:
+		return jen.Nil()
+	case *types.Chan, *types.Interface, *types.Map, *types.Slice, *types.Array:
+		return jen.Nil()
+	case *types.Basic:
+		switch {
+		default:
+			return jen.Lit(0)
+		case t.IsBool():
+			return jen.Lit(false)
+		case t.IsString():
+			return jen.Lit("")
+		case t.IsInteger():
+			return jen.Lit(0)
+		case t.IsFloat():
+			return jen.Lit(0.0)
+		}
+	case *types.Named:
+		if t.IsPointer {
+			return jen.Nil()
+		}
+		if t.Name == "error" {
+			return jen.Nil()
+		}
+		return jen.Do(qualFunc(t.Pkg.Path, t.Name)).Values()
+	}
+}
 
 func Module(pkgs []*packages.Package) (*types.Module, error) {
 	for _, p := range pkgs {

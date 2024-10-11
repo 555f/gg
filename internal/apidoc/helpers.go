@@ -83,11 +83,7 @@ func SchemaTypes(t any, schemas map[string]*Schema, schemasNames map[string]stru
 				})
 
 				schemasNames[schema.Name] = struct{}{}
-
-				//results = append(results, schema.Name)
-
 				schemas[t.Name] = schema
-				//results = append(results, SchemaTypes(field.Var.Type, schemas)...)
 
 				SchemaTypes(field.Var.Type, schemas, schemasNames)
 			}

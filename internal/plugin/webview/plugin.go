@@ -12,6 +12,17 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
+const (
+	jsPkg      = "syscall/js"
+	contextPkg = "context"
+	errorPkg   = "errors"
+)
+
+type resultValPath struct {
+	path       []string
+	typeMethod string
+}
+
 type Plugin struct {
 	ctx *gg.Context
 }
@@ -19,11 +30,12 @@ type Plugin struct {
 func (p *Plugin) Name() string { return "webview" }
 
 func (p *Plugin) Exec() (files []file.File, errs error) {
-	f := file.NewGoFile(p.ctx.Module, p.Output())
+	serverFile := file.NewGoFile(p.ctx.Module, p.ServerOutput())
+	clientFile := file.NewGoFile(p.ctx.Module, p.ClientOutput())
 
-	f.Type().Id("Context").Map(jen.String()).Any()
+	serverFile.Type().Id("Context").Map(jen.String()).Any()
 
-	f.Func().Params(jen.Id("c").Id("Context")).Id("Get").Params(jen.Id("key").String()).Any().Block(
+	serverFile.Func().Params(jen.Id("c").Id("Context")).Id("Get").Params(jen.Id("key").String()).Any().Block(
 		jen.List(jen.Id("v"), jen.Id("_")).Op(":=").Id("c").Index(jen.Id("key")),
 		jen.Return(jen.Id("v")),
 	)
@@ -31,36 +43,268 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 	for _, iface := range p.ctx.Interfaces {
 		optionsName := iface.Named.Name + "Options"
 		optionName := iface.Named.Name + "Option"
-		f.Type().Id(optionName).Func().Params(jen.Op("*").Id(optionsName))
-		f.Type().Id(optionsName).StructFunc(func(g *jen.Group) {})
+		serverFile.Type().Id(optionName).Func().Params(jen.Op("*").Id(optionsName))
+		serverFile.Type().Id(optionsName).StructFunc(func(g *jen.Group) {})
 	}
 
-	f.Type().Id("binder").Interface(
+	serverFile.Type().Id("binder").Interface(
 		jen.Id("Bind").Params(jen.String(), jen.Any()).Error(),
 	)
 
-	f.Type().Id("bindCallbackResult").Struct(
+	serverFile.Type().Id("bindCallbackResult").Struct(
 		jen.Id("value").Any(),
 		jen.Err().Error(),
 	)
 
-	f.Func().Params(jen.Id("r").Op("*").Id("bindCallbackResult")).Id("Error").Params().Error().Block(
+	serverFile.Func().Params(jen.Id("r").Op("*").Id("bindCallbackResult")).Id("Error").Params().Error().Block(
 		jen.Return(jen.Id("r").Dot("err")),
 	)
 
-	f.Func().Params(jen.Id("r").Op("*").Id("bindCallbackResult")).Id("Value").Params().Any().Block(
+	serverFile.Func().Params(jen.Id("r").Op("*").Id("bindCallbackResult")).Id("Value").Params().Any().Block(
 		jen.Return(jen.Id("r").Dot("value")),
 	)
 
+	var makeParamValue func(parentName string, t any) jen.Code
+	makeParamValue = func(parentName string, t any) jen.Code {
+		switch t := t.(type) {
+		default:
+			return jen.Id(parentName)
+		case *types.Named:
+			if st := t.Struct(); st != nil {
+				return jen.Map(jen.String()).Interface().ValuesFunc(func(g *jen.Group) {
+					for _, f := range st.Fields {
+						g.Lit(f.Var.Name).Op(":").Add(makeParamValue(parentName+"."+f.Var.Name, f.Var.Type))
+					}
+				})
+			}
+		}
+		return jen.Nil()
+	}
+
+	var makePathRecursive func(v *types.Var, path []string, cb func([]string, string))
+	makePathRecursive = func(v *types.Var, path []string, cb func([]string, string)) {
+		if named, ok := v.Type.(*types.Named); ok {
+			if st := named.Struct(); st != nil {
+				for _, f := range st.Fields {
+					makePathRecursive(f.Var, append(path, f.Var.Name), cb)
+				}
+			}
+		} else if t, ok := v.Type.(*types.Basic); ok {
+			var typeMethod string
+			switch {
+			case t.IsBool():
+				typeMethod = "Bool"
+			case t.IsInteger():
+				typeMethod = "Int"
+			case t.IsFloat():
+				typeMethod = "Float"
+			case t.IsString():
+				typeMethod = "String"
+			}
+			cb(path, typeMethod)
+		}
+	}
+
+	makePath := func(v *types.Var) (paths []resultValPath) {
+		makePathRecursive(v, nil, func(path []string, typeMethod string) {
+			paths = append(paths, resultValPath{
+				path:       path,
+				typeMethod: typeMethod,
+			})
+		})
+		return
+	}
+
 	for _, iface := range p.ctx.Interfaces {
-		f.Func().Id("SetupRoutes"+iface.Named.Name).Params(
-			jen.Id("svc").Do(f.Qual(iface.Named.Pkg.Path, iface.Named.Name)),
+		clientStructName := strcase.ToCamel(iface.Named.Name) + "Client"
+
+		clientFile.Type().Id(clientStructName).Struct()
+
+		for _, method := range iface.Type.Methods {
+			bindName := makeBindName(iface, method)
+			promiseName := strcase.ToCamel(iface.Named.Name) + method.Name + "Promise"
+
+			clientFile.Type().Id(promiseName).StructFunc(func(g *jen.Group) {
+				for _, p := range method.Sig.Params {
+					if p.IsContext {
+						continue
+					}
+					g.Add(types.Convert(p, clientFile.Import))
+				}
+			})
+
+			clientFile.Func().Params(
+				jen.Id("p").Op("*").Id(promiseName),
+			).Id("Execute").ParamsFunc(func(g *jen.Group) {
+				g.Id("ctx").Qual(contextPkg, "Context")
+				g.Id("cb").Func().ParamsFunc(func(g *jen.Group) {
+					for _, r := range method.Sig.Results {
+						g.Add(types.Convert(r, clientFile.Import))
+					}
+				})
+			}).BlockFunc(func(g *jen.Group) {
+				g.Id("wvCtx").Op(":=").Map(jen.String()).Any().ValuesFunc(func(g *jen.Group) {})
+				for _, p := range method.Sig.Params {
+					if p.IsContext {
+						continue
+					}
+					g.Id(p.Name + "Req").Op(":=").Add(makeParamValue("p."+p.Name, p.Type))
+				}
+				g.Id("v").Op(":=").Do(clientFile.Import(jsPkg, "Global")).Call().Dot("Call").CallFunc(func(g *jen.Group) {
+					g.Lit(bindName)
+					for _, p := range method.Sig.Params {
+						if p.IsContext {
+							g.Id("wvCtx")
+							continue
+						}
+						g.Id(p.Name + "Req")
+					}
+				})
+				g.Id("thenFunc").Op(":=").Qual(jsPkg, "FuncOf").Call(
+					jen.Func().Params(
+						jen.Id("this").Qual(jsPkg, "Value"),
+						jen.Id("args").Index().Qual(jsPkg, "Value"),
+					).Any().BlockFunc(func(g *jen.Group) {
+						for _, r := range method.Sig.Results {
+							if r.IsError {
+								continue
+							}
+							g.Var().Add(types.Convert(r, clientFile.Import))
+						}
+						for _, r := range method.Sig.Results {
+							if r.IsError {
+								continue
+							}
+							for _, p := range makePath(r) {
+								g.Id(r.Name).Do(func(s *jen.Statement) {
+									for _, fldName := range p.path {
+										s.Dot(fldName)
+									}
+								}).Op("=").Id("args").Index(jen.Lit(0)).Dot("Get").Call(jen.Lit(r.Name)).Do(func(s *jen.Statement) {
+									for _, fldName := range p.path {
+										s.Dot("Get").Call(jen.Lit(fldName))
+									}
+									s.Dot(p.typeMethod).Call()
+								})
+							}
+						}
+						g.Id("cb").CallFunc(func(g *jen.Group) {
+							for _, r := range method.Sig.Results {
+								if r.IsError {
+									g.Nil()
+									continue
+								}
+								g.Id(r.Name)
+							}
+						})
+						g.Return(jen.Nil())
+					}),
+				)
+				// g.Defer().Id("thenFunc").Dot("Release").Call()
+
+				g.Id("catchFunc").Op(":=").Qual(jsPkg, "FuncOf").Call(
+					jen.Func().Params(
+						jen.Id("this").Qual(jsPkg, "Value"),
+						jen.Id("args").Index().Qual(jsPkg, "Value"),
+					).Any().BlockFunc(func(g *jen.Group) {
+						for _, r := range method.Sig.Results {
+							if r.IsError {
+							}
+						}
+						g.Id("cb").CallFunc(func(g *jen.Group) {
+							for _, r := range method.Sig.Results {
+								if r.IsError {
+									g.Qual(errorPkg, "New").Call(jen.Id("args").Index(jen.Lit(0)).Dot("String").Call())
+									continue
+								}
+								g.Add(gg.ZeroValue(r.Type, clientFile.Import))
+							}
+						})
+						g.Return(jen.Nil())
+					}),
+				)
+				// g.Defer().Id("catchFunc").Dot("Release").Call()
+
+				g.Id("v").
+					Dot("Call").Call(jen.Lit("then"), jen.Id("thenFunc")).
+					Dot("Call").Call(jen.Lit("catch"), jen.Id("catchFunc"))
+			})
+
+			clientFile.Func().
+				Params(
+					jen.Id("m").Op("*").Id(clientStructName),
+				).
+				Id(method.Name).ParamsFunc(func(g *jen.Group) {
+				for _, p := range method.Sig.Params {
+					if p.IsContext {
+						continue
+					}
+					g.Add(types.Convert(p, clientFile.Import))
+				}
+			}).Op("*").Id(promiseName).
+				BlockFunc(func(g *jen.Group) {
+
+					// // v.Call("then", js.FuncOf(func(this js.Value, args []js.Value) any {
+					// // 	if len(args)>0 {
+					// // 		fmt.Println(len(args))
+					// // 		fmt.Println(args[0].Get("testVar").String())
+					// // 	}
+					// // 	return nil
+					// // }))
+
+					// g.Id("waitCh").Op(":=").Make(jen.Chan().Struct())
+
+					// g.Id("v").Dot("Call").Call(jen.Lit("then"), jen.Qual(jsPkg, "FuncOf").Call(
+					// 	jen.Func().Params(
+					// 		jen.Id("this").Qual(jsPkg, "Value"),
+					// 		jen.Id("args").Index().Qual(jsPkg, "Value"),
+					// 	).Any().BlockFunc(func(g *jen.Group) {
+					// 		g.Defer().Close(jen.Id("waitCh"))
+					// 		for _, r := range method.Sig.Results {
+					// 			if r.IsError {
+					// 				continue
+					// 			}
+					// 			for _, p := range makePath(r) {
+					// 				g.Id(r.Name).Do(func(s *jen.Statement) {
+					// 					for _, fldName := range p.path {
+					// 						s.Dot(fldName)
+					// 					}
+					// 				}).Op("=").Id("args").Index(jen.Lit(0)).Dot("Get").Call(jen.Lit(r.Name)).Do(func(s *jen.Statement) {
+					// 					for _, fldName := range p.path {
+					// 						s.Dot("Get").Call(jen.Lit(fldName))
+					// 					}
+					// 					s.Dot(p.typeMethod).Call()
+					// 				})
+					// 			}
+					// 		}
+					// 		g.Return(jen.Nil())
+					// 	}),
+					// ))
+
+					// g.Op("<-").Id("waitCh")
+
+					g.Return(
+						jen.Op("&").Id(promiseName).ValuesFunc(func(g *jen.Group) {
+							for _, p := range method.Sig.Params {
+								if p.IsContext {
+									continue
+								}
+								g.Id(p.Name).Op(":").Id(p.Name)
+							}
+						}),
+					)
+				})
+		}
+	}
+
+	for _, iface := range p.ctx.Interfaces {
+		serverFile.Func().Id("SetupRoutes"+iface.Named.Name).Params(
+			jen.Id("svc").Do(serverFile.Qual(iface.Named.Pkg.Path, iface.Named.Name)),
 			jen.Id("w").Id("binder"),
 			jen.Id("opts").Op("...").Id(iface.Named.Name+"Option"),
 		).BlockFunc(func(g *jen.Group) {
 			for _, m := range iface.Type.Methods {
-				bindName := strcase.ToLowerCamel(iface.Named.Name) + "_" + m.Name
-
+				bindName := makeBindName(iface, m)
 				g.Id("w").Dot("Bind").Call(
 					jen.Lit(bindName), jen.Func().ParamsFunc(func(g *jen.Group) {
 						g.Id("wvCtx").Id("Context")
@@ -68,7 +312,7 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 							if p.IsContext {
 								continue
 							}
-							g.Id(p.Name).Add(types.Convert(p.Type, f.Qual))
+							g.Id(p.Name).Add(types.Convert(p.Type, serverFile.Qual))
 						}
 					}).Params(jen.Chan().Op("*").Id("bindCallbackResult")).BlockFunc(func(g *jen.Group) {
 						g.Id("ch").Op(":=").Make(jen.Chan().Op("*").Id("bindCallbackResult"))
@@ -79,7 +323,7 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 									if r.IsError {
 										continue
 									}
-									g.Id(strcase.ToCamel(r.Name)).Add(types.Convert(r.Type, f.Qual)).Tag(map[string]string{"json": strcase.ToLowerCamel(r.Name)})
+									g.Id(strcase.ToCamel(r.Name)).Add(types.Convert(r.Type, serverFile.Qual)).Tag(map[string]string{"json": strcase.ToLowerCamel(r.Name)})
 								}
 							}).Values()
 
@@ -102,9 +346,7 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 									jen.Id("wvCtx").Dot("Get").Call(jen.Lit(name)),
 								)
 							}
-
 							g.Var().Err().Error()
-
 							g.ListFunc(func(g *jen.Group) {
 								for _, r := range m.Sig.Results {
 									if r.IsError {
@@ -134,11 +376,15 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 		})
 	}
 
-	return []file.File{f}, nil
+	return []file.File{serverFile, clientFile}, nil
 }
 
-func (p *Plugin) Output() string {
-	return filepath.Join(p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("output", "internal/server/server.go"))
+func (p *Plugin) ServerOutput() string {
+	return filepath.Join(p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("output", "internal/handler/handler.go"))
+}
+
+func (p *Plugin) ClientOutput() string {
+	return filepath.Join(p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("output", "internal/client/client.go"))
 }
 
 func (p *Plugin) Dependencies() []string { return nil }
