@@ -72,6 +72,7 @@ func (b *BaseClientBuilder) BuildTypes() ClientBuilder {
 							jen.List(jen.Id("labels").Index(jen.Lit("methodNameFull")), jen.Id("_")).Op("=").Id("r").Dot("Context").Call().Dot("Value").Call(jen.Id("methodContextKey")).Assert(jen.String()),
 							jen.List(jen.Id("labels").Index(jen.Lit("methodNameShort")), jen.Id("_")).Op("=").Id("r").Dot("Context").Call().Dot("Value").Call(jen.Id("shortMethodContextKey")).Assert(jen.String()),
 							jen.List(jen.Id("labels").Index(jen.Lit("scopeName")), jen.Id("_")).Op("=").Id("r").Dot("Context").Call().Dot("Value").Call(jen.Id("scopeNameContextKey")).Assert(jen.String()),
+							jen.List(jen.Id("labels").Index(jen.Lit("code"))).Op("=").Qual(strconvPkg, "Itoa").Call(jen.Id("resp").Dot("StatusCode")),
 
 							jen.Id("errType").Op(":=").Lit(""),
 							jen.Switch(jen.Id("e").Op(":=").Err().Assert(jen.Id("type"))).Block(

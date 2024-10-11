@@ -24,6 +24,7 @@ const (
 	jsonrpcPkg    = "github.com/555f/jsonrpc"
 	echoPkg       = "github.com/labstack/echo/v4"
 	nullPkg       = "gopkg.in/guregu/null.v4"
+	strconvPkg    = "strconv"
 )
 
 type HandlerStrategyBuilderFactory func() HandlerStrategy
