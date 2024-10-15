@@ -64,17 +64,16 @@ func (b *BaseClientBuilder) BuildTypes() ClientBuilder {
 						jen.Error(),
 					).
 					Block(
+						jen.Id("labels").Op(":=").Qual(prometheusPkg, "Labels").Values(
+							jen.Lit("method").Op(":").Qual(stringsPkg, "ToLower").Call(jen.Id("r").Dot("Method")),
+						),
+						jen.List(jen.Id("labels").Index(jen.Lit("methodNameFull")), jen.Id("_")).Op("=").Id("r").Dot("Context").Call().Dot("Value").Call(jen.Id("methodContextKey")).Assert(jen.String()),
+						jen.List(jen.Id("labels").Index(jen.Lit("methodNameShort")), jen.Id("_")).Op("=").Id("r").Dot("Context").Call().Dot("Value").Call(jen.Id("shortMethodContextKey")).Assert(jen.String()),
+						jen.List(jen.Id("labels").Index(jen.Lit("scopeName")), jen.Id("_")).Op("=").Id("r").Dot("Context").Call().Dot("Value").Call(jen.Id("scopeNameContextKey")).Assert(jen.String()),
+						jen.List(jen.Id("labels").Index(jen.Lit("code"))).Op("=").Lit(""),
 						jen.List(jen.Id("resp"), jen.Err()).Op(":=").Id("next").Dot("RoundTrip").Call(jen.Id("r")),
 						jen.If(jen.Id("err").Op("!=").Nil()).Block(
-							jen.Id("labels").Op(":=").Qual(prometheusPkg, "Labels").Values(
-								jen.Lit("method").Op(":").Qual(stringsPkg, "ToLower").Call(jen.Id("r").Dot("Method")),
-							),
-							jen.List(jen.Id("labels").Index(jen.Lit("methodNameFull")), jen.Id("_")).Op("=").Id("r").Dot("Context").Call().Dot("Value").Call(jen.Id("methodContextKey")).Assert(jen.String()),
-							jen.List(jen.Id("labels").Index(jen.Lit("methodNameShort")), jen.Id("_")).Op("=").Id("r").Dot("Context").Call().Dot("Value").Call(jen.Id("shortMethodContextKey")).Assert(jen.String()),
-							jen.List(jen.Id("labels").Index(jen.Lit("scopeName")), jen.Id("_")).Op("=").Id("r").Dot("Context").Call().Dot("Value").Call(jen.Id("scopeNameContextKey")).Assert(jen.String()),
-							jen.List(jen.Id("labels").Index(jen.Lit("code"))).Op("=").Qual(strconvPkg, "Itoa").Call(jen.Id("resp").Dot("StatusCode")),
-
-							jen.Id("errType").Op(":=").Lit(""),
+							jen.Var().Id("errType").String(),
 							jen.Switch(jen.Id("e").Op(":=").Err().Assert(jen.Id("type"))).Block(
 								jen.Default().Block(
 									jen.Id("errType").Op("=").Err().Dot("Error").Call(),
@@ -108,7 +107,12 @@ func (b *BaseClientBuilder) BuildTypes() ClientBuilder {
 							),
 							jen.Id("labels").Index(jen.Lit("err")).Op("=").Id("errType"),
 							jen.Id("counter").Dot("With").Call(jen.Id("labels")).Dot("Add").Call(jen.Lit(1)),
+						).Else().If(jen.Id("resp").Dot("StatusCode").Op(">").Lit(399)).Block(
+							jen.List(jen.Id("labels").Index(jen.Lit("code"))).Op("=").Qual(strconvPkg, "Itoa").Call(jen.Id("resp").Dot("StatusCode")),
+							jen.Id("labels").Index(jen.Lit("err")).Op("=").Lit("respFailed"),
+							jen.Id("counter").Dot("With").Call(jen.Id("labels")).Dot("Add").Call(jen.Lit(1)),
 						),
+
 						jen.Return(jen.Id("resp"), jen.Err()),
 					),
 			),
