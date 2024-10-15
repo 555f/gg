@@ -58,7 +58,7 @@ func makeEndpointParam(
 		if named, ok := param.Type.(*types.Named); ok {
 			if st, ok := named.Type.(*types.Struct); ok {
 				for _, field := range st.Fields {
-					p, err := makeEndpointParam(epParam, field.Var)
+					p, err := makeEndpointParam(epParam, field)
 					if err != nil {
 						errs = multierror.Append(errs, err)
 						continue

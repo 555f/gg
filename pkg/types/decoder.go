@@ -81,8 +81,8 @@ func (d *Decoder) normalizeTuple(t *stdtypes.Tuple) (any, error) {
 func (d *Decoder) normalizeStruct(t *stdtypes.Struct, isPointer bool) (*Struct, error) {
 	result := &Struct{
 		IsPointer: isPointer,
-		Graph:     make(map[string]*StructFieldType, 32),
-		Fields:    make([]*StructFieldType, 0, t.NumFields()),
+		Graph:     make(map[string]*Var, 32),
+		Fields:    make([]*Var, 0, t.NumFields()),
 	}
 	for i := 0; i < t.NumFields(); i++ {
 		field := t.Field(i)
@@ -91,14 +91,12 @@ func (d *Decoder) normalizeStruct(t *stdtypes.Struct, isPointer bool) (*Struct, 
 		if err != nil {
 			return nil, err
 		}
-		f := &StructFieldType{
-			Var: v,
-		}
+
 		if tags, err := structtag.Parse(t.Tag(i)); err == nil {
-			f.SysTags = tags
+			v.SysTags = tags
 		}
-		result.Graph[v.Name] = f
-		result.Fields = append(result.Fields, f)
+		result.Graph[v.Name] = v
+		result.Fields = append(result.Fields, v)
 	}
 	return result, nil
 }
@@ -227,8 +225,8 @@ func (d *Decoder) normalizeNamed(named *stdtypes.Named, isPointer bool) (nt *Nam
 	if st, ok := nt.Type.(*Struct); ok {
 		isStruct = true
 		for _, f := range st.Fields {
-			if f.Var.Embedded {
-				if named, ok := f.Var.Type.(*Named); ok {
+			if f.Embedded {
+				if named, ok := f.Type.(*Named); ok {
 					nt.Methods = append(nt.Methods, named.Methods...)
 				}
 			}
@@ -282,6 +280,7 @@ func (d *Decoder) normalizeVar(t *stdtypes.Var) (*Var, error) {
 		Title:     title + "\n" + description,
 		Tags:      tags,
 		Position:  d.pkg.Fset.Position(t.Pos()),
+		SysTags:   &structtag.Tags{},
 	}, nil
 }
 

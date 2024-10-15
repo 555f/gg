@@ -306,8 +306,8 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 						if named, ok := param.Type.(*types.Named); ok {
 							for _, f := range named.Struct().Fields {
 								if tag, err := f.SysTags.Get("json"); err == nil {
-									g.Add(makeParam(jen.Dot(param.FldNameWithParent()), f.Var.Type, false, func(v jen.Code) jen.Code {
-										return jen.Id("q").Dot("Add").Call(jen.Lit(tag.Name), gen.FormatValue(jen.Add(v).Dot(f.Var.Name), f.Var.Type, b.qualifier.Qual, b.ep.TimeFormat))
+									g.Add(makeParam(jen.Dot(param.FldNameWithParent()), f.Type, false, func(v jen.Code) jen.Code {
+										return jen.Id("q").Dot("Add").Call(jen.Lit(tag.Name), gen.FormatValue(jen.Add(v).Dot(f.Name), f.Type, b.qualifier.Qual, b.ep.TimeFormat))
 									}))
 								}
 							}

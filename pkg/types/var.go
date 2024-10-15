@@ -2,6 +2,8 @@ package types
 
 import (
 	"go/token"
+
+	"github.com/fatih/structtag"
 )
 
 type Vars []*Var
@@ -48,5 +50,6 @@ type Var struct {
 	Title      string
 	Zero       string
 	Tags       Tags
+	SysTags    *structtag.Tags
 	Position   token.Position
 }

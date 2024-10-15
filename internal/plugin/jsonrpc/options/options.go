@@ -58,14 +58,14 @@ func paramJSONFromType(name string, t any) string {
 			if st := v.Struct(); st != nil {
 				buf.WriteString("{")
 				for i, f := range v.Struct().Fields {
-					name := f.Var.Name
+					name := f.Name
 					if t, err := f.SysTags.Get("json"); err == nil {
 						name = t.Value()
 					}
 					if i > 0 {
 						buf.WriteString(",")
 					}
-					buf.WriteString("  " + paramJSONFromType(name, f.Var.Type))
+					buf.WriteString("  " + paramJSONFromType(name, f.Type))
 				}
 				buf.WriteString("}")
 			} else {

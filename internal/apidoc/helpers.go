@@ -66,12 +66,12 @@ func SchemaTypes(t any, schemas map[string]*Schema, schemasNames map[string]stru
 				Description: t.Description,
 			}
 			for _, field := range st.Fields {
-				name := field.Var.Name
+				name := field.Name
 				if tag, err := field.SysTags.Get("json"); err == nil {
 					name = tag.Value()
 				}
-				paramType, isArray := ParamType(field.Var.Type)
-				title := strings.TrimSpace(field.Var.Title)
+				paramType, isArray := ParamType(field.Type)
+				title := strings.TrimSpace(field.Title)
 				schema.Params = append(schema.Params, Param{
 					Name:     name,
 					Title:    title,
@@ -79,13 +79,13 @@ func SchemaTypes(t any, schemas map[string]*Schema, schemasNames map[string]stru
 					In:       "",
 					Required: false,
 					Array:    isArray,
-					Example:  ExampleValue(field.Var.Type),
+					Example:  ExampleValue(field.Type),
 				})
 
 				schemasNames[schema.Name] = struct{}{}
 				schemas[t.Name] = schema
 
-				SchemaTypes(field.Var.Type, schemas, schemasNames)
+				SchemaTypes(field.Type, schemas, schemasNames)
 			}
 		}
 	}

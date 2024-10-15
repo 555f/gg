@@ -137,7 +137,7 @@ func (b *Builder) schemaByTypeRecursive(title, description string, schema *Schem
 		}
 	case *types.Struct:
 		for _, field := range t.Fields {
-			name := field.Var.Name
+			name := field.Name
 			if tag, err := field.SysTags.Get("json"); err == nil {
 				name = tag.Name
 			}
@@ -148,7 +148,7 @@ func (b *Builder) schemaByTypeRecursive(title, description string, schema *Schem
 				Properties: Properties{},
 			}
 			schema.Properties[name] = filedSchema
-			b.schemaByTypeRecursive(field.Var.Title, "", filedSchema, field.Var.Type)
+			b.schemaByTypeRecursive(field.Title, "", filedSchema, field.Type)
 		}
 	case *types.Map:
 		mapSchema := &Schema{

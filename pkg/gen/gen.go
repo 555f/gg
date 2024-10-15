@@ -226,7 +226,7 @@ func ParseValue(id, assignID Code, op string, t any, qualFunc types.QualFunc, er
 	return s
 }
 
-func ExtractFields(v any) []*types.StructFieldType {
+func ExtractFields(v any) []*types.Var {
 	switch t := v.(type) {
 	default:
 		return nil

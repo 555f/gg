@@ -3,17 +3,15 @@ package types
 import (
 	"container/list"
 	"strings"
-
-	"github.com/fatih/structtag"
 )
 
 type Struct struct {
-	Fields    []*StructFieldType
-	Graph     map[string]*StructFieldType
+	Fields    []*Var
+	Graph     map[string]*Var
 	IsPointer bool
 }
 
-func (s *Struct) Path(v string) (vv *StructFieldType) {
+func (s *Struct) Path(v string) (vv *Var) {
 	graph := s.Graph
 	l := split(v, ".")
 	for e := l.Front(); e != nil; e = e.Next() {
@@ -28,18 +26,13 @@ func (s *Struct) Path(v string) (vv *StructFieldType) {
 		var ok bool
 		vv, ok = graph[part]
 		if ok {
-			graph = graphByType(vv.Var.Type)
+			graph = graphByType(vv.Type)
 		}
 	}
 	return
 }
 
-type StructFieldType struct {
-	Var     *Var
-	SysTags *structtag.Tags
-}
-
-func graphByType(i any) map[string]*StructFieldType {
+func graphByType(i any) map[string]*Var {
 	switch t := i.(type) {
 	default:
 		return nil

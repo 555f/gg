@@ -18,9 +18,113 @@ const (
 	errorPkg   = "errors"
 )
 
-type resultValPath struct {
-	path       []string
-	typeMethod string
+type FlattenPath struct {
+	Name       string
+	Path       *jen.Statement
+	AssignPath *jen.Statement
+	Paths      []PathName
+	Children   []FlattenPath
+	IsArray    bool
+	Method     string
+	Type       any
+}
+
+type PathName struct {
+	name     string
+	jsonName string
+}
+
+func (n PathName) Value() string {
+	return n.name
+}
+
+func (n PathName) JSON() string {
+	if n.jsonName == "" {
+		return n.name
+	}
+	return n.jsonName
+}
+
+type FlattenProcessor struct {
+	allPaths    []FlattenPath
+	currentPath []PathName
+}
+
+func (p *FlattenProcessor) varsByType(t any) (vars types.Vars) {
+	switch t := t.(type) {
+	case *types.Struct:
+		for _, f := range t.Fields {
+			vars = append(vars, f)
+		}
+		return vars
+	case *types.Named:
+		return p.varsByType(t.Type)
+	}
+	return nil
+}
+
+func (p *FlattenProcessor) flattenVar(v *types.Var) {
+	var jsonName string
+	if tag, err := v.SysTags.Get("json"); err == nil {
+		jsonName = tag.Name
+	}
+	p.currentPath = append(p.currentPath, PathName{name: v.Name, jsonName: jsonName})
+	vars := p.varsByType(v.Type)
+	if len(vars) == 0 {
+
+		var (
+			children []FlattenPath
+			isArray  bool
+			method   string
+		)
+
+		if s, ok := v.Type.(*types.Slice); ok {
+			isArray = true
+			for _, v := range p.varsByType(s.Value) {
+				children = append(children, new(FlattenProcessor).Flatten(v)...)
+			}
+			method = methodByType(s.Value)
+		} else {
+			method = methodByType(v.Type)
+		}
+
+		currentPath := make([]PathName, len(p.currentPath))
+		copy(currentPath, p.currentPath)
+
+		assignPath := jen.Id("Get").Call(jen.Lit(currentPath[0].JSON())).Do(func(s *jen.Statement) {
+			for i := 1; i < len(currentPath); i++ {
+				s.Dot("Get").Call(jen.Lit(currentPath[i].JSON()))
+			}
+		})
+
+		path := jen.Id(currentPath[0].Value()).Do(func(s *jen.Statement) {
+			for i := 1; i < len(currentPath); i++ {
+				s.Dot(currentPath[i].Value())
+			}
+		})
+
+		p.allPaths = append(p.allPaths, FlattenPath{
+			Name:       v.Name,
+			Paths:      currentPath,
+			Children:   children,
+			Path:       path,
+			AssignPath: assignPath,
+			Method:     method,
+			IsArray:    isArray,
+			Type:       v.Type,
+		})
+	} else {
+		for _, v := range vars {
+			p.flattenVar(v)
+		}
+	}
+
+	p.currentPath = p.currentPath[:len(p.currentPath)-1]
+}
+
+func (p *FlattenProcessor) Flatten(v *types.Var) []FlattenPath {
+	p.flattenVar(v)
+	return p.allPaths
 }
 
 type Plugin struct {
@@ -73,46 +177,12 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 			if st := t.Struct(); st != nil {
 				return jen.Map(jen.String()).Interface().ValuesFunc(func(g *jen.Group) {
 					for _, f := range st.Fields {
-						g.Lit(f.Var.Name).Op(":").Add(makeParamValue(parentName+"."+f.Var.Name, f.Var.Type))
+						g.Lit(f.Name).Op(":").Add(makeParamValue(parentName+"."+f.Name, f.Type))
 					}
 				})
 			}
 		}
 		return jen.Nil()
-	}
-
-	var makePathRecursive func(v *types.Var, path []string, cb func([]string, string))
-	makePathRecursive = func(v *types.Var, path []string, cb func([]string, string)) {
-		if named, ok := v.Type.(*types.Named); ok {
-			if st := named.Struct(); st != nil {
-				for _, f := range st.Fields {
-					makePathRecursive(f.Var, append(path, f.Var.Name), cb)
-				}
-			}
-		} else if t, ok := v.Type.(*types.Basic); ok {
-			var typeMethod string
-			switch {
-			case t.IsBool():
-				typeMethod = "Bool"
-			case t.IsInteger():
-				typeMethod = "Int"
-			case t.IsFloat():
-				typeMethod = "Float"
-			case t.IsString():
-				typeMethod = "String"
-			}
-			cb(path, typeMethod)
-		}
-	}
-
-	makePath := func(v *types.Var) (paths []resultValPath) {
-		makePathRecursive(v, nil, func(path []string, typeMethod string) {
-			paths = append(paths, resultValPath{
-				path:       path,
-				typeMethod: typeMethod,
-			})
-		})
-		return
 	}
 
 	for _, iface := range p.ctx.Interfaces {
@@ -160,6 +230,39 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 						g.Id(p.Name + "Req")
 					}
 				})
+
+				var assignFunc func(nestedIndex int, g *jen.Group, p FlattenPath, parentPath, parentAssignPath *jen.Statement)
+				assignFunc = func(nestedIndex int, g *jen.Group, p FlattenPath, parentPath *jen.Statement, parentAssignPath *jen.Statement) {
+
+					if p.IsArray {
+						indexName := makeIndexName(nestedIndex)
+
+						g.If(jen.Op("!").Id("args").Index(jen.Lit(0)).Op(".").Add(parentAssignPath.Clone().Dot("IsNull").Call())).BlockFunc(func(g *jen.Group) {
+
+							g.Add(parentPath).Op("=").Make(types.Convert(p.Type, clientFile.Import), jen.Id("args").Index(jen.Lit(0)).Op(".").Add(parentAssignPath.Clone().Dot("Length").Call()))
+
+							g.For(
+								jen.Id(indexName).Op(":=").Lit(0),
+								jen.Id(indexName).Op("<").Len(parentPath),
+								jen.Id(indexName).Op("++"),
+							).BlockFunc(func(g *jen.Group) {
+								for _, child := range p.Children {
+									path := jen.Add(parentPath).Index(jen.Id(indexName)).Op(".").Add(child.Path)
+									assignPath := jen.Add(parentAssignPath).Op(".").Id("Index").Call(jen.Id(indexName)).Op(".").Add(child.AssignPath)
+									if child.IsArray {
+										assignFunc(nestedIndex+1, g, child, path, assignPath)
+									} else {
+										g.Add(path).Op("=").Id("args").Index(jen.Lit(0)).Op(".").Add(assignPath).Dot(child.Method).Call()
+									}
+								}
+							})
+						})
+					} else {
+						g.Add(p.Path).Op("=").Add(p.AssignPath).Dot(p.Method).Call()
+					}
+
+				}
+
 				g.Id("thenFunc").Op(":=").Qual(jsPkg, "FuncOf").Call(
 					jen.Func().Params(
 						jen.Id("this").Qual(jsPkg, "Value"),
@@ -169,23 +272,16 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 							if r.IsError {
 								continue
 							}
-							g.Var().Add(types.Convert(r, clientFile.Import))
+							g.Add(types.NewConstruct(clientFile.Import).Convert(r))
 						}
+
 						for _, r := range method.Sig.Results {
 							if r.IsError {
 								continue
 							}
-							for _, p := range makePath(r) {
-								g.Id(r.Name).Do(func(s *jen.Statement) {
-									for _, fldName := range p.path {
-										s.Dot(fldName)
-									}
-								}).Op("=").Id("args").Index(jen.Lit(0)).Dot("Get").Call(jen.Lit(r.Name)).Do(func(s *jen.Statement) {
-									for _, fldName := range p.path {
-										s.Dot("Get").Call(jen.Lit(fldName))
-									}
-									s.Dot(p.typeMethod).Call()
-								})
+							allPaths := new(FlattenProcessor).Flatten(r)
+							for _, p := range allPaths {
+								assignFunc(0, g, p, p.Path, p.AssignPath)
 							}
 						}
 						g.Id("cb").CallFunc(func(g *jen.Group) {
@@ -298,7 +394,7 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 	}
 
 	for _, iface := range p.ctx.Interfaces {
-		serverFile.Func().Id("SetupRoutes"+iface.Named.Name).Params(
+		serverFile.Func().Id("Setup"+iface.Named.Name).Params(
 			jen.Id("svc").Do(serverFile.Qual(iface.Named.Pkg.Path, iface.Named.Name)),
 			jen.Id("w").Id("binder"),
 			jen.Id("opts").Op("...").Id(iface.Named.Name+"Option"),
@@ -380,7 +476,7 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 }
 
 func (p *Plugin) ServerOutput() string {
-	return filepath.Join(p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("output", "internal/handler/handler.go"))
+	return filepath.Join(p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("output", "internal/transport/handler.go"))
 }
 
 func (p *Plugin) ClientOutput() string {

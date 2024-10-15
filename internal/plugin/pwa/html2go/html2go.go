@@ -191,7 +191,7 @@ func (hg *HTML2Go) recursiveParse(t antlr.Tree, nested int) (codes []jen.Code) {
 
 					if f := hg.s.Type.Path(path); f != nil {
 						var isSlice bool
-						t := f.Var.Type
+						t := f.Type
 						switch tt := t.(type) {
 						case *types.Slice:
 							t = tt.Value
@@ -291,7 +291,7 @@ func (hg *HTML2Go) recursiveParse(t antlr.Tree, nested int) (codes []jen.Code) {
 
 				if isStructTag {
 					if f := st.Type.Path(at.fieldName); f != nil {
-						tt := f.Var.Type
+						tt := f.Type
 						if t, ok := tt.(*types.Slice); ok {
 							tt = t.Value
 						}
@@ -485,7 +485,7 @@ func (hg *HTML2Go) recursiveParse(t antlr.Tree, nested int) (codes []jen.Code) {
 					slice := strings.TrimSpace(vRange[idx+2:])
 
 					if f := hg.s.Type.Path(slice); f != nil {
-						switch f.Var.Type.(type) {
+						switch f.Type.(type) {
 						case *types.Array, *types.Slice:
 							tag = jen.Qual(pkgApp, "Range").Call(jen.Id("c").Dot(slice)).Dot("Slice").Call(
 								jen.Func().Params(jen.Id(key).Int()).Qual(pkgApp, "UI").Block(

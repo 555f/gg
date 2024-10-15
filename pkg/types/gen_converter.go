@@ -12,7 +12,11 @@ type Converter struct {
 type QualFunc func(pkgPath, name string) func(s *jen.Statement)
 
 func Convert(t any, qual QualFunc) (s *jen.Statement) {
-	return newConverter(qual).Convert(t)
+	return NewConvert(qual).Convert(t)
+}
+
+func NewConvert(qual QualFunc) *Converter {
+	return &Converter{qual: qual}
 }
 
 func (c *Converter) OnlySign() *Converter {
@@ -94,14 +98,10 @@ func (c *Converter) Convert(t any) (s *jen.Statement) {
 		}
 		s.Chan()
 		if t.Dir == SendOnly {
-			s.Op("<-")
+			s.Op("->")
 		}
 		s.Add(c.Convert(t.Type))
 	}
 
 	return
-}
-
-func newConverter(qual QualFunc) *Converter {
-	return &Converter{qual: qual}
 }

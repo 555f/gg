@@ -173,7 +173,7 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 			fn(t)
 
 			for _, sf := range s.Fields {
-				walkType(sf.Var.Type, visited, fn)
+				walkType(sf.Type, visited, fn)
 			}
 		case *types.Chan:
 			walkType(t.Type, visited, fn)
@@ -221,11 +221,11 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 			var values []jen.Code
 			if s := t.Struct(); s != nil {
 				for _, sf := range s.Fields {
-					pbName := strcase.ToCamel(strcase.ToLowerCamel(sf.Var.Name))
+					pbName := strcase.ToCamel(strcase.ToLowerCamel(sf.Name))
 					values = append(
 						values,
-						jen.Id(sf.Var.Name).Op(":").Add(
-							protobufToStuctRecursive(*jen.Add(path...).Dot(pbName), sf.Var.Type, qualFn),
+						jen.Id(sf.Name).Op(":").Add(
+							protobufToStuctRecursive(*jen.Add(path...).Dot(pbName), sf.Type, qualFn),
 						),
 					)
 				}
@@ -295,11 +295,11 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 			var values []jen.Code
 			if s := t.Struct(); s != nil {
 				for _, sf := range s.Fields {
-					pbName := strcase.ToCamel(strcase.ToLowerCamel(sf.Var.Name))
+					pbName := strcase.ToCamel(strcase.ToLowerCamel(sf.Name))
 					values = append(
 						values,
 						jen.Id(pbName).Op(":").Add(
-							structToProtobufRecursive(*jen.Add(path...).Dot(sf.Var.Name), sf.Var.Type, qualFn),
+							structToProtobufRecursive(*jen.Add(path...).Dot(sf.Name), sf.Type, qualFn),
 						),
 					)
 				}
@@ -330,7 +330,7 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 				walkType(p.Type, visited, func(named *types.Named) {
 					var values []pgen.Code
 					for i, sf := range named.Struct().Fields {
-						values = append(values, pgen.Id(goType2GRPC(sf.Var.Type)).Id(strcase.ToLowerCamel(sf.Var.Name)).Op("=").Id(fmt.Sprint(i+1)))
+						values = append(values, pgen.Id(goType2GRPC(sf.Type)).Id(strcase.ToLowerCamel(sf.Name)).Op("=").Id(fmt.Sprint(i+1)))
 					}
 					pbf.Message().Id(named.Name).Values(values...)
 				})

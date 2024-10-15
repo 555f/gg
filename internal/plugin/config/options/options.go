@@ -63,43 +63,43 @@ func Decode(st *gg.Struct) (config Config, errs error) {
 	return
 }
 
-func DecodeField(parent *ConfigField, f *types.StructFieldType) (cf ConfigField, errs error) {
+func DecodeField(parent *ConfigField, f *types.Var) (cf ConfigField, errs error) {
 	cf.Parent = parent
-	cf.FieldName = f.Var.Name
-	cf.Type = f.Var.Type
-	cf.Name = f.Var.Name
-	cf.Description = strings.ReplaceAll(strings.Trim(f.Var.Title, "\n"), "\n", "<br/>")
+	cf.FieldName = f.Name
+	cf.Type = f.Type
+	cf.Name = f.Name
+	cf.Description = strings.ReplaceAll(strings.Trim(f.Title, "\n"), "\n", "<br/>")
 
-	if t, ok := f.Var.Tags.Get("cfg-name"); ok {
+	if t, ok := f.Tags.Get("cfg-name"); ok {
 		cf.Name = t.Value
 	}
-	if _, ok := f.Var.Tags.Get("cfg-required"); ok {
+	if _, ok := f.Tags.Get("cfg-required"); ok {
 		cf.Required = true
 	}
-	if t, ok := f.Var.Tags.Get("cfg-dev-value"); ok {
+	if t, ok := f.Tags.Get("cfg-dev-value"); ok {
 		cf.DevValue = t.Value
 	}
-	if _, ok := f.Var.Tags.Get("cfg-use-zero"); ok {
+	if _, ok := f.Tags.Get("cfg-use-zero"); ok {
 		cf.UseZero = true
 	}
 
 	cf.Name = strings.ToUpper(strcase.ToScreamingSnake(cf.Name))
-	cf.Zero = f.Var.Zero
+	cf.Zero = f.Zero
 
-	for _, structField := range gen.ExtractFields(f.Var.Type) {
-		switch t := structField.Var.Type.(type) {
+	for _, structField := range gen.ExtractFields(f.Type) {
+		switch t := structField.Type.(type) {
 		case *types.Named:
 			switch t.Pkg.Path {
 			case "net/url":
 				if t.Name == "URL" && !t.IsPointer {
-					errs = multierror.Append(errs, errors.Error("invalid net/url.URL type, there must be a pointer", structField.Var.Position))
+					errs = multierror.Append(errs, errors.Error("invalid net/url.URL type, there must be a pointer", structField.Position))
 				}
 			}
 		}
 
 		pf, err := DecodeField(&cf, structField)
 		if err != nil {
-			return ConfigField{}, errors.Error(err.Error(), structField.Var.Position)
+			return ConfigField{}, errors.Error(err.Error(), structField.Position)
 		}
 		cf.Fields = append(cf.Fields, pf)
 	}

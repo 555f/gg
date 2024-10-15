@@ -49,7 +49,7 @@ func load(f *file.GoFile, structMap map[string]*gg.Struct, s *gg.Struct, n *html
 					isFoundTag = true
 				} else if p := s.Type.Path(strcase.ToLowerCamel(c.Data)); p != nil {
 
-					switch tt := p.Var.Type.(type) {
+					switch tt := p.Type.(type) {
 					case *types.Named:
 						if iface := tt.Interface(); iface != nil {
 							methods = iface.Methods
@@ -268,7 +268,7 @@ func load(f *file.GoFile, structMap map[string]*gg.Struct, s *gg.Struct, n *html
 				if varPath != "" {
 					p := s.Type.Path(varPath)
 					if p != nil {
-						t := p.Var.Type
+						t := p.Type
 						switch tt := t.(type) {
 						case *types.Slice:
 							t = tt.Value

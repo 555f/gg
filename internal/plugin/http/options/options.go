@@ -114,11 +114,11 @@ func paramJSONFromType(name string, t any) string {
 			if st := v.Struct(); st != nil {
 				buf.WriteString("{\n")
 				for _, f := range v.Struct().Fields {
-					name := f.Var.Name
+					name := f.Name
 					if t, err := f.SysTags.Get("json"); err == nil {
 						name = t.Value()
 					}
-					buf.WriteString("  " + paramJSONFromType(name, f.Var.Type))
+					buf.WriteString("  " + paramJSONFromType(name, f.Type))
 				}
 				buf.WriteString("  }")
 			} else {
@@ -306,14 +306,14 @@ func DecodeErrorWrapper(errorWrapperPath, defaultErrorPath string, structs []*gg
 		Default: defaultErrorStruct,
 	}
 	for _, field := range defaultErrorStruct.Type.Fields {
-		if b, ok := field.Var.Type.(*types.Basic); ok && field.Var.Name == "StatusCode" && b.IsInt() {
+		if b, ok := field.Type.(*types.Basic); ok && field.Name == "StatusCode" && b.IsInt() {
 			errorWrapper.HasStatusCode = true
 			break
 		}
 	}
 	for _, field := range errorWrapperStruct.Type.Fields {
-		if t, ok := field.Var.Tags.Get("http-error-interface"); ok {
-			name := strcase.ToLowerCamel(field.Var.Name)
+		if t, ok := field.Tags.Get("http-error-interface"); ok {
+			name := strcase.ToLowerCamel(field.Name)
 			if jsonTag, err := field.SysTags.Get("json"); err == nil {
 				name = jsonTag.Name
 			}
@@ -326,8 +326,8 @@ func DecodeErrorWrapper(errorWrapperPath, defaultErrorPath string, structs []*gg
 				continue
 			}
 			errorWrapper.Fields = append(errorWrapper.Fields, ErrorWrapperField{
-				FldName:    field.Var.Name,
-				FldType:    field.Var.Type,
+				FldName:    field.Name,
+				FldType:    field.Type,
 				Name:       name,
 				Interface:  t.Value,
 				MethodName: methodName,
