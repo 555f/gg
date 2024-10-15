@@ -33,6 +33,7 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 		jen.Lit("scopeName"),
 		jen.Lit("methodNameFull"),
 		jen.Lit("methodNameShort"),
+		jen.Lit("err"),
 	)
 
 	f.Type().Id(promCollectorName).Struct(
