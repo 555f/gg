@@ -142,9 +142,7 @@ func SetupRoutesProfileController(svc controller.ProfileController, r v5.Router,
 				o.errorEncoder(w, err)
 				return
 			}
-			req.FirstName = r.Form.Get("firstName")
-			req.LastName = r.Form.Get("lastName")
-			req.Address = r.Form.Get("address")
+
 			req.Zip, err = gostrings.ParseInt[int](r.Form.Get("zip"), 10, 64)
 			if err != nil {
 				o.errorEncoder(w, err)
@@ -156,9 +154,7 @@ func SetupRoutesProfileController(svc controller.ProfileController, r v5.Router,
 				o.errorEncoder(w, err)
 				return
 			}
-			req.FirstName = r.FormValue("firstName")
-			req.LastName = r.FormValue("lastName")
-			req.Address = r.FormValue("address")
+
 			req.Zip, err = gostrings.ParseInt[int](r.FormValue("zip"), 10, 64)
 			if err != nil {
 				o.errorEncoder(w, err)
@@ -202,13 +198,13 @@ func SetupRoutesProfileController(svc controller.ProfileController, r v5.Router,
 		idPathParam := v5.URLParam(r, "id")
 		var paramid string
 		if idPathParam != "" {
-			paramid = idPathParam
 		}
 		q := r.URL.Query()
 		onlyCloudQueryParam := q.Get("onlyCloud")
 		var paramonlyCloud bool
 		if onlyCloudQueryParam != "" {
-			paramonlyCloud, err = gostrings.ParseBool(onlyCloudQueryParam)
+
+			paramonlyCloud, err = gostrings.ParseBool[bool](onlyCloudQueryParam)
 			if err != nil {
 				o.errorEncoder(w, err)
 				return
@@ -240,7 +236,6 @@ func SetupRoutesProfileController(svc controller.ProfileController, r v5.Router,
 		idPathParam := v5.URLParam(r, "id")
 		var paramid string
 		if idPathParam != "" {
-			paramid = idPathParam
 		}
 		err = svc.Remove(paramid)
 		if err != nil {

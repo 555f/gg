@@ -1,6 +1,8 @@
 package types
 
 import (
+	"strings"
+
 	"github.com/dave/jennifer/jen"
 )
 
@@ -27,6 +29,23 @@ func (c *Converter) OnlySign() *Converter {
 func (c *Converter) Convert(t any) (s *jen.Statement) {
 	s = new(jen.Statement)
 	switch t := t.(type) {
+	case *Struct:
+		s.StructFunc(func(g *jen.Group) {
+			for _, f := range t.Fields {
+				tags := map[string]string{}
+
+				for _, t := range f.SysTags.Tags() {
+					value := t.Name
+					if len(t.Options) > 0 {
+						value += "," + strings.Join(t.Options, ",")
+					}
+
+					tags[t.Key] = t.Name
+				}
+
+				g.Id(f.Name).Add(c.Convert(f.Type)).Tag(tags)
+			}
+		})
 	case *Interface:
 		s.Interface()
 	case *Map:
@@ -77,7 +96,7 @@ func (c *Converter) Convert(t any) (s *jen.Statement) {
 		if t.IsPointer {
 			s.Op("*")
 		}
-		s.Id(t.Name)
+		s.Id(t.Name())
 	case *Named:
 		if t.IsPointer {
 			s.Op("*")

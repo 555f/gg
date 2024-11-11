@@ -81,7 +81,8 @@ type Server struct {
 }
 
 type Client struct {
-	Enable bool
+	Enable     bool
+	EnableTest bool
 }
 
 type OpenAPI struct {
@@ -357,9 +358,10 @@ func Decode(iface *gg.Interface, isCheckStrict bool) (opts Iface, errs error) {
 			errs = multierror.Append(errs, errors.Error("the transport type is not set, use the http-type tag to set it, valid values: echo, chi, mux", iface.Named.Position))
 		}
 	}
-	if _, ok := iface.Named.Tags.Get("http-client"); ok {
-		opts.Client.Enable = true
-	}
+
+	opts.Client.Enable = iface.Named.Tags.Has("http-client")
+	opts.Client.EnableTest = opts.Client.Enable && iface.Named.Tags.Has("http-client-test")
+
 	if _, ok := iface.Named.Tags.Get("http-openapi"); ok {
 		opts.Openapi.Enable = true
 	}

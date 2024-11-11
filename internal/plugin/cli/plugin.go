@@ -10,6 +10,7 @@ import (
 	"github.com/555f/gg/pkg/gg"
 	"github.com/555f/gg/pkg/strcase"
 	"github.com/555f/gg/pkg/types"
+	"github.com/555f/gg/pkg/typetransform"
 	"github.com/dave/jennifer/jen"
 )
 
@@ -118,12 +119,25 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 							for _, p := range paramArgs {
 								t, _ := p.Tags.Get("cli-arg")
 								argIndex, _ := strconv.ParseInt(t.Value, 10, 64)
-								g.Add(gen.ParseValue(jen.Id(flagCommandName).Dot("Arg").Call(jen.Lit(int(argIndex))), jen.Id(p.Name), "=", p.Type, f.Import, func() jen.Code {
-									return jen.Do(gen.CheckErr(
+
+								transCode, _, _ := typetransform.For(p.Type).
+									SetAssignID(jen.Id(p.Name)).
+									SetValueID(jen.Id(flagCommandName).Dot("Arg").Call(jen.Lit(int(argIndex)))).
+									SetQualFunc(f.Import).
+									SetOp("=").
+									SetErrStatements(
 										jen.Qual(fmtPkg, "Println").Call(jen.Err()),
 										jen.Return(),
-									))
-								}))
+									).Parse()
+
+								g.Add(transCode)
+
+								// g.Add(gen.ParseValue(jen.Id(flagCommandName).Dot("Arg").Call(jen.Lit(int(argIndex))), jen.Id(p.Name), "=", p.Type, f.Import, func() jen.Code {
+								// 	return jen.Do(gen.CheckErr(
+								// 		jen.Qual(fmtPkg, "Println").Call(jen.Err()),
+								// 		jen.Return(),
+								// 	))
+								// }))
 							}
 						}
 

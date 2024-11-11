@@ -105,11 +105,11 @@ func (b *BaseClientBuilder) BuildTypes() ClientBuilder {
 									),
 								),
 							),
-							jen.Id("labels").Index(jen.Lit("err")).Op("=").Id("errType"),
+							jen.Id("labels").Index(jen.Lit("errorCode")).Op("=").Id("errType"),
 							jen.Id("counter").Dot("With").Call(jen.Id("labels")).Dot("Add").Call(jen.Lit(1)),
 						).Else().If(jen.Id("resp").Dot("StatusCode").Op(">").Lit(399)).Block(
 							jen.List(jen.Id("labels").Index(jen.Lit("code"))).Op("=").Qual(strconvPkg, "Itoa").Call(jen.Id("resp").Dot("StatusCode")),
-							jen.Id("labels").Index(jen.Lit("err")).Op("=").Lit("respFailed"),
+							jen.Id("labels").Index(jen.Lit("errorCode")).Op("=").Lit("respFailed"),
 							jen.Id("counter").Dot("With").Call(jen.Id("labels")).Dot("Add").Call(jen.Lit(1)),
 						),
 

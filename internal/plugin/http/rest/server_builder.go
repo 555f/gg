@@ -41,12 +41,10 @@ func (b *BaseServerBuilder) Build() jen.Code {
 				g.If(jen.List(jen.Id("headerer"), jen.Id("ok")).Op(":=").Err().Assert(jen.Interface(jen.Id("Headers").Params().Qual("net/http", "Header"))), jen.Id("ok")).Block(
 					jen.For(jen.List(jen.Id("k"), jen.Id("values"))).Op(":=").Range().Id("headerer").Dot("Headers").Call().Block(
 						jen.For(jen.List(jen.Id("_"), jen.Id("v"))).Op(":=").Range().Id("values").Block(
-
 							jen.Add(handleStrategy.SetHeader(jen.Id("k"), jen.Id("v"))),
 						),
 					),
 				)
-
 				if b.errorWrapper != nil {
 					errorWrapperName := strcase.ToLowerCamel(b.errorWrapper.Struct.Named.Name)
 					g.Id(errorWrapperName).Op(":=").Do(b.qualifier.Qual(b.errorWrapper.Struct.Named.Pkg.Path, b.errorWrapper.Struct.Named.Name)).Values()

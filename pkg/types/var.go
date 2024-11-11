@@ -3,6 +3,7 @@ package types
 import (
 	"go/token"
 
+	"github.com/dave/jennifer/jen"
 	"github.com/fatih/structtag"
 )
 
@@ -48,8 +49,12 @@ type Var struct {
 	IsString   bool
 	Type       any
 	Title      string
-	Zero       string
 	Tags       Tags
 	SysTags    *structtag.Tags
 	Position   token.Position
+}
+
+type Zero struct {
+	Jen jen.Code
+	JS  string
 }

@@ -2,7 +2,7 @@ package types
 
 import (
 	"go/ast"
-	"go/types"
+	stdtypes "go/types"
 
 	"golang.org/x/tools/go/packages"
 )
@@ -20,26 +20,27 @@ func traverseDecls(packages []*packages.Package, c func(pkg *packages.Package, f
 	return nil
 }
 
-func zeroValue(t types.Type) string {
-	switch u := t.Underlying().(type) {
-	case *types.Basic:
-		if u.Kind() == types.UnsafePointer {
+func ZeroValueJS(t any) string {
+	switch u := t.(type) {
+	case *Basic:
+		if u.Kind == stdtypes.UnsafePointer {
 			return "nil"
 		}
-		info := u.Info()
 		switch {
-		case info&types.IsBoolean != 0:
+		case u.IsBool():
 			return "false"
-		case info&(types.IsFloat|types.IsComplex) != 0:
+		case u.IsFloat():
 			return "0.0"
-		case info&(types.IsInteger|types.IsUnsigned|types.IsUntyped) != 0:
+		case u.IsInteger():
 			return "0"
-		case info&types.IsString != 0:
+		case u.IsString():
 			return `""`
 		}
-	case *types.Struct:
+	case *Named:
 		return "{}"
-	case *types.Chan, *types.Interface, *types.Map, *types.Pointer, *types.Signature, *types.Slice, *types.Array:
+	case *Struct:
+		return "{}"
+	case *Chan, *Interface, *Map, *Sign, *Slice, *Array:
 		return "nil"
 	}
 	panic("unreachable")

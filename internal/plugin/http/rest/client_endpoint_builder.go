@@ -7,6 +7,7 @@ import (
 	"github.com/555f/gg/pkg/gen"
 	"github.com/555f/gg/pkg/strcase"
 	"github.com/555f/gg/pkg/types"
+	"github.com/555f/gg/pkg/typetransform"
 	"github.com/dave/jennifer/jen"
 )
 
@@ -241,7 +242,7 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 						if len(b.ep.BodyParams) == 1 && b.ep.NoWrapRequest {
 							g.Var().Id("body").Add(types.Convert(b.ep.BodyParams[0].Type, b.qualifier.Qual))
 						} else {
-							g.Var().Id("body").StructFunc(gen.WrapResponse(b.ep.WrapRequest, func(g *jen.Group) {
+							g.Var().Id("body").StructFunc(wrapResponse(b.ep.WrapRequest, func(g *jen.Group) {
 								for _, param := range b.ep.BodyParams {
 									jsonTag := param.Name
 									fld := g.Id(param.FldName.Camel())
@@ -288,7 +289,12 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 						for _, param := range b.ep.BodyParams {
 
 							g.Add(makeParam(jen.Dot(param.FldNameWithParent()), param.Type, param.Required, func(v jen.Code) jen.Code {
-								return jen.Id("body").Dot("Add").Call(jen.Lit(param.Name), gen.FormatValue(v, param.Type, b.qualifier.Qual, b.ep.TimeFormat))
+								transCode, paramID, _ := typetransform.For(param.Type).SetValueID(v).SetQualFunc(b.qualifier.Qual).Format()
+								if transCode != nil {
+									g.Add(transCode)
+								}
+
+								return jen.Id("body").Dot("Add").Call(jen.Lit(param.Name), paramID)
 							}))
 
 						}
@@ -307,13 +313,23 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 							for _, f := range named.Struct().Fields {
 								if tag, err := f.SysTags.Get("json"); err == nil {
 									g.Add(makeParam(jen.Dot(param.FldNameWithParent()), f.Type, false, func(v jen.Code) jen.Code {
-										return jen.Id("q").Dot("Add").Call(jen.Lit(tag.Name), gen.FormatValue(jen.Add(v).Dot(f.Name), f.Type, b.qualifier.Qual, b.ep.TimeFormat))
+										transCode, paramID, _ := typetransform.For(param.Type).SetValueID(v).SetQualFunc(b.qualifier.Qual).Format()
+										if transCode != nil {
+											g.Add(transCode)
+										}
+
+										return jen.Id("q").Dot("Add").Call(jen.Lit(tag.Name), paramID)
 									}))
 								}
 							}
 						} else {
 							g.Add(makeParam(jen.Dot(param.FldNameWithParent()), param.Type, param.Required, func(v jen.Code) jen.Code {
-								return jen.Id("q").Dot("Add").Call(jen.Lit(param.Name), gen.FormatValue(v, param.Type, b.qualifier.Qual, b.ep.TimeFormat))
+								transCode, paramID, _ := typetransform.For(param.Type).SetValueID(v).SetQualFunc(b.qualifier.Qual).Format()
+								if transCode != nil {
+									g.Add(transCode)
+								}
+
+								return jen.Id("q").Dot("Add").Call(jen.Lit(param.Name), paramID)
 							}))
 						}
 					}
@@ -327,14 +343,26 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 
 				for _, param := range b.ep.HeaderParams {
 					g.Add(makeParam(jen.Dot(param.FldNameWithParent()), param.Type, param.Required, func(v jen.Code) jen.Code {
-						return jen.Id("req").Dot("Header").Dot("Add").Call(jen.Lit(param.Name), gen.FormatValue(v, param.Type, b.qualifier.Qual, b.ep.TimeFormat))
+						transCode, paramID, _ := typetransform.For(param.Type).SetValueID(v).SetQualFunc(b.qualifier.Qual).Format()
+						if transCode != nil {
+							g.Add(transCode)
+						}
+
+						return jen.Id("req").Dot("Header").Dot("Add").Call(jen.Lit(param.Name), paramID)
 					}))
 				}
 				for _, param := range b.ep.CookieParams {
+
 					g.Add(makeParam(jen.Dot(param.FldNameWithParent()), param.Type, param.Required, func(v jen.Code) jen.Code {
+
+						transCode, paramID, _ := typetransform.For(param.Type).SetValueID(v).SetQualFunc(b.qualifier.Qual).Format()
+						if transCode != nil {
+							g.Add(transCode)
+						}
+
 						return jen.Id("req").Dot("AddCookie").Call(jen.Op("&").Qual(httpPkg, "Cookie").Values(
 							jen.Id("Name").Op(":").Lit(param.Name),
-							jen.Id("Value").Op(":").Add(gen.FormatValue(v, param.Type, b.qualifier.Qual, b.ep.TimeFormat)),
+							jen.Id("Value").Op(":").Add(paramID),
 						))
 					}))
 				}
@@ -400,7 +428,7 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 				case len(b.ep.BodyResults) > 0:
 
 					if !b.ep.NoWrapResponse {
-						g.Var().Id("respBody").StructFunc(gen.WrapResponse(b.ep.WrapResponse, func(g *jen.Group) {
+						g.Var().Id("respBody").StructFunc(wrapResponse(b.ep.WrapResponse, func(g *jen.Group) {
 							for _, result := range b.ep.BodyResults {
 								g.Id(result.FldName.Camel()).Add(types.Convert(result.Type, b.qualifier.Qual)).Tag(map[string]string{"json": result.Name})
 							}

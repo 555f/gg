@@ -40,12 +40,9 @@ func (d *Decoder) normalizeModule(module *stdpackages.Module) (*Module, error) {
 }
 
 func (d *Decoder) normalizeBasic(t *stdtypes.Basic, isPointer bool) (*Basic, error) {
-
 	return &Basic{
-		Name:      t.Name(),
 		IsPointer: isPointer,
 		Kind:      t.Kind(),
-		Zero:      zeroValue(t),
 	}, nil
 }
 
@@ -153,9 +150,7 @@ func (d *Decoder) normalizeArray(val stdtypes.Type, len int64, isPointer bool) (
 }
 
 func (d *Decoder) normalizeInterface(t *stdtypes.Interface) (*Interface, error) {
-	it := &Interface{
-		origin: t,
-	}
+	it := &Interface{}
 	for i := 0; i < t.NumMethods(); i++ {
 		method, err := d.normalizeFunc(t.Method(i))
 		if err != nil {
@@ -202,7 +197,6 @@ func (d *Decoder) normalizeNamed(named *stdtypes.Named, isPointer bool) (nt *Nam
 		return nil, err
 	}
 	nt = &Named{
-		origin:      named,
 		Pkg:         pkg,
 		Title:       title,
 		Description: description,
@@ -276,7 +270,6 @@ func (d *Decoder) normalizeVar(t *stdtypes.Var) (*Var, error) {
 		IsPointer: isPointer,
 		IsString:  IsString(varType),
 		Type:      varType,
-		Zero:      zeroValue(t.Type().Underlying()),
 		Title:     title + "\n" + description,
 		Tags:      tags,
 		Position:  d.pkg.Fset.Position(t.Pos()),

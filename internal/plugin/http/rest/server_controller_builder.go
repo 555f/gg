@@ -5,6 +5,7 @@ import (
 	"github.com/555f/gg/pkg/gen"
 	"github.com/555f/gg/pkg/strcase"
 	"github.com/555f/gg/pkg/types"
+	"github.com/555f/gg/pkg/typetransform"
 	"github.com/dave/jennifer/jen"
 )
 
@@ -157,12 +158,22 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 													for _, p := range ep.BodyParams {
 														_, typ := b.handlerStrategy.FormParam(p.Name)
 
-														g.Add(gen.ParseValue(typ, jen.Add(bodyParams).Dot(p.FldName.Camel()), "=", p.Type, b.qualifier.Qual, func() jen.Code {
-															return jen.Do(gen.CheckErr(
+														transCode, _, _ := typetransform.For(p.Type).
+															SetAssignID(jen.Add(bodyParams).Dot(p.FldName.Camel())).
+															SetValueID(typ).
+															SetOp("=").SetQualFunc(b.qualifier.Qual).
+															SetErrStatements(
 																jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.RespArgName()), jen.Err()),
 																jen.Return(),
-															))
-														}))
+															).Parse()
+														g.Add(transCode)
+
+														// g.Add(gen.ParseValue(typ, jen.Add(bodyParams).Dot(p.FldName.Camel()), "=", p.Type, b.qualifier.Qual, func() jen.Code {
+														// 	return jen.Do(gen.CheckErr(
+														// 		jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.RespArgName()), jen.Err()),
+														// 		jen.Return(),
+														// 	))
+														// }))
 													}
 												})
 											case "multipart":
@@ -178,12 +189,23 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 													for _, p := range ep.BodyParams {
 														_, typ := b.handlerStrategy.MultipartFormParam(p.Name)
 
-														g.Add(gen.ParseValue(typ, jen.Add(bodyParams).Dot(p.FldName.Camel()), "=", p.Type, b.qualifier.Qual, func() jen.Code {
-															return jen.Do(gen.CheckErr(
+														transCode, _, _ := typetransform.For(p.Type).
+															SetAssignID(jen.Add(bodyParams).Dot(p.FldName.Camel())).
+															SetValueID(typ).
+															SetOp("=").
+															SetErrStatements(
 																jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.RespArgName()), jen.Err()),
 																jen.Return(),
-															))
-														}))
+															).Parse()
+
+														g.Add(transCode)
+
+														// g.Add(gen.ParseValue(typ, jen.Add(bodyParams).Dot(p.FldName.Camel()), "=", p.Type, b.qualifier.Qual, func() jen.Code {
+														// 	return jen.Do(gen.CheckErr(
+														// 		jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.RespArgName()), jen.Err()),
+														// 		jen.Return(),
+														// 	))
+														// }))
 													}
 												})
 											}
@@ -209,14 +231,23 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 
 								g.Var().Id(paramVarName).Add(types.Convert(p.Type, b.qualifier.Qual))
 
-								g.If(jen.Id(paramName).Op("!=").Lit("")).Block(
-									jen.Add(gen.ParseValue(jen.Id(paramName), jen.Id(paramVarName), "=", p.Type, b.qualifier.Qual, func() jen.Code {
-										return jen.Do(gen.CheckErr(
-											jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.RespArgName()), jen.Err()),
-											jen.Return(),
-										))
-									})),
-								)
+								transCode, _, _ := typetransform.For(p.Type).
+									SetAssignID(jen.Id(paramVarName)).
+									SetValueID(jen.Id(paramName)).
+									SetOp("=").
+									SetErrStatements(
+										jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.RespArgName()), jen.Err()),
+										jen.Return(),
+									).Parse()
+
+								// jen.Add(gen.ParseValue(jen.Id(paramName), jen.Id(paramVarName), "=", p.Type, b.qualifier.Qual, func() jen.Code {
+								// 	return jen.Do(gen.CheckErr(
+								// 		jen.Id("o").Dot("errorEncoder").Call(jen.Id(b.handlerStrategy.RespArgName()), jen.Err()),
+								// 		jen.Return(),
+								// 	))
+								// })),
+
+								g.If(jen.Id(paramName).Op("!=").Lit("")).Block(transCode)
 							}
 						}
 
@@ -270,7 +301,7 @@ func (b *serverControllerBuilder) Build() ServerControllerBuilder {
 
 					if len(ep.BodyResults) > 0 {
 						if !ep.NoWrapResponse {
-							g.Var().Id(respName).StructFunc(gen.WrapResponse(ep.WrapResponse, func(g *jen.Group) {
+							g.Var().Id(respName).StructFunc(wrapResponse(ep.WrapResponse, func(g *jen.Group) {
 								for _, result := range ep.BodyResults {
 									g.Id(result.FldName.Camel()).Add(types.Convert(result.Type, b.qualifier.Qual)).Tag(map[string]string{"json": result.Name})
 								}

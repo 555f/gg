@@ -12,7 +12,7 @@ var cfgFile string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Short: "Swipe a code generation tool",
+	Short: "GG a code generation tool",
 	Run: func(cmd *cobra.Command, args []string) {
 		if !viper.GetBool("version") {
 			cmd.Println(cmd.Version)

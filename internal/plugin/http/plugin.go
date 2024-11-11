@@ -3,12 +3,14 @@ package http
 import (
 	_ "embed"
 	"go/token"
+
 	"os"
 	"path"
 	"path/filepath"
 
 	"github.com/555f/gg/internal/openapi"
 	"github.com/555f/gg/internal/plugin/http/apidoc"
+	"github.com/555f/gg/internal/plugin/http/clienttest"
 	"github.com/555f/gg/internal/plugin/http/httperror"
 	"github.com/555f/gg/internal/plugin/http/openapidoc"
 	"github.com/555f/gg/internal/plugin/http/options"
@@ -17,9 +19,16 @@ import (
 	"github.com/555f/gg/pkg/file"
 	"github.com/555f/gg/pkg/gg"
 	"github.com/555f/gg/pkg/strcase"
+	"github.com/jaswdr/faker/v2"
 	"gopkg.in/yaml.v2"
 
 	"github.com/hashicorp/go-multierror"
+)
+
+const (
+	promCollectorName = "prometheusCollector"
+	prometheusPkg     = "github.com/prometheus/client_golang/prometheus"
+	jsonPkg           = "encoding/json"
 )
 
 type Plugin struct {
@@ -34,6 +43,9 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 	)
 	clientOutput := filepath.Join(
 		p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("client-output", "internal/server/client.go"),
+	)
+	clientTestOutput := filepath.Join(
+		p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("client-test-output", "internal/server/client_test.go"),
 	)
 	openapiOutput := filepath.Join(
 		p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("openapi-output", "docs"),
@@ -52,11 +64,12 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 	isCheckStrict := p.ctx.Options.GetBoolWithDefault("strict", true)
 
 	var (
-		serverServices  []options.Iface
-		clientServices  []options.Iface
-		openapiServices []options.Iface
-		apidocServices  []options.Iface
-		errorWrapper    *options.ErrorWrapper
+		serverServices     []options.Iface
+		clientServices     []options.Iface
+		clientTestServices []options.Iface
+		openapiServices    []options.Iface
+		apidocServices     []options.Iface
+		errorWrapper       *options.ErrorWrapper
 	)
 
 	if errorWrapperPath != "" && defaultErrorPath != "" {
@@ -82,6 +95,9 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 		}
 		if s.Client.Enable {
 			clientServices = append(clientServices, s)
+		}
+		if s.Client.EnableTest {
+			clientTestServices = append(clientTestServices, s)
 		}
 		if s.Server.Enable {
 			serverServices = append(serverServices, s)
@@ -149,6 +165,24 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 		}
 		serverFile.Add(serverBuilder.Build())
 		files = append(files, serverFile)
+	}
+
+	if len(clientTestServices) > 0 {
+		clientTestFile := file.NewGoFile(p.ctx.Module, clientTestOutput, file.UseTestPkg())
+
+		fake := faker.New()
+		clientTestGen := clienttest.New(clientTestFile.Group, p.ctx.PkgPath, fake, clientTestFile.Import, errorWrapper)
+
+		for _, iface := range clientTestServices {
+			for _, ep := range iface.Endpoints {
+				clientTestGen.Generate(iface, ep, []clienttest.Config{
+					{StatusCode: 200},
+					{StatusCode: 400, CheckError: true},
+				})
+			}
+		}
+
+		files = append(files, clientTestFile)
 	}
 
 	if len(clientServices) > 0 {

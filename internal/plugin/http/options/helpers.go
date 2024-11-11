@@ -39,7 +39,7 @@ func makeEndpointParam(
 		Parent:     parent,
 		IsVariadic: param.IsVariadic,
 		Required:   opts.Required,
-		Zero:       param.Zero,
+		Zero:       types.ZeroValueJS(param.Type),
 	}
 	tagFmt := "lowerCamel"
 	if opts.Format != "" {
@@ -88,6 +88,6 @@ func checkBasicType(t any) (name string, ok bool) {
 		}
 		return
 	case *types.Basic:
-		return t.Name, true
+		return t.Name(), true
 	}
 }

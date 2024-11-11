@@ -8,22 +8,26 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	dto "github.com/555f/gg/examples/rest-service-chi/pkg/dto"
 	errors "github.com/555f/gg/examples/rest-service-chi/pkg/errors"
+	gocleanhttp "github.com/hashicorp/go-cleanhttp"
 	prometheus "github.com/prometheus/client_golang/prometheus"
 	promhttp "github.com/prometheus/client_golang/prometheus/promhttp"
 	"io"
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 type contextKey string
 
 const methodContextKey contextKey = "method"
 const shortMethodContextKey contextKey = "shortMethod"
+const scopeNameContextKey contextKey = "scopeName"
 
 func labelFromContext(lblName string, ctxKey contextKey) promhttp.Option {
 	return promhttp.WithLabelFromCtx(lblName, func(ctx context.Context) string {
@@ -33,17 +37,19 @@ func labelFromContext(lblName string, ctxKey contextKey) promhttp.Option {
 }
 func instrumentRoundTripperErrCounter(counter *prometheus.CounterVec, next http.RoundTripper) promhttp.RoundTripperFunc {
 	return func(r *http.Request) (*http.Response, error) {
+		labels := prometheus.Labels{"method": strings.ToLower(r.Method)}
+		labels["methodNameFull"], _ = r.Context().Value(methodContextKey).(string)
+		labels["methodNameShort"], _ = r.Context().Value(shortMethodContextKey).(string)
+		labels["scopeName"], _ = r.Context().Value(scopeNameContextKey).(string)
+		labels["code"] = ""
 		resp, err := next.RoundTrip(r)
 		if err != nil {
-			labels := prometheus.Labels{"method": r.Method}
-			methodNameFull, _ := r.Context().Value(methodContextKey).(string)
-			methodNameShort, _ := r.Context().Value(shortMethodContextKey).(string)
-			labels["methodNameFull"] = methodNameFull
-			labels["methodNameShort"] = methodNameShort
-			errType := ""
+			var errType string
 			switch e := err.(type) {
 			default:
 				errType = err.Error()
+			case *tls.CertificateVerificationError:
+				errType = "failedVerifyCertificate"
 			case net.Error:
 				errType += "net."
 				if e.Timeout() {
@@ -62,39 +68,23 @@ func instrumentRoundTripperErrCounter(counter *prometheus.CounterVec, next http.
 					errType += ee.Net + "." + ee.Op
 				}
 			}
-			labels["err"] = errType
+			labels["errorCode"] = errType
+			counter.With(labels).Add(1)
+		} else if resp.StatusCode > 399 {
+			labels["code"] = strconv.Itoa(resp.StatusCode)
+			labels["errorCode"] = "respFailed"
 			counter.With(labels).Add(1)
 		}
 		return resp, err
 	}
 }
 
-type outgoingInstrumentation struct {
-	inflight    prometheus.Gauge
-	errRequests *prometheus.CounterVec
-	requests    *prometheus.CounterVec
-	duration    *prometheus.HistogramVec
-	dnsDuration *prometheus.HistogramVec
-	tlsDuration *prometheus.HistogramVec
+type PrometheusCollector interface {
+	prometheus.Collector
+	Requests() *prometheus.CounterVec
+	ErrRequests() *prometheus.CounterVec
+	Duration() *prometheus.HistogramVec
 }
-
-func (i *outgoingInstrumentation) Describe(in chan<- *prometheus.Desc) {
-	i.inflight.Describe(in)
-	i.requests.Describe(in)
-	i.errRequests.Describe(in)
-	i.duration.Describe(in)
-	i.dnsDuration.Describe(in)
-	i.tlsDuration.Describe(in)
-}
-func (i *outgoingInstrumentation) Collect(in chan<- prometheus.Metric) {
-	i.inflight.Collect(in)
-	i.requests.Collect(in)
-	i.errRequests.Collect(in)
-	i.duration.Collect(in)
-	i.dnsDuration.Collect(in)
-	i.tlsDuration.Collect(in)
-}
-
 type ClientBeforeFunc func(context.Context, *http.Request) (context.Context, error)
 type ClientAfterFunc func(context.Context, *http.Response) context.Context
 type clientOptions struct {
@@ -115,15 +105,12 @@ func WithClient(client *http.Client) ClientOption {
 		o.client = client
 	}
 }
-func WithProm(namespace string, subsystem string, reg prometheus.Registerer, constLabels map[string]string) ClientOption {
+func WithPrometheusCollector(c PrometheusCollector) ClientOption {
 	return func(o *clientOptions) {
-		i := &outgoingInstrumentation{inflight: prometheus.NewGauge(prometheus.GaugeOpts{Namespace: namespace, Subsystem: subsystem, Name: "in_flight_requests", Help: "A gauge of in-flight outgoing requests for the client.", ConstLabels: constLabels}), requests: prometheus.NewCounterVec(prometheus.CounterOpts{Namespace: namespace, Subsystem: subsystem, Name: "requests_total", Help: "A counter for outgoing requests from the client.", ConstLabels: constLabels}, []string{"method", "code", "methodNameFull", "methodNameShort"}), errRequests: prometheus.NewCounterVec(prometheus.CounterOpts{Namespace: namespace, Subsystem: subsystem, Name: "err_requests_total", Help: "A counter for outgoing error requests from the client."}, []string{"method", "err", "methodNameFull", "methodNameShort"}), duration: prometheus.NewHistogramVec(prometheus.HistogramOpts{Namespace: namespace, Subsystem: subsystem, Name: "request_duration_histogram_seconds", Help: "A histogram of outgoing request latencies.", Buckets: prometheus.DefBuckets, ConstLabels: constLabels}, []string{"method", "code", "methodNameFull", "methodNameShort"}), dnsDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{Namespace: namespace, Subsystem: subsystem, Name: "dns_duration_histogram_seconds", Help: "Trace dns latency histogram.", Buckets: prometheus.DefBuckets, ConstLabels: constLabels}, []string{"method", "code", "methodNameFull", "methodNameShort"}), tlsDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{Namespace: namespace, Subsystem: subsystem, Name: "tls_duration_histogram_seconds", Help: "Trace tls latency histogram.", Buckets: prometheus.DefBuckets, ConstLabels: constLabels}, []string{"method", "code", "methodNameFull", "methodNameShort"})}
-		trace := &promhttp.InstrumentTrace{}
-		o.client.Transport = instrumentRoundTripperErrCounter(i.errRequests, promhttp.InstrumentRoundTripperInFlight(i.inflight, promhttp.InstrumentRoundTripperCounter(i.requests, promhttp.InstrumentRoundTripperTrace(trace, promhttp.InstrumentRoundTripperDuration(i.duration, o.client.Transport, labelFromContext("methodNameShort", shortMethodContextKey), labelFromContext("methodNameFull", methodContextKey))), labelFromContext("methodNameShort", shortMethodContextKey), labelFromContext("methodNameFull", methodContextKey))))
-		err := reg.Register(i)
-		if err != nil {
-			panic(err)
+		if o.client.Transport == nil {
+			panic("no transport is set for the http client")
 		}
+		o.client.Transport = instrumentRoundTripperErrCounter(c.ErrRequests(), promhttp.InstrumentRoundTripperCounter(c.Requests(), promhttp.InstrumentRoundTripperDuration(c.Duration(), o.client.Transport, labelFromContext("methodNameShort", shortMethodContextKey), labelFromContext("methodNameFull", methodContextKey), labelFromContext("scopeName", scopeNameContextKey)), labelFromContext("methodNameShort", shortMethodContextKey), labelFromContext("methodNameFull", methodContextKey), labelFromContext("scopeName", scopeNameContextKey)))
 	}
 }
 func Before(before ...ClientBeforeFunc) ClientOption {
@@ -137,10 +124,16 @@ func After(after ...ClientAfterFunc) ClientOption {
 	}
 }
 
+const profileControllerScopeName = "controller"
+
 type ProfileControllerClient struct {
 	target string
 	opts   *clientOptions
 }
+
+const createShortName = "(controller.ProfileController).Create"
+const createFullName = "(github.com/555f/gg/examples/rest-service-chi/internal/usecase/controller.ProfileController).Create"
+
 type ProfileControllerCreateRequest struct {
 	c      *ProfileControllerClient
 	client *http.Client
@@ -153,12 +146,12 @@ type ProfileControllerCreateRequest struct {
 	}
 }
 
-func (r *ProfileControllerCreateRequest) Setaddress(address string) *ProfileControllerCreateRequest {
+func (r *ProfileControllerCreateRequest) SetAddress(address string) *ProfileControllerCreateRequest {
 	r.params.address = &address
 	return r
 }
 func (r *ProfileControllerClient) Create(firstName string, lastName string, address string, zip int) (profile *dto.Profile, err error) {
-	profile, err = r.CreateRequest(firstName, lastName, zip).Setaddress(address).Execute()
+	profile, err = r.CreateRequest(firstName, lastName, zip).SetAddress(address).Execute()
 	return
 }
 func (r *ProfileControllerClient) CreateRequest(firstName string, lastName string, zip int) *ProfileControllerCreateRequest {
@@ -174,8 +167,9 @@ func (r *ProfileControllerCreateRequest) Execute(opts ...ClientOption) (profile 
 	}
 	ctx, cancel := context.WithCancel(r.opts.ctx)
 	path := "/profiles"
-	r.opts.ctx = context.WithValue(r.opts.ctx, methodContextKey, "(github.com/555f/gg/examples/rest-service-chi/internal/usecase/controller.ProfileController).Create")
-	r.opts.ctx = context.WithValue(r.opts.ctx, shortMethodContextKey, "(controller.ProfileController).Create")
+	r.opts.ctx = context.WithValue(r.opts.ctx, methodContextKey, createFullName)
+	r.opts.ctx = context.WithValue(r.opts.ctx, shortMethodContextKey, createShortName)
+	r.opts.ctx = context.WithValue(r.opts.ctx, scopeNameContextKey, profileControllerScopeName)
 	req, err := http.NewRequestWithContext(r.opts.ctx, "POST", r.c.target+path, nil)
 	if err != nil {
 		cancel()
@@ -261,6 +255,9 @@ func (r *ProfileControllerCreateRequest) Execute(opts ...ClientOption) (profile 
 	return respBody.Profile, nil
 }
 
+const downloadFileShortName = "(controller.ProfileController).DownloadFile"
+const downloadFileFullName = "(github.com/555f/gg/examples/rest-service-chi/internal/usecase/controller.ProfileController).DownloadFile"
+
 type ProfileControllerDownloadFileRequest struct {
 	c      *ProfileControllerClient
 	client *http.Client
@@ -271,12 +268,12 @@ type ProfileControllerDownloadFileRequest struct {
 	}
 }
 
-func (r *ProfileControllerDownloadFileRequest) SetonlyCloud(onlyCloud bool) *ProfileControllerDownloadFileRequest {
+func (r *ProfileControllerDownloadFileRequest) SetOnlyCloud(onlyCloud bool) *ProfileControllerDownloadFileRequest {
 	r.params.onlyCloud = &onlyCloud
 	return r
 }
 func (r *ProfileControllerClient) DownloadFile(id string, onlyCloud bool) (data string, err error) {
-	data, err = r.DownloadFileRequest(id).SetonlyCloud(onlyCloud).Execute()
+	data, err = r.DownloadFileRequest(id).SetOnlyCloud(onlyCloud).Execute()
 	return
 }
 func (r *ProfileControllerClient) DownloadFileRequest(id string) *ProfileControllerDownloadFileRequest {
@@ -290,8 +287,9 @@ func (r *ProfileControllerDownloadFileRequest) Execute(opts ...ClientOption) (da
 	}
 	ctx, cancel := context.WithCancel(r.opts.ctx)
 	path := fmt.Sprintf("/profiles/%s/file", r.params.id)
-	r.opts.ctx = context.WithValue(r.opts.ctx, methodContextKey, "(github.com/555f/gg/examples/rest-service-chi/internal/usecase/controller.ProfileController).DownloadFile")
-	r.opts.ctx = context.WithValue(r.opts.ctx, shortMethodContextKey, "(controller.ProfileController).DownloadFile")
+	r.opts.ctx = context.WithValue(r.opts.ctx, methodContextKey, downloadFileFullName)
+	r.opts.ctx = context.WithValue(r.opts.ctx, shortMethodContextKey, downloadFileShortName)
+	r.opts.ctx = context.WithValue(r.opts.ctx, scopeNameContextKey, profileControllerScopeName)
 	req, err := http.NewRequestWithContext(r.opts.ctx, "GET", r.c.target+path, nil)
 	if err != nil {
 		cancel()
@@ -364,6 +362,9 @@ func (r *ProfileControllerDownloadFileRequest) Execute(opts ...ClientOption) (da
 	return respBody.Data, nil
 }
 
+const removeShortName = "(controller.ProfileController).Remove"
+const removeFullName = "(github.com/555f/gg/examples/rest-service-chi/internal/usecase/controller.ProfileController).Remove"
+
 type ProfileControllerRemoveRequest struct {
 	c      *ProfileControllerClient
 	client *http.Client
@@ -388,8 +389,9 @@ func (r *ProfileControllerRemoveRequest) Execute(opts ...ClientOption) (err erro
 	}
 	ctx, cancel := context.WithCancel(r.opts.ctx)
 	path := fmt.Sprintf("/profiles/%s", r.params.id)
-	r.opts.ctx = context.WithValue(r.opts.ctx, methodContextKey, "(github.com/555f/gg/examples/rest-service-chi/internal/usecase/controller.ProfileController).Remove")
-	r.opts.ctx = context.WithValue(r.opts.ctx, shortMethodContextKey, "(controller.ProfileController).Remove")
+	r.opts.ctx = context.WithValue(r.opts.ctx, methodContextKey, removeFullName)
+	r.opts.ctx = context.WithValue(r.opts.ctx, shortMethodContextKey, removeShortName)
+	r.opts.ctx = context.WithValue(r.opts.ctx, scopeNameContextKey, profileControllerScopeName)
 	req, err := http.NewRequestWithContext(r.opts.ctx, "DELETE", r.c.target+path, nil)
 	if err != nil {
 		cancel()
@@ -438,7 +440,7 @@ func (r *ProfileControllerRemoveRequest) Execute(opts ...ClientOption) (err erro
 	return
 }
 func NewProfileControllerClient(target string, opts ...ClientOption) *ProfileControllerClient {
-	c := &ProfileControllerClient{target: target, opts: &clientOptions{client: http.DefaultClient}}
+	c := &ProfileControllerClient{target: target, opts: &clientOptions{client: gocleanhttp.DefaultClient()}}
 	for _, o := range opts {
 		o(c.opts)
 	}

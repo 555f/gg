@@ -38,6 +38,6 @@ func getTypeSrt(t any) string {
 	case *types.Slice:
 		return getTypeSrt(t.Value) + "[]"
 	case *types.Basic:
-		return t.Name
+		return t.Name()
 	}
 }

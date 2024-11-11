@@ -2,11 +2,9 @@ package types
 
 import (
 	"go/token"
-	stdtypes "go/types"
 )
 
 type Named struct {
-	origin      *stdtypes.Named
 	Title       string
 	Description string
 	Name        string
@@ -20,6 +18,15 @@ type Named struct {
 	Tags        Tags
 }
 
+func (n *Named) System() bool {
+	key := n.Pkg.Path + "." + n.Name
+	switch key {
+	case "time.Time", "time.Duration":
+		return true
+	}
+	return false
+}
+
 func (n *Named) Interface() *Interface {
 	i, _ := n.Type.(*Interface)
 	return i
@@ -28,4 +35,20 @@ func (n *Named) Interface() *Interface {
 func (n *Named) Struct() *Struct {
 	i, _ := n.Type.(*Struct)
 	return i
+}
+
+func (n *Named) Basic() *Basic {
+	i, _ := n.Type.(*Basic)
+	return i
+}
+
+var NamedTyp = map[string]*Named{
+	"time.Time": {
+		Name: "Time",
+		Type: &Struct{},
+		Pkg: &PackageType{
+			Name: "Time",
+			Path: "time",
+		},
+	},
 }

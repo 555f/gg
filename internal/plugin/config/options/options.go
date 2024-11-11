@@ -84,7 +84,7 @@ func DecodeField(parent *ConfigField, f *types.Var) (cf ConfigField, errs error)
 	}
 
 	cf.Name = strings.ToUpper(strcase.ToScreamingSnake(cf.Name))
-	cf.Zero = f.Zero
+	cf.Zero = types.ZeroValueJS(f.Type)
 
 	for _, structField := range gen.ExtractFields(f.Type) {
 		switch t := structField.Type.(type) {

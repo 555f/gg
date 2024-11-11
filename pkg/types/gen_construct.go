@@ -65,7 +65,7 @@ func (c *Construct) Convert(t any) (s *jen.Statement) {
 		// if t.IsPointer {
 		// s.Op("*")
 		// }
-		s.Id(t.Name)
+		s.Id(t.Name())
 	case *Named:
 		if t.IsPointer {
 			s.Op("&")

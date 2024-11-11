@@ -23,6 +23,7 @@ func New() (c *Config, errs error) {
 		errs = gomultierror.Append(errs, errors.New("env ADDR not set"))
 	}
 	if s, ok := os.LookupEnv("PORT"); ok {
+
 		v, err := gostrings.ParseInt[int](s, 10, 64)
 		if err != nil {
 			errs = gomultierror.Append(errs, fmt.Errorf("env PORT failed parse: %w", err))

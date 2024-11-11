@@ -252,7 +252,7 @@ func paramDecode(param *types.Var) (opts *EndpointParam, err error) {
 		IsVariadic:      param.IsVariadic,
 		IsPointer:       param.IsPointer,
 		Type:            param.Type,
-		Zero:            param.Zero,
+		Zero:            types.ZeroValueJS(param.Type),
 	}
 	tagFmt := "lowerCamel"
 	if opts.Format != "" {

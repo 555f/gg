@@ -53,6 +53,11 @@ func (ts *Tags) Get(key string) (*Tag, bool) {
 	return nil, false
 }
 
+func (ts *Tags) Has(key string) bool {
+	_, ok := ts.Get(key)
+	return ok
+}
+
 func parseTags(comments Comments) (Tags, error) {
 	var tags []*Tag
 	for _, comment := range comments {
