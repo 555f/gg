@@ -16,7 +16,17 @@ func (s *FloatTypeParse) Parse(valueID, assignID jen.Code, op string, t any, qua
 }
 
 func (s *FloatTypeParse) Format(valueID, assignID jen.Code, op string, t any, qualFn types.QualFunc) (formatCode []jen.Code, paramID jen.Code, hasError bool) {
-	return
+	b := t.(*types.Basic)
+	return nil, jen.Qual("strconv", "FormatFloat").CallFunc(func(g *jen.Group) {
+		if b.BitSize() == 64 {
+			g.Add(valueID)
+		} else {
+			g.Id("float64").Call(valueID)
+		}
+		g.LitRune('g')
+		g.Lit(-1)
+		g.Lit(b.BitSize())
+	}), false
 }
 
 func (s *FloatTypeParse) Support(t any) bool {

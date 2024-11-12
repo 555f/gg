@@ -34,6 +34,17 @@ func (s *MapTypeParse) Parse(valueID, assignID jen.Code, op string, t any, qualF
 }
 
 func (s *MapTypeParse) Format(valueID, assignID jen.Code, op string, t any, qualFn types.QualFunc) (formatCode []jen.Code, paramID jen.Code, hasError bool) {
+	m := t.(*types.Map)
+	basic := m.Value.(*types.Basic)
+
+	switch {
+	case basic.IsInteger():
+		return nil, jen.Do(qualFn("github.com/555f/go-strings", "JoinKeyValInt")).Types(types.Convert(m.Value, qualFn)).Call(valueID, jen.Lit(";"), jen.Lit("="), jen.Lit(10)), false
+	case basic.IsFloat():
+		return nil, jen.Do(qualFn("github.com/555f/go-strings", "JoinKeyValFloat")).Types(types.Convert(m.Value, qualFn)).Call(valueID, jen.Lit(";"), jen.Lit("="), jen.Lit('f'), jen.Lit(2), jen.Lit(64)), false
+	case basic.IsString():
+		return nil, jen.Do(qualFn("github.com/555f/go-strings", "JoinKeyValString")).Types(types.Convert(m.Value, qualFn)).Call(valueID, jen.Lit(";"), jen.Lit("=")), false
+	}
 	return
 }
 

@@ -16,7 +16,7 @@ func (s *SatoriUUIDTypeParse) Parse(valueID, assignID jen.Code, op string, t any
 }
 
 func (s *SatoriUUIDTypeParse) Format(valueID, assignID jen.Code, op string, t any, qualFn types.QualFunc) (formatCode []jen.Code, paramID jen.Code, hasError bool) {
-	return
+	return nil, jen.Add(valueID).Dot("String").Call(), false
 }
 
 func (s *SatoriUUIDTypeParse) Support(t any) bool {

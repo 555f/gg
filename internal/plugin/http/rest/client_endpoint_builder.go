@@ -1,8 +1,6 @@
 package rest
 
 import (
-	"fmt"
-
 	"github.com/555f/gg/internal/plugin/http/options"
 	"github.com/555f/gg/pkg/gen"
 	"github.com/555f/gg/pkg/strcase"
@@ -236,9 +234,6 @@ func (b *clientEndpointBuilder) BuildExecuteMethod() ClientEndpointBuilder {
 					switch b.ep.ClientContentType {
 					default:
 						g.Id("req").Dot("Header").Dot("Add").Call(jen.Lit("Content-Type"), jen.Lit("application/json"))
-
-						fmt.Println(len(b.ep.BodyParams), b.ep.NoWrapRequest)
-
 						if len(b.ep.BodyParams) == 1 && b.ep.NoWrapRequest {
 							g.Var().Id("body").Add(types.Convert(b.ep.BodyParams[0].Type, b.qualifier.Qual))
 						} else {

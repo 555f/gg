@@ -767,6 +767,32 @@ func TestFormat(t *testing.T) {
 			wantParseCode: "",
 			wantParamID:   "gostrings.JoinFloat[float64](float64Slice, \",\", int32(102), 2, 64)",
 		},
+		{
+			name: "map int",
+			args: args{
+				valueID: jen.Id("intMap"),
+				op:      ":=",
+				t: &types.Map{
+					Value: types.BasicTyp[stdtypes.Int],
+				},
+			},
+			wantHasError:  false,
+			wantParseCode: "",
+			wantParamID:   "gostrings.JoinKeyValInt[int](intMap, \";\", \"=\", 10)",
+		},
+		{
+			name: "map float64",
+			args: args{
+				valueID: jen.Id("floatMap"),
+				op:      ":=",
+				t: &types.Map{
+					Value: types.BasicTyp[stdtypes.Float64],
+				},
+			},
+			wantHasError:  false,
+			wantParseCode: "",
+			wantParamID:   "gostrings.JoinKeyValFloat[float64](floatMap, \";\", \"=\", int32(102), 2, 64)",
+		},
 	}
 
 	for _, tt := range tests {
