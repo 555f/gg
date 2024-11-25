@@ -2,7 +2,6 @@ package logging
 
 import (
 	"fmt"
-	"go/token"
 	"path/filepath"
 	"strconv"
 
@@ -16,11 +15,11 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
-type middlewarePlugin interface {
-	PkgPath(named *types.Named) string
-	NameMiddleware(namedType *types.Named) string
-	Output() string
-}
+// type middlewarePlugin interface {
+// 	PkgPath(named *types.Named) string
+// 	NameMiddleware(namedType *types.Named) string
+// 	Output() string
+// }
 
 type Plugin struct {
 	ctx *gg.Context
@@ -31,11 +30,11 @@ func (p *Plugin) Name() string { return "slog" }
 func (p *Plugin) Exec() (files []file.File, errs error) {
 	output := filepath.Join(p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("output", "internal/logging/logging.go"))
 	f := file.NewGoFile(p.ctx.Module, output)
-	middlewarePlugin, ok := p.ctx.Plugin("middleware").(middlewarePlugin)
-	if !ok {
-		errs = multierror.Append(errs, errors.Error("middleware plugin not found", token.Position{}))
-		return
-	}
+	// middlewarePlugin, ok := p.ctx.Plugin("middleware").(middlewarePlugin)
+	// if !ok {
+	// 	errs = multierror.Append(errs, errors.Error("middleware plugin not found", token.Position{}))
+	// 	return
+	// }
 
 	loggerPkg := "log/slog"
 	timePkg := "time"
@@ -59,8 +58,16 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 
 	for _, iface := range p.ctx.Interfaces {
 		nameStruct := p.NameStruct(iface.Named)
-		nameMiddleware := middlewarePlugin.NameMiddleware(iface.Named)
-		pkgMiddleware := middlewarePlugin.PkgPath(iface.Named)
+		tag, ok := iface.Named.Tags.Get("slog-middleware-type")
+		if !ok {
+			errs = multierror.Append(errs, fmt.Errorf("interface %s.%s not set `slog-middleware-type` option", iface.Named.Pkg.Path, iface.Named.Name))
+			continue
+		}
+		pkgMiddleware, nameMiddleware, err := p.ctx.Module.ParseImportPath(tag.Value)
+		if err != nil {
+			errs = multierror.Append(errs, fmt.Errorf("interface %s.%s option `slog-middleware-type` invalid format: %s", iface.Named.Pkg.Path, iface.Named.Name, err.Error()))
+			continue
+		}
 
 		f.Type().Id(nameStruct).Struct(
 			Id("next").Qual(iface.Named.Pkg.Path, iface.Named.Name),

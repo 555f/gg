@@ -2,7 +2,6 @@ package metrics
 
 import (
 	"fmt"
-	"go/token"
 	"path/filepath"
 
 	"github.com/555f/gg/pkg/errors"
@@ -20,12 +19,6 @@ var (
 	timePkg       = "time"
 )
 
-type middlewarePlugin interface {
-	PkgPath(named *types.Named) string
-	NameMiddleware(namedType *types.Named) string
-	Output() string
-}
-
 type Plugin struct {
 	ctx *gg.Context
 }
@@ -36,11 +29,6 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 	output := filepath.Join(p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("output", "internal/metrics/metrics.go"))
 
 	f := file.NewGoFile(p.ctx.Module, output)
-	middlewarePlugin, ok := p.ctx.Plugin("middleware").(middlewarePlugin)
-	if !ok {
-		errs = multierror.Append(errs, errors.Error("middleware plugin not found", token.Position{}))
-		return
-	}
 
 	for _, iface := range p.ctx.Interfaces {
 		for _, m := range iface.Type.Methods {
@@ -50,17 +38,35 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 		}
 	}
 
+	f.Type().Id("prometheusCollector").Interface(
+		jen.Qual(prometheusPkg, "Collector"),
+		jen.Id("Requests").Params().Params(jen.Op("*").Qual(prometheusPkg, "CounterVec")),
+		jen.Id("ErrRequests").Params().Params(jen.Op("*").Qual(prometheusPkg, "CounterVec")),
+		jen.Id("Duration").Params().Params(jen.Op("*").Qual(prometheusPkg, "HistogramVec")),
+	)
+
 	for _, iface := range p.ctx.Interfaces {
-		nameStruct := p.NameStruct(iface.Named)
-		nameMiddleware := middlewarePlugin.NameMiddleware(iface.Named)
-		pkgMiddleware := middlewarePlugin.PkgPath(iface.Named)
+		nameConstructor := "Metrics" + strcase.ToCamel(iface.Named.Name) + "Middleware"
+		nameStruct := strcase.ToCamel(iface.Named.Name) + "MetricMiddleware"
+		nameConstScopeName := strcase.ToLowerCamel(iface.Named.Name) + "ScopeName"
+		scopeName := strcase.ToSnake(iface.Named.Name)
+
+		tag, ok := iface.Named.Tags.Get("metrics-middleware-type")
+		if !ok {
+			errs = multierror.Append(errs, fmt.Errorf("interface %s.%s not set `metrics-middleware-type` option", iface.Named.Pkg.Path, iface.Named.Name))
+			continue
+		}
+		pkgMiddleware, nameMiddleware, err := p.ctx.Module.ParseImportPath(tag.Value)
+		if err != nil {
+			errs = multierror.Append(errs, fmt.Errorf("interface %s.%s option `metrics-middleware-type` invalid format: %s", iface.Named.Pkg.Path, iface.Named.Name, err.Error()))
+			continue
+		}
+
+		f.Const().Id(nameConstScopeName).Op("=").Lit(scopeName)
 
 		f.Type().Id(nameStruct).StructFunc(func(g *jen.Group) {
 			g.Id("next").Do(f.Qual(iface.Named.Pkg.Path, iface.Named.Name))
-			g.Id("inRequests").Op("*").Qual(prometheusPkg, "CounterVec")
-			g.Id("requests").Op("*").Qual(prometheusPkg, "CounterVec")
-			g.Id("errRequests").Op("*").Qual(prometheusPkg, "CounterVec")
-			g.Id("duration").Op("*").Qual(prometheusPkg, "HistogramVec")
+			g.Id("c").Id("prometheusCollector")
 		})
 		for _, method := range iface.Type.Methods {
 			opts, err := makeMethodOptions(p.ctx.Module, method)
@@ -110,13 +116,13 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 					constName := strcase.ToLowerCamel(iface.Named.Name + method.Name)
 
 					labelCodes := []jen.Code{
-						jen.Lit("method").Op(":").Id(constName),
-						jen.Lit("shortMethod").Op(":").Id(constName + "Short"),
+						jen.Lit("method").Op(":").Lit(""),
+						jen.Lit("code").Op(":").Lit(""),
+						jen.Lit("scopeName").Op(":").Id(nameConstScopeName),
+						jen.Lit("methodNameShort").Op(":").Id(constName + "Short"),
+						jen.Lit("methodNameFull").Op(":").Id(constName),
 					}
-
-					g.Id("m").Dot("inRequests").Dot("With").Call(
-						jen.Qual(prometheusPkg, "Labels").Values(labelCodes...),
-					).Dot("Inc").Call()
+					errsLabelCodes := append(labelCodes, jen.Lit("errorCode").Op(":").Lit("respFailed"))
 
 					g.Defer().
 						Func().
@@ -124,19 +130,19 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 							jen.Id("now").Qual(timePkg, "Time"),
 						).
 						BlockFunc(func(g *jen.Group) {
-							g.Id("m").Dot("requests").Dot("With").Call(
+							g.Id("m").Dot("c").Dot("Requests").Call().Dot("With").Call(
 								jen.Qual(prometheusPkg, "Labels").Values(labelCodes...),
 							).Dot("Inc").Call()
 							if len(errorVars) > 0 {
 								for _, e := range errorVars {
 									g.If(jen.Id(e.Name)).Op("!=").Nil().Block(
-										jen.Id("m").Dot("errRequests").Dot("With").Call(
-											jen.Qual(prometheusPkg, "Labels").Values(labelCodes...),
+										jen.Id("m").Dot("c").Dot("ErrRequests").Call().Dot("With").Call(
+											jen.Qual(prometheusPkg, "Labels").Values(errsLabelCodes...),
 										).Dot("Inc").Call(),
 									)
 								}
 							}
-							g.Id("m").Dot("duration").Dot("With").Call(
+							g.Id("m").Dot("c").Dot("Duration").Call().Dot("With").Call(
 								jen.Qual(prometheusPkg, "Labels").Values(labelCodes...),
 							).Dot("Observe").Call(jen.Qual(timePkg, "Since").Call(jen.Id("now")).Dot("Seconds").Call())
 						}).Call(jen.Qual(timePkg, "Now").Call())
@@ -151,74 +157,25 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 				})
 		}
 		f.Func().
-			Id(p.NameConstructor(iface.Named)).
+			Id(nameConstructor).
 			Params(
-				jen.Id("namespace").String(),
-				jen.Id("subsystem").String(),
+				jen.Id("c").Id("prometheusCollector"),
 			).
 			Do(f.Import(pkgMiddleware, nameMiddleware)).
 			Block(
 				jen.Return(
 					jen.Func().Params(jen.Id("next").Do(f.Qual(iface.Named.Pkg.Path, iface.Named.Name))).Do(f.Qual(iface.Named.Pkg.Path, iface.Named.Name)).Block(
-						jen.Id("m").Op(":=").Op("&").Id(nameStruct).Values(
-							jen.Id("next").Op(":").Id("next"),
-							jen.Id("inRequests").Op(":").Qual(prometheusPkg, "NewCounterVec").CallFunc(func(g *jen.Group) {
-								g.Qual(prometheusPkg, "CounterOpts").Values(
-									jen.Id("Namespace").Op(":").Id("namespace"),
-									jen.Id("Subsystem").Op(":").Id("subsystem"),
-									jen.Id("Name").Op(":").Lit("in_requests_total"),
-									jen.Id("Help").Op(":").Lit("A counter for incoming requests."),
-								)
-								g.Index().String().Values(jen.Lit("method"), jen.Lit("shortMethod"))
-							}),
-							jen.Id("requests").Op(":").Qual(prometheusPkg, "NewCounterVec").CallFunc(func(g *jen.Group) {
-								g.Qual(prometheusPkg, "CounterOpts").Values(
-									jen.Id("Namespace").Op(":").Id("namespace"),
-									jen.Id("Subsystem").Op(":").Id("subsystem"),
-									jen.Id("Name").Op(":").Lit("requests_total"),
-									jen.Id("Help").Op(":").Lit("A counter for complete requests."),
-								)
-								g.Index().String().Values(jen.Lit("method"), jen.Lit("shortMethod"))
-							}),
-							jen.Id("errRequests").Op(":").Qual(prometheusPkg, "NewCounterVec").CallFunc(func(g *jen.Group) {
-								g.Qual(prometheusPkg, "CounterOpts").Values(
-									jen.Id("Namespace").Op(":").Id("namespace"),
-									jen.Id("Subsystem").Op(":").Id("subsystem"),
-									jen.Id("Name").Op(":").Lit("err_requests_total"),
-									jen.Id("Help").Op(":").Lit("A counter for error requests."),
-								)
-								g.Index().String().Values(jen.Lit("method"), jen.Lit("shortMethod"))
-							}),
-							jen.Id("duration").Op(":").Qual(prometheusPkg, "NewHistogramVec").CallFunc(func(g *jen.Group) {
-								g.Qual(prometheusPkg, "HistogramOpts").Values(
-									jen.Id("Namespace").Op(":").Id("namespace"),
-									jen.Id("Subsystem").Op(":").Id("subsystem"),
-									jen.Id("Name").Op(":").Lit("request_duration_histogram_seconds"),
-									jen.Id("Help").Op(":").Lit("A histogram of outgoing request latencies."),
-								)
-								g.Index().String().Values(jen.Lit("method"), jen.Lit("shortMethod"))
-							}),
+						jen.Return(
+							jen.Op("&").Id(nameStruct).Values(
+								jen.Id("next").Op(":").Id("next"),
+								jen.Id("c").Op(":").Id("c"),
+							),
 						),
-						jen.Qual(prometheusPkg, "MustRegister").Call(
-							jen.Id("m").Dot("inRequests"),
-							jen.Id("m").Dot("requests"),
-							jen.Id("m").Dot("errRequests"),
-							jen.Id("m").Dot("duration"),
-						),
-						jen.Return(jen.Id("m")),
 					),
 				),
 			)
 	}
 	return []file.File{f}, errs
-}
-
-func (p *Plugin) NameStruct(named *types.Named) string {
-	return strcase.ToCamel(named.Name) + "MetricMiddleware"
-}
-
-func (p *Plugin) NameConstructor(named *types.Named) string {
-	return "Logging" + strcase.ToCamel(named.Name) + "Middleware"
 }
 
 func (p *Plugin) Dependencies() []string { return []string{"middleware"} }

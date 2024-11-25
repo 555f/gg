@@ -54,7 +54,7 @@ func Module(pkgs []*packages.Package) (*types.Module, error) {
 	return nil, nil
 }
 
-func TraverseDefs(pkgs []*packages.Package, c func(pkg *packages.Package, id *ast.Ident, obj stdtypes.Object) error) error {
+func traverseDefs(pkgs []*packages.Package, c func(pkg *packages.Package, id *ast.Ident, obj stdtypes.Object) error) error {
 	for _, pkg := range pkgs {
 		for id, obj := range pkg.TypesInfo.Defs {
 			if obj == nil {

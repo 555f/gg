@@ -25,12 +25,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
-const (
-	promCollectorName = "prometheusCollector"
-	prometheusPkg     = "github.com/prometheus/client_golang/prometheus"
-	jsonPkg           = "encoding/json"
-)
-
 type Plugin struct {
 	ctx *gg.Context
 }
@@ -105,7 +99,6 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 	}
 
 	if len(apidocServices) > 0 {
-
 		adFile := file.NewTxtFile(apiDocOutput)
 		files = append(files, adFile)
 		err := apidoc.Gen(apiDocTitle, openapiServices)(adFile)

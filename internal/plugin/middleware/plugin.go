@@ -21,6 +21,7 @@ func (p *Plugin) Name() string { return "middleware" }
 
 func (p *Plugin) Exec() ([]file.File, error) {
 	f := file.NewGoFile(p.ctx.Module, p.Output())
+
 	for _, iface := range p.ctx.Interfaces {
 		nameMiddleware := p.NameMiddleware(iface.Named)
 		nameMiddlewareChain := p.NameMiddlewareChain(iface.Named)

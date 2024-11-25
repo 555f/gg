@@ -260,7 +260,7 @@ func findStructs(packages []*stdpackages.Package) (result []*Struct, err error) 
 }
 
 func findTypes(packages []*stdpackages.Package, checkTypeFn func(tp stdtypes.Type) bool, callbackFn func(namedType *types.Named) error) (err error) {
-	err = TraverseDefs(packages, func(pkg *stdpackages.Package, id *ast.Ident, obj stdtypes.Object) error {
+	err = traverseDefs(packages, func(pkg *stdpackages.Package, id *ast.Ident, obj stdtypes.Object) error {
 		if id.Obj == nil {
 			return nil
 		}

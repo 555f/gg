@@ -360,7 +360,7 @@ func Decode(iface *gg.Interface, isCheckStrict bool) (opts Iface, errs error) {
 	}
 
 	opts.Client.Enable = iface.Named.Tags.Has("http-client")
-	opts.Client.EnableTest = opts.Client.Enable && iface.Named.Tags.Has("http-client-test")
+	opts.Client.EnableTest = iface.Named.Tags.Has("http-client-test")
 
 	if _, ok := iface.Named.Tags.Get("http-openapi"); ok {
 		opts.Openapi.Enable = true

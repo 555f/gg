@@ -118,7 +118,7 @@ func (b *BaseClientBuilder) BuildTypes() ClientBuilder {
 			),
 		),
 
-		jen.Type().Id("PrometheusCollector").Interface(
+		jen.Type().Id("prometheusCollector").Interface(
 			jen.Qual(prometheusPkg, "Collector"),
 			// jen.Id("Inflight").Params().Params(jen.Qual(prometheusPkg, "Gauge")),
 			jen.Id("Requests").Params().Params(jen.Op("*").Qual(prometheusPkg, "CounterVec")),
@@ -154,7 +154,7 @@ func (b *BaseClientBuilder) BuildTypes() ClientBuilder {
 				jen.Id("o").Dot("client").Op("=").Id("client"),
 			)),
 		),
-		jen.Func().Id("WithPrometheusCollector").Params(jen.Id("c").Id("PrometheusCollector")).Id("ClientOption").Block(
+		jen.Func().Id("WithPrometheusCollector").Params(jen.Id("c").Id("prometheusCollector")).Id("ClientOption").Block(
 			jen.Return(jen.Func().Params(jen.Id("o").Op("*").Id(clientOptionName)).Block(
 				jen.If(jen.Id("o").Dot("client").Dot("Transport").Op("==").Nil()).Block(
 					jen.Panic(jen.Lit("no transport is set for the http client")),

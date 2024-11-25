@@ -37,6 +37,10 @@ func (f *GoFile) SetVersion(version string) {
 	f.version = version
 }
 
+func (f *GoFile) PkgPath() string {
+	return f.pkgPath
+}
+
 func (f *GoFile) IsCurrPkg(pkgPath string) bool {
 	return strings.EqualFold(f.pkgPath, pkgPath)
 }
@@ -75,16 +79,10 @@ func NewGoFile(module *types.Module, path string, opts ...GoFileOption) *GoFile 
 		optApply(o)
 	}
 
-	var (
-		pkgName, modulePath, packagePath string
-	)
-
-	packagePath = strings.Replace(filepath.Dir(path), module.Dir, "", -1)
+	packagePath := strings.Replace(filepath.Dir(path), module.Dir, "", -1)
 	packagePath = strings.TrimLeft(packagePath, string(os.PathSeparator))
-
-	pkgName = filepath.Base(packagePath)
-	modulePath = module.Path
-	pkgName = guessAlias(pkgName)
+	pkgName := guessAlias(filepath.Base(packagePath))
+	modulePath := module.Path
 
 	if o.useTestPkg {
 		packagePath = packagePath + "_test"

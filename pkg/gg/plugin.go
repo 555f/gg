@@ -96,10 +96,6 @@ type Context struct {
 	Options          Options
 }
 
-func (c *Context) Plugin(name string) Plugin {
-	return c.pluginGraph.plugins[name]
-}
-
 func RegisterPlugin(name string, f PluginFactory) {
 	if _, ok := pluginFactories[name]; ok {
 		panic("plugin " + name + " has already registered")

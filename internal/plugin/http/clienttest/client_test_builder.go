@@ -69,6 +69,11 @@ func (g *ClientTestGenerator) typeToValue(t any, manualValue ...string) jen.Code
 		}
 		return s.Do(g.qualFn(u.Pkg.Path, u.Name)).Values()
 	case *types.Map:
+		if _, ok := u.Key.(*types.Basic); ok {
+			return types.Convert(t, g.qualFn).Values(
+				jen.Add(g.typeToValue(u.Key)).Op(":").Add(g.typeToValue(u.Value)),
+			)
+		}
 		return types.Convert(t, g.qualFn).Values()
 	case *types.Slice:
 		return jen.Index().Add(types.Convert(u.Value, g.qualFn)).ValuesFunc(func(group *jen.Group) {
@@ -187,8 +192,13 @@ func (g ClientTestGenerator) mockServerGenerate(group *jen.Group, ep options.End
 					group.Id("_").Op("=").Qual(jsonPkg, "NewDecoder").Call(jen.Id("r").Dot("Body")).Dot("Decode").Call(bodyVar)
 
 					for _, p := range ep.BodyParams {
-						if named, ok := p.Type.(*types.Named); ok {
-							if st := named.Struct(); st != nil {
+						switch t := p.Type.(type) {
+						default:
+							group.If(jen.Id("body").Dot(p.FldName.Camel()).Op("!=").Id("serverRequest").Dot(p.FldName.Camel()).BlockFunc(func(g *jen.Group) {
+								g.Id("t").Dot("Fatal").Call(jen.Lit("failed equal method " + ep.MethodShortName + " " + p.Name))
+							}))
+						case *types.Named:
+							if st := t.Struct(); st != nil {
 								for _, f := range st.Fields {
 									for _, v := range gen.Flatten(f) {
 										if v.IsArray {
@@ -196,47 +206,71 @@ func (g ClientTestGenerator) mockServerGenerate(group *jen.Group, ep options.End
 										}
 										fieldPath := v.Paths.String()
 
-										group.If(jen.Id("body").Dot(p.FldName.Camel()).Op(".").Add(v.Path).Op("!=").Id("serverRequest").Dot(p.FldName.Camel()).Op(".").Add(v.Path)).BlockFunc(func(g *jen.Group) {
-											g.Id("t").Dot("Fatal").Call(jen.Lit("failed equal method " + ep.MethodShortName + " " + fieldPath))
-										})
+										switch v.Var.Type.(type) {
+										default:
+											group.If(jen.Id("body").Dot(p.FldName.Camel()).Op(".").Add(v.Path).Op("!=").Id("serverRequest").Dot(p.FldName.Camel()).Op(".").Add(v.Path)).BlockFunc(func(g *jen.Group) {
+												g.Id("t").Dot("Fatal").Call(jen.Lit("failed equal method " + ep.MethodShortName + " " + fieldPath))
+											})
+										case *types.Map:
+											group.If(jen.Op("!").Qual("reflect", "DeepEqual").Call(jen.Id("body").Dot(p.FldName.Camel()), jen.Id("serverRequest").Dot(p.FldName.Camel())).BlockFunc(func(g *jen.Group) {
+												g.Id("t").Dot("Fatal").Call(jen.Lit("failed equal method " + ep.MethodShortName + " " + p.Name))
+											}))
+										}
 									}
 								}
 							}
-						} else {
-							if a, ok := p.Type.(*types.Slice); ok {
-								switch t := a.Value.(type) {
-								case *types.Basic:
-									group.If(jen.Id("body").Dot(p.FldName.Camel()).Index(jen.Lit(0)).Op("!=").Id("serverRequest").Dot(p.FldName.Camel()).Index(jen.Lit(0)).BlockFunc(func(g *jen.Group) {
-										g.Id("t").Dot("Fatal").Call(jen.Lit("failed equal method " + ep.MethodShortName + " " + p.Name))
-									}))
-								case *types.Named:
-									if st := t.Struct(); st != nil {
-										for _, f := range st.Fields {
-											for _, v := range gen.Flatten(f) {
-												if v.IsArray {
-													continue
-												}
-												fieldPath := v.Paths.String()
+						case *types.Slice:
+							switch t := t.Value.(type) {
+							case *types.Basic:
+								group.If(jen.Id("body").Dot(p.FldName.Camel()).Index(jen.Lit(0)).Op("!=").Id("serverRequest").Dot(p.FldName.Camel()).Index(jen.Lit(0)).BlockFunc(func(g *jen.Group) {
+									g.Id("t").Dot("Fatal").Call(jen.Lit("failed equal method " + ep.MethodShortName + " " + p.Name))
+								}))
+							case *types.Named:
+								if st := t.Struct(); st != nil {
+									for _, f := range st.Fields {
+										for _, v := range gen.Flatten(f) {
+											if v.IsArray {
+												continue
+											}
+											fieldPath := v.Paths.String()
 
-												if named, ok := v.Var.Type.(*types.Named); ok && named.System() {
-													group.If(jen.Op("!").Qual("reflect", "DeepEqual").Call(jen.Id("body").Dot(p.FldName.Camel()).Index(jen.Lit(0)).Op(".").Add(v.Path), jen.Id("serverRequest").Dot(p.FldName.Camel()).Index(jen.Lit(0)).Op(".").Add(v.Path))).BlockFunc(func(g *jen.Group) {
-														g.Id("t").Dot("Fatal").Call(jen.Lit("failed equal method " + ep.MethodShortName + " " + fieldPath))
-													})
-												} else {
-													group.If(jen.Id("body").Dot(p.FldName.Camel()).Index(jen.Lit(0)).Op(".").Add(v.Path).Op("!=").Id("serverRequest").Dot(p.FldName.Camel()).Index(jen.Lit(0)).Op(".").Add(v.Path)).BlockFunc(func(g *jen.Group) {
-														g.Id("t").Dot("Fatal").Call(jen.Lit("failed equal method " + ep.MethodShortName + " " + fieldPath))
-													})
-												}
+											if named, ok := v.Var.Type.(*types.Named); ok && named.System() {
+												group.If(jen.Op("!").Qual("reflect", "DeepEqual").Call(jen.Id("body").Dot(p.FldName.Camel()).Index(jen.Lit(0)).Op(".").Add(v.Path), jen.Id("serverRequest").Dot(p.FldName.Camel()).Index(jen.Lit(0)).Op(".").Add(v.Path))).BlockFunc(func(g *jen.Group) {
+													g.Id("t").Dot("Fatal").Call(jen.Lit("failed equal method " + ep.MethodShortName + " " + fieldPath))
+												})
+											} else {
+												group.If(jen.Id("body").Dot(p.FldName.Camel()).Index(jen.Lit(0)).Op(".").Add(v.Path).Op("!=").Id("serverRequest").Dot(p.FldName.Camel()).Index(jen.Lit(0)).Op(".").Add(v.Path)).BlockFunc(func(g *jen.Group) {
+													g.Id("t").Dot("Fatal").Call(jen.Lit("failed equal method " + ep.MethodShortName + " " + fieldPath))
+												})
 											}
 										}
 									}
 								}
-							} else {
-								group.If(jen.Id("body").Dot(p.FldName.Camel()).Op("!=").Id("serverRequest").Dot(p.FldName.Camel()).BlockFunc(func(g *jen.Group) {
-									g.Id("t").Dot("Fatal").Call(jen.Lit("failed equal method " + ep.MethodShortName + " " + p.Name))
-								}))
 							}
 						}
+
+						// if named, ok := p.Type.(*types.Named); ok {
+						// 	if st := named.Struct(); st != nil {
+						// 		for _, f := range st.Fields {
+						// 			for _, v := range gen.Flatten(f) {
+						// 				if v.IsArray {
+						// 					continue
+						// 				}
+						// 				fieldPath := v.Paths.String()
+
+						// 				group.If(jen.Id("body").Dot(p.FldName.Camel()).Op(".").Add(v.Path).Op("!=").Id("serverRequest").Dot(p.FldName.Camel()).Op(".").Add(v.Path)).BlockFunc(func(g *jen.Group) {
+						// 					g.Id("t").Dot("Fatal").Call(jen.Lit("failed equal method " + ep.MethodShortName + " " + fieldPath))
+						// 				})
+						// 			}
+						// 		}
+						// 	}
+						// } else {
+						// 	if a, ok := p.Type.(*types.Slice); ok {
+
+						// 	} else {
+
+						// 	}
+						// }
 					}
 				}
 
@@ -321,8 +355,89 @@ func (g ClientTestGenerator) mockServerGenerate(group *jen.Group, ep options.End
 	)
 }
 
+func (g *ClientTestGenerator) generateCheckError(group *jen.Group, ep options.Endpoint, cfg Config, errorWrapperName string) {
+	if !ep.Sig.Results.HasError() {
+		return
+	}
+	if !cfg.CheckError {
+		group.Do(gen.CheckErr(
+			jen.Id("t").Dot("Fatalf").Call(jen.Lit("%s: %s"), jen.Lit("failed execute method "+ep.MethodShortName), jen.Id("err")),
+		))
+		return
+	}
+	group.Do(gen.CheckNotErr(
+		jen.Id("t").Dot("Fatal").Call(jen.Lit("failed execute method " + ep.MethodShortName + " error is nil")),
+	))
+	if g.errorWrapper != nil {
+		group.Var().Id("e").Op("*").Do(g.qualFn(g.errorWrapper.Default.Named.Pkg.Path, g.errorWrapper.Default.Named.Name))
+		group.If(jen.Do(g.qualFn("errors", "As")).Call(jen.Err(), jen.Op("&").Id("e"))).BlockFunc(func(group *jen.Group) {
+			for _, f := range g.errorWrapper.Fields {
+				group.If(
+					jen.Id(errorWrapperName).Dot(f.FldName).Op("!=").Id("e").Dot(f.FldName),
+				).Block(jen.Id("t").Dot("Fatal").Call(jen.Lit("failed equal error field " + ep.MethodShortName + " " + f.FldName + " not equal")))
+			}
+		}).Else().Block(
+			jen.Id("t").Dot("Fatal").Call(jen.Lit("failed equal error " + ep.MethodShortName + " not equal")),
+		)
+	}
+}
+
+func (g *ClientTestGenerator) generateCheckBodyResult(group *jen.Group, ep options.Endpoint, cfg Config) {
+	if cfg.CheckError || len(ep.BodyResults) <= 0 {
+		return
+	}
+	for _, r := range ep.BodyResults {
+		if named, ok := r.Type.(*types.Named); ok {
+			st := named.Struct()
+			if st == nil {
+				continue
+			}
+			for _, f := range st.Fields {
+				for _, v := range gen.Flatten(f) {
+					if v.IsArray {
+						continue
+					}
+
+					fieldPath := v.Paths.String()
+
+					if v.Var.IsPointer {
+						group.If(jen.Id(r.Name).Op(".").Add(v.Path).Op("==").Nil()).BlockFunc(func(group *jen.Group) {
+							group.Id("t").Dot("Fatal").Call(jen.Lit("failed equal method " + ep.MethodShortName + " " + fieldPath + " is nil"))
+						})
+					} else {
+						group.If(
+							jen.Id(r.Name).Op(".").Add(v.Path).Op("!=").Id("serverResponse").Op(".").Add(v.Path),
+						).BlockFunc(func(group *jen.Group) {
+							group.Id("t").Dot("Fatal").Call(jen.Lit("failed equal method " + ep.MethodShortName + " " + fieldPath + " not equal"))
+						})
+					}
+				}
+			}
+		}
+
+	}
+}
+
+func (g *ClientTestGenerator) generateErrorWrapper(group *jen.Group, cfg Config) (errorWrapperName string) {
+	if !cfg.CheckError {
+		return
+	}
+	if g.errorWrapper == nil {
+		return
+	}
+	errorWrapperName = strcase.ToLowerCamel(g.errorWrapper.Struct.Named.Name)
+	group.Id(errorWrapperName).Op(":=").
+		Do(g.qualFn(g.errorWrapper.Struct.Named.Pkg.Path, g.errorWrapper.Struct.Named.Name)).
+		ValuesFunc(func(group *jen.Group) {
+			for _, field := range g.errorWrapper.Fields {
+				group.Id(field.FldName).Op(":").Add(g.typeToValue(field.FldType))
+			}
+		})
+	return errorWrapperName
+}
+
 func (g *ClientTestGenerator) Generate(iface options.Iface, ep options.Endpoint, configs []Config) {
-	constructName := "New" + iface.Name + "Client"
+	constructName := "create" + iface.Name + "Client"
 
 	for _, cfg := range configs {
 		testMethod := fmt.Sprintf("%s_%d", ep.MethodName, cfg.StatusCode)
@@ -333,17 +448,7 @@ func (g *ClientTestGenerator) Generate(iface options.Iface, ep options.Endpoint,
 			g.bodyParamsGenerate(group, ep)
 			g.paramsGenerate(group, ep.Params)
 
-			var errorWrapperName string
-			if cfg.CheckError && g.errorWrapper != nil {
-				errorWrapperName = strcase.ToLowerCamel(g.errorWrapper.Struct.Named.Name)
-				group.Id(errorWrapperName).Op(":=").
-					Do(g.qualFn(g.errorWrapper.Struct.Named.Pkg.Path, g.errorWrapper.Struct.Named.Name)).
-					ValuesFunc(func(group *jen.Group) {
-						for _, field := range g.errorWrapper.Fields {
-							group.Id(field.FldName).Op(":").Add(g.typeToValue(field.FldType))
-						}
-					})
-			}
+			errorWrapperName := g.generateErrorWrapper(group, cfg)
 
 			g.mockServerGenerate(group, ep, errorWrapperName, cfg)
 
@@ -351,14 +456,13 @@ func (g *ClientTestGenerator) Generate(iface options.Iface, ep options.Endpoint,
 				jen.Id("mockServer"),
 			)
 
-			opts := []jen.Code{jen.Id("server").Dot("URL")}
-			opts = append(opts,
-				jen.Do(g.qualFn(iface.PkgPath, "ClientTestOptionFactory")).Call(
-					jen.Lit(testMethod),
-				).Op("..."),
-			)
+			opts := []jen.Code{
+				jen.Id("server").Dot("URL"),
+				jen.Lit(ep.MethodName),
+				jen.Lit(cfg.StatusCode),
+			}
 
-			group.Id("client").Op(":=").Qual(g.pkgPath, constructName).Call(opts...)
+			group.Id("client").Op(":=").Id(constructName).Call(opts...)
 
 			group.Do(func(s *jen.Statement) {
 				if ep.Sig.Results.Len() > 0 {
@@ -402,58 +506,9 @@ func (g *ClientTestGenerator) Generate(iface options.Iface, ep options.Endpoint,
 				}
 			})
 
-			if ep.Sig.Results.HasError() {
-				if !cfg.CheckError {
-					group.Do(gen.CheckErr(
-						jen.Id("t").Dot("Fatalf").Call(jen.Lit("%s: %s"), jen.Lit("failed execute method "+ep.MethodShortName), jen.Id("err")),
-					))
-				} else {
-					group.Do(gen.CheckNotErr(
-						jen.Id("t").Dot("Fatal").Call(jen.Lit("failed execute method " + ep.MethodShortName + " error is nil")),
-					))
-				}
-			}
+			g.generateCheckError(group, ep, cfg, errorWrapperName)
 
-			if !cfg.CheckError {
-				if len(ep.BodyResults) > 0 {
-					for _, r := range ep.BodyResults {
-						if named, ok := r.Type.(*types.Named); ok {
-							if st := named.Struct(); st != nil {
-								for _, f := range st.Fields {
-									for _, v := range gen.Flatten(f) {
-										if v.IsArray {
-											continue
-										}
-										fieldPath := v.Paths.String()
-										if _, ok := v.Var.Type.(*types.Named); ok && v.Var.IsPointer {
-											group.If(jen.Id(r.Name).Op(".").Add(v.Path).Op("==").Nil()).BlockFunc(func(group *jen.Group) {
-												group.Id("t").Dot("Fatal").Call(jen.Lit("failed equal method " + ep.MethodShortName + " " + fieldPath + " is nil"))
-											})
-										} else {
-											group.If(
-												jen.Id(r.Name).Op(".").Add(v.Path).Op("!=").Id("serverResponse").Op(".").Add(v.Path),
-											).BlockFunc(func(group *jen.Group) {
-												group.Id("t").Dot("Fatal").Call(jen.Lit("failed equal method " + ep.MethodShortName + " " + fieldPath + " not equal"))
-											})
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			} else if g.errorWrapper != nil {
-				group.Var().Id("e").Op("*").Do(g.qualFn(g.errorWrapper.Default.Named.Pkg.Path, g.errorWrapper.Default.Named.Name))
-				group.If(jen.Do(g.qualFn("errors", "As")).Call(jen.Err(), jen.Op("&").Id("e"))).BlockFunc(func(group *jen.Group) {
-					for _, f := range g.errorWrapper.Fields {
-						group.If(
-							jen.Id(errorWrapperName).Dot(f.FldName).Op("!=").Id("e").Dot(f.FldName),
-						).Block(jen.Id("t").Dot("Fatal").Call(jen.Lit("failed equal error field " + ep.MethodShortName + " " + f.FldName + " not equal")))
-					}
-				}).Else().Block(
-					jen.Id("t").Dot("Fatal").Call(jen.Lit("failed equal error " + ep.MethodShortName + " not equal")),
-				)
-			}
+			g.generateCheckBodyResult(group, ep, cfg)
 		})
 	}
 }

@@ -28,8 +28,25 @@ type Plugin struct {
 func (p *Plugin) Name() string { return "webview" }
 
 func (p *Plugin) Exec() (files []file.File, errs error) {
-	serverFile := file.NewGoFile(p.ctx.Module, p.ServerOutput())
-	clientFile := file.NewGoFile(p.ctx.Module, p.ClientOutput())
+	serverOutput := filepath.Join(p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("server-output", "internal/transport/handler.go"))
+	clientOutput := filepath.Join(p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("client-output", "internal/client/client.go"))
+	jsClientOutput := filepath.Join(p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("js-client-output", "internal/client/client.js"))
+
+	serverOutput, err := filepath.Abs(serverOutput)
+	if err != nil {
+		return nil, err
+	}
+	clientOutput, err = filepath.Abs(clientOutput)
+	if err != nil {
+		return nil, err
+	}
+	jsClientOutput, err = filepath.Abs(jsClientOutput)
+	if err != nil {
+		return nil, err
+	}
+
+	serverFile := file.NewGoFile(p.ctx.Module, serverOutput)
+	clientFile := file.NewGoFile(p.ctx.Module, clientOutput)
 
 	var (
 		jsClientInterfaces  gg.Interfaces
@@ -43,13 +60,12 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 				asmClientInterfaces = append(asmClientInterfaces, iface)
 			case "js":
 				jsClientInterfaces = append(jsClientInterfaces, iface)
-				break
 			}
 		}
 	}
 
 	if len(jsClientInterfaces) > 0 {
-		jsClientFile := file.NewTxtFile(filepath.Join(p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("output", "internal/transport/client.js")))
+		jsClientFile := file.NewTxtFile(jsClientOutput)
 
 		jsClientFile.WriteText("/*global executeHandler*/\n\n")
 
@@ -81,8 +97,19 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 				}
 				jsClientFile.WriteText("    }\n")
 				jsClientFile.WriteText("  }\n\n")
-				jsClientFile.WriteText("  const result = await executeHandler(JSON.stringify(payload));\n")
-				jsClientFile.WriteText("  return JSON.parse(atob(result));\n")
+
+				resultLen := m.Sig.Results.LenFunc(func(v *types.Var) bool {
+					return v.IsError
+				})
+				if resultLen > 0 {
+					jsClientFile.WriteText("  const result = ")
+				}
+
+				jsClientFile.WriteText("await executeHandler(JSON.stringify(payload));\n")
+
+				if resultLen > 0 {
+					jsClientFile.WriteText("  return JSON.parse(result);\n")
+				}
 				jsClientFile.WriteText("}\n\n")
 			}
 		}
@@ -174,7 +201,7 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 							g.Do(gen.CheckErr(
 								jen.Return(jen.Lit(""), jen.Err()),
 							))
-							g.Return(jen.Qual(base64Pkg, "StdEncoding").Dot("EncodeToString").Call(jen.Id("data")), jen.Nil())
+							g.Return(jen.String().Call(jen.Id("data")), jen.Nil())
 						} else {
 							g.Return(jen.Lit(""), jen.Nil())
 						}
@@ -356,14 +383,6 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 	}
 
 	return files, nil
-}
-
-func (p *Plugin) ServerOutput() string {
-	return filepath.Join(p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("output", "internal/transport/handler.go"))
-}
-
-func (p *Plugin) ClientOutput() string {
-	return filepath.Join(p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("output", "internal/client/client.go"))
 }
 
 func (p *Plugin) Dependencies() []string { return nil }

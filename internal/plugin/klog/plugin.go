@@ -2,8 +2,6 @@ package logging
 
 import (
 	"fmt"
-	"go/token"
-	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -18,10 +16,10 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
-type middlewarePlugin interface {
-	NameMiddleware(named *types.Named) string
-	Output() string
-}
+// type middlewarePlugin interface {
+// 	NameMiddleware(named *types.Named) string
+// 	Output() string
+// }
 
 type Plugin struct {
 	ctx *gg.Context
@@ -32,11 +30,11 @@ func (p *Plugin) Name() string { return "klog" }
 func (p *Plugin) Exec() (files []file.File, errs error) {
 	output := filepath.Join(p.ctx.Workdir, p.ctx.Options.GetStringWithDefault("output", "internal/logging/logging.go"))
 	f := file.NewGoFile(p.ctx.Module, output)
-	middlewarePlugin, ok := p.ctx.Plugin("middleware").(middlewarePlugin)
-	if !ok {
-		errs = multierror.Append(errs, errors.Error("middleware plugin not found", token.Position{}))
-		return
-	}
+	// middlewarePlugin, ok := p.ctx.Plugin("middleware").(middlewarePlugin)
+	// if !ok {
+	// 	errs = multierror.Append(errs, errors.Error("middleware plugin not found", token.Position{}))
+	// 	return
+	// }
 
 	loggerPkg := "github.com/go-kit/log"
 	levelPkg := "github.com/go-kit/log/level"
@@ -62,8 +60,23 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 
 	for _, iface := range p.ctx.Interfaces {
 		nameStruct := p.NameStruct(iface.Named)
-		nameMiddleware := middlewarePlugin.NameMiddleware(iface.Named)
-		pkgMiddleware := path.Dir(path.Join(p.ctx.Module.Path, strings.Replace(middlewarePlugin.Output(), p.ctx.Module.Dir, "", -1)))
+
+		tag, ok := iface.Named.Tags.Get("slog-middleware-type")
+		if !ok {
+			errs = multierror.Append(errs, fmt.Errorf("interface %s.%s not set `slog-middleware-type` option", iface.Named.Pkg.Path, iface.Named.Name))
+			continue
+		}
+		parts := strings.Split(tag.Value, ".")
+		if len(parts) != 2 {
+			errs = multierror.Append(errs, fmt.Errorf("interface %s.%s option `slog-middleware-type` invalid format: %s", iface.Named.Pkg.Path, iface.Named.Name, tag.Value))
+			continue
+		}
+
+		nameMiddleware := parts[0]
+		pkgMiddleware := parts[1]
+
+		// nameMiddleware := middlewarePlugin.NameMiddleware(iface.Named)
+		// pkgMiddleware := path.Dir(path.Join(p.ctx.Module.Path, strings.Replace(middlewarePlugin.Output(), p.ctx.Module.Dir, "", -1)))
 
 		f.Type().Id(nameStruct).Struct(
 			Id("next").Qual(iface.Named.Pkg.Path, iface.Named.Name),
