@@ -18,7 +18,7 @@ type Named struct {
 	Tags        Tags
 }
 
-func (n *Named) System() bool {
+func (n *Named) IsSystemType() bool {
 	key := n.Pkg.Path + "." + n.Name
 	switch key {
 	case "time.Time", "time.Duration":

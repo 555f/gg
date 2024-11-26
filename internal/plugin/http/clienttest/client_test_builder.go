@@ -245,43 +245,36 @@ func (g ClientTestGenerator) mockServerGenerate(group *jen.Group, ep options.End
 											}
 											fieldPath := v.Paths.String()
 
-											if named, ok := v.Var.Type.(*types.Named); ok && named.System() {
-												group.If(jen.Op("!").Qual("reflect", "DeepEqual").Call(jen.Id("body").Dot(p.FldName.Camel()).Index(jen.Lit(0)).Op(".").Add(v.Path), jen.Id("serverRequest").Dot(p.FldName.Camel()).Index(jen.Lit(0)).Op(".").Add(v.Path))).BlockFunc(func(g *jen.Group) {
-													g.Id("t").Dot("Fatal").Call(jen.Lit("failed equal method " + ep.MethodShortName + " " + fieldPath))
-												})
-											} else {
+											switch t := v.Var.Type.(type) {
+											default:
 												group.If(jen.Id("body").Dot(p.FldName.Camel()).Index(jen.Lit(0)).Op(".").Add(v.Path).Op("!=").Id("serverRequest").Dot(p.FldName.Camel()).Index(jen.Lit(0)).Op(".").Add(v.Path)).BlockFunc(func(g *jen.Group) {
 													g.Id("t").Dot("Fatal").Call(jen.Lit("failed equal method " + ep.MethodShortName + " " + fieldPath))
 												})
+											case *types.Basic:
+												if t.IsPointer {
+													group.If(jen.Id("body").Dot(p.FldName.Camel()).Index(jen.Lit(0)).Op(".").Add(v.Path).Op("==").Nil()).BlockFunc(func(g *jen.Group) {
+														g.Id("t").Dot("Fatal").Call(jen.Lit("failed equal method " + ep.MethodShortName + " " + fieldPath + " is nil"))
+													})
+													group.If(jen.Op("*").Id("body").Dot(p.FldName.Camel()).Index(jen.Lit(0)).Op(".").Add(v.Path).Op("!=").Op("*").Id("serverRequest").Dot(p.FldName.Camel()).Index(jen.Lit(0)).Op(".").Add(v.Path)).BlockFunc(func(g *jen.Group) {
+														g.Id("t").Dot("Fatal").Call(jen.Lit("failed equal method " + ep.MethodShortName + " " + fieldPath))
+													})
+												} else {
+													group.If(jen.Id("body").Dot(p.FldName.Camel()).Index(jen.Lit(0)).Op(".").Add(v.Path).Op("!=").Id("serverRequest").Dot(p.FldName.Camel()).Index(jen.Lit(0)).Op(".").Add(v.Path)).BlockFunc(func(g *jen.Group) {
+														g.Id("t").Dot("Fatal").Call(jen.Lit("failed equal method " + ep.MethodShortName + " " + fieldPath))
+													})
+												}
+											case *types.Named:
+												if t.IsSystemType() {
+													group.If(jen.Op("!").Qual("reflect", "DeepEqual").Call(jen.Id("body").Dot(p.FldName.Camel()).Index(jen.Lit(0)).Op(".").Add(v.Path), jen.Id("serverRequest").Dot(p.FldName.Camel()).Index(jen.Lit(0)).Op(".").Add(v.Path))).BlockFunc(func(g *jen.Group) {
+														g.Id("t").Dot("Fatal").Call(jen.Lit("failed equal method " + ep.MethodShortName + " " + fieldPath))
+													})
+												}
 											}
 										}
 									}
 								}
 							}
 						}
-
-						// if named, ok := p.Type.(*types.Named); ok {
-						// 	if st := named.Struct(); st != nil {
-						// 		for _, f := range st.Fields {
-						// 			for _, v := range gen.Flatten(f) {
-						// 				if v.IsArray {
-						// 					continue
-						// 				}
-						// 				fieldPath := v.Paths.String()
-
-						// 				group.If(jen.Id("body").Dot(p.FldName.Camel()).Op(".").Add(v.Path).Op("!=").Id("serverRequest").Dot(p.FldName.Camel()).Op(".").Add(v.Path)).BlockFunc(func(g *jen.Group) {
-						// 					g.Id("t").Dot("Fatal").Call(jen.Lit("failed equal method " + ep.MethodShortName + " " + fieldPath))
-						// 				})
-						// 			}
-						// 		}
-						// 	}
-						// } else {
-						// 	if a, ok := p.Type.(*types.Slice); ok {
-
-						// 	} else {
-
-						// 	}
-						// }
 					}
 				}
 

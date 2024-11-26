@@ -55,7 +55,7 @@ func (p *FlattenProcessor) varsByType(t any) (vars types.Vars) {
 		}
 		return vars
 	case *types.Named:
-		if t.System() {
+		if t.IsSystemType() {
 			return nil
 		}
 		return p.varsByType(t.Type)
