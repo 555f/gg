@@ -162,6 +162,7 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 
 	if len(clientTestServices) > 0 {
 		clientTestFile := file.NewGoFile(p.ctx.Module, clientTestOutput, file.UseTestPkg())
+		clientTestFile.SetVersion(p.ctx.Version)
 
 		fake := faker.New()
 		clientTestGen := clienttest.New(clientTestFile.Group, p.ctx.PkgPath, fake, clientTestFile.Import, errorWrapper)
