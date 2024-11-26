@@ -32,24 +32,29 @@ type ClientTestGenerator struct {
 	errorWrapper *options.ErrorWrapper
 }
 
+func (g *ClientTestGenerator) basicTypeToValue(t *types.Basic, manualValue ...string) jen.Code {
+	switch {
+	default:
+		return jen.Lit(g.fake.Lorem().Sentence(10))
+	case t.IsBool():
+		return jen.Lit(true)
+	case t.IsInteger():
+		return jen.Lit(g.fake.RandomNumber(5))
+	case t.IsFloat():
+		return jen.Lit(g.fake.Float64(2, 1, 100))
+	case t.IsSigned():
+		return jen.Lit(10)
+	}
+}
+
 func (g *ClientTestGenerator) typeToValue(t any, manualValue ...string) jen.Code {
 	switch u := t.(type) {
 	case *types.Basic:
+		c := g.basicTypeToValue(u, manualValue...)
 		if u.IsPointer {
-			return jen.Nil()
+			c = jen.Id("ptr").Call(c)
 		}
-		switch {
-		default:
-			return jen.Lit(g.fake.Lorem().Sentence(10))
-		case u.IsBool():
-			return jen.Lit(true)
-		case u.IsInteger():
-			return jen.Lit(g.fake.RandomNumber(5))
-		case u.IsFloat():
-			return jen.Lit(g.fake.Float64(2, 1, 100))
-		case u.IsSigned():
-			return jen.Lit(10)
-		}
+		return c
 	case *types.Named:
 		var s jen.Statement
 		if u.IsPointer {
@@ -404,6 +409,11 @@ func (g *ClientTestGenerator) generateCheckBodyResult(group *jen.Group, ep optio
 						group.If(jen.Id(r.Name).Op(".").Add(v.Path).Op("==").Nil()).BlockFunc(func(group *jen.Group) {
 							group.Id("t").Dot("Fatal").Call(jen.Lit("failed equal method " + ep.MethodShortName + " " + fieldPath + " is nil"))
 						})
+						if _, ok := v.Var.Type.(*types.Basic); ok {
+							group.If(jen.Op("*").Id(r.Name).Op(".").Add(v.Path).Op("!=").Op("*").Id("serverResponse").Op(".").Add(v.Path)).BlockFunc(func(group *jen.Group) {
+								group.Id("t").Dot("Fatal").Call(jen.Lit("failed equal method " + ep.MethodShortName + " " + fieldPath + " not equal"))
+							})
+						}
 					} else {
 						group.If(
 							jen.Id(r.Name).Op(".").Add(v.Path).Op("!=").Id("serverResponse").Op(".").Add(v.Path),
@@ -438,6 +448,10 @@ func (g *ClientTestGenerator) generateErrorWrapper(group *jen.Group, cfg Config)
 
 func (g *ClientTestGenerator) Generate(iface options.Iface, ep options.Endpoint, configs []Config) {
 	constructName := "create" + iface.Name + "Client"
+
+	g.group.Func().Id("ptr").Types(jen.Id("T").Any()).Params(jen.Id("t").Id("T")).Op("*").Id("T").Block(
+		jen.Return(jen.Op("&").Id("t")),
+	)
 
 	for _, cfg := range configs {
 		testMethod := fmt.Sprintf("%s_%d", ep.MethodName, cfg.StatusCode)
