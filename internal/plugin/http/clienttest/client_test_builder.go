@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	stdtypes "go/types"
+
 	"github.com/555f/gg/internal/plugin/http/options"
 	"github.com/555f/gg/pkg/gen"
 	"github.com/555f/gg/pkg/strcase"
@@ -52,6 +54,10 @@ func (g *ClientTestGenerator) typeToValue(t any, manualValue ...string) jen.Code
 	case *types.Basic:
 		c := g.basicTypeToValue(u, manualValue...)
 		if u.IsPointer {
+			switch u.Kind {
+			case stdtypes.Float32, stdtypes.Float64, stdtypes.Int8, stdtypes.Int16, stdtypes.Int32, stdtypes.Int64, stdtypes.Uint8, stdtypes.Uint16, stdtypes.Uint32, stdtypes.Uint64:
+				c = jen.Id(u.Name()).Call(c)
+			}
 			c = jen.Id("ptr").Call(c)
 		}
 		return c
@@ -517,7 +523,6 @@ func (g *ClientTestGenerator) Generate(iface options.Iface, ep options.Endpoint,
 			})
 
 			g.generateCheckError(group, ep, cfg, errorWrapperName)
-
 			g.generateCheckBodyResult(group, ep, cfg)
 		})
 	}
