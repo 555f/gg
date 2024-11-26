@@ -2,15 +2,12 @@ package command
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/555f/gg/pkg/errors"
 	"github.com/555f/gg/pkg/gg"
-	"github.com/555f/selfupdate"
-	"github.com/manifoldco/promptui"
 
 	"github.com/fatih/color"
 	"github.com/hashicorp/go-multierror"
@@ -24,51 +21,12 @@ var (
 	green  = color.New(color.FgGreen).SprintFunc()
 )
 
-const (
-	defaultSelfUpdateAPI    = "https://gg.lobchuk.ru"
-	defaultSelfUpdateBinary = "https://gg.lobchuk.ru"
-)
-
 // runCmd represents the init command
 var runCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Start code generation",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		noSelfUpdate := viper.GetBool("no-selfupdate")
-		if cmd.Root().Version != "dev" && !noSelfUpdate {
-			var updater = &selfupdate.Updater{
-				CurrentVersion: cmd.Root().Version,                // Manually update the const, or set it using `go build -ldflags="-X main.VERSION=<newver>" -o hello-updater src/hello-updater/main.go`
-				ApiURL:         viper.GetString("selfupdate-api"), // The server hosting `$CmdName/$GOOS-$ARCH.json` which contains the checksum for the binary
-				BinURL:         viper.GetString("selfupdate-bin"), // The server hosting the zip file containing the binary application which is a fallback for the patch method
-				Dir:            "update/",                         // The directory created by the app when run which stores the cktime file
-				CmdName:        "",                                // The app name which is appended to the ApiURL to look for an update
-				ForceCheck:     true,                              // For this example, always check for an update unless the version is "dev"
-			}
-			version, err := updater.UpdateAvailable()
-			if err != nil {
-				cmd.Printf(red("Check update failed %v\n"), err)
-				return
-			}
-			if version != "" {
-				cmd.Print(green("Update version ") + yellow(version) + green(" available!!!\n"))
-
-				prompt := promptui.Prompt{
-					Label:     "Do you have update",
-					IsConfirm: true,
-				}
-				result, _ := prompt.Run()
-				if result == "y" || result == "yes" {
-					err := updater.Run()
-					if err != nil {
-						log.Println("Failed to update app:", err)
-					}
-					cmd.Printf(green("Update to latest version: %s success, run command again.\n"), updater.Info.Version)
-					return
-				}
-			}
-		}
-
 		packageNames := viper.GetStringSlice("packages")
 		configFile := viper.ConfigFileUsed()
 		configFile = filepath.FromSlash(configFile)
@@ -152,15 +110,6 @@ func init() {
 
 	runCmd.Flags().BoolP("debug", "d", false, "Debug mode")
 	_ = viper.BindPFlag("debug", runCmd.Flags().Lookup("debug"))
-
-	runCmd.Flags().BoolP("no-selfupdate", "s", false, "Self update disable")
-	_ = viper.BindPFlag("no-selfupdate", runCmd.Flags().Lookup("no-selfupdate"))
-
-	runCmd.Flags().StringP("selfupdate-api", "a", defaultSelfUpdateAPI, "The server hosting `$CmdName/$GOOS-$ARCH.json` which contains the checksum for the binary")
-	_ = viper.BindPFlag("selfupdate-api", runCmd.Flags().Lookup("selfupdate-api"))
-
-	runCmd.Flags().StringP("selfupdate-bin", "b", defaultSelfUpdateBinary, "The server hosting the zip file containing the binary application which is a fallback for the patch method")
-	_ = viper.BindPFlag("selfupdate-bin", runCmd.Flags().Lookup("selfupdate-bin"))
 
 	runCmd.Flags().StringToStringP("plugins", "l", map[string]string{}, "")
 	_ = viper.BindPFlag("plugins", runCmd.Flags().Lookup("plugins"))
