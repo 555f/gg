@@ -449,10 +449,6 @@ func (g *ClientTestGenerator) generateErrorWrapper(group *jen.Group, cfg Config)
 func (g *ClientTestGenerator) Generate(iface options.Iface, ep options.Endpoint, configs []Config) {
 	constructName := "create" + iface.Name + "Client"
 
-	g.group.Func().Id("ptr").Types(jen.Id("T").Any()).Params(jen.Id("t").Id("T")).Op("*").Id("T").Block(
-		jen.Return(jen.Op("&").Id("t")),
-	)
-
 	for _, cfg := range configs {
 		testMethod := fmt.Sprintf("%s_%d", ep.MethodName, cfg.StatusCode)
 		testName := "Test" + iface.Name + "_" + testMethod
@@ -528,6 +524,10 @@ func (g *ClientTestGenerator) Generate(iface options.Iface, ep options.Endpoint,
 }
 
 func New(group *jen.Group, pkgPath string, fake faker.Faker, qualFn types.QualFunc, errorWrapper *options.ErrorWrapper) *ClientTestGenerator {
+	group.Func().Id("ptr").Types(jen.Id("T").Any()).Params(jen.Id("t").Id("T")).Op("*").Id("T").Block(
+		jen.Return(jen.Op("&").Id("t")),
+	)
+
 	return &ClientTestGenerator{
 		group:        group,
 		pkgPath:      pkgPath,
