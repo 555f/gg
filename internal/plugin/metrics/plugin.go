@@ -122,7 +122,6 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 						jen.Lit("methodNameShort").Op(":").Id(constName + "Short"),
 						jen.Lit("methodNameFull").Op(":").Id(constName),
 					}
-					errsLabelCodes := append(labelCodes, jen.Lit("errorCode").Op(":").Lit("respFailed"))
 
 					g.Defer().
 						Func().
@@ -134,12 +133,21 @@ func (p *Plugin) Exec() (files []file.File, errs error) {
 								jen.Qual(prometheusPkg, "Labels").Values(labelCodes...),
 							).Dot("Inc").Call()
 							if len(errorVars) > 0 {
+								errMetricCode := func(errsLabelCodes ...jen.Code) jen.Code {
+									return jen.Id("m").Dot("c").Dot("ErrRequests").Call().Dot("With").Call(
+										jen.Qual(prometheusPkg, "Labels").Values(errsLabelCodes...),
+									).Dot("Inc").Call()
+								}
 								for _, e := range errorVars {
-									g.If(jen.Id(e.Name)).Op("!=").Nil().Block(
-										jen.Id("m").Dot("c").Dot("ErrRequests").Call().Dot("With").Call(
-											jen.Qual(prometheusPkg, "Labels").Values(errsLabelCodes...),
-										).Dot("Inc").Call(),
-									)
+									if opts.LabelErrFunc.Valid {
+										g.If(jen.List(jen.Id("labelValue"), jen.Id("ok")).Op(":=").Do(f.Import(opts.LabelErrFunc.PkgPath, opts.LabelErrFunc.Name)).Call(jen.Id(e.Name)), jen.Id("ok")).Block(
+											errMetricCode(append(labelCodes, jen.Lit("errorCode").Op(":").Id("labelValue"))...),
+										)
+									} else {
+										g.If(jen.Id(e.Name)).Op("!=").Nil().Block(
+											errMetricCode(append(labelCodes, jen.Lit("errorCode").Op(":").Lit("respFailed"))...),
+										)
+									}
 								}
 							}
 							g.Id("m").Dot("c").Dot("Duration").Call().Dot("With").Call(
